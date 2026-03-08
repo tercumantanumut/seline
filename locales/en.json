@@ -222,6 +222,8 @@
         "ttsEdge": "Edge TTS (free)",
         "ttsOpenai": "OpenAI TTS",
         "ttsElevenlabs": "ElevenLabs",
+        "edgeTtsVoice": "Voice",
+        "edgeTtsVoiceDesc": "400+ neural voices across 70+ languages",
         "avatar3d": "3D animated avatar",
         "avatar3dDesc": "Lip-synced face that speaks with the agent",
         "emotionDetection": "Emotion detection",
@@ -2506,6 +2508,9 @@
         "badgeApiKey": "API Key",
         "defaultVoiceLabel": "Default OpenAI voice",
         "defaultVoiceHelper": "Used when a request does not specify a different voice.",
+        "edgeVoiceLabel": "Edge TTS voice",
+        "edgeVoiceHelper": "Select the voice used for Edge TTS speech synthesis.",
+        "edgeVoiceSearch": "Search voices by name or language...",
         "elevenLabsTitle": "ElevenLabs account details",
         "elevenLabsDesc": "Add your key and voice so replies use the right ElevenLabs profile.",
         "elevenLabsKeyLabel": "ElevenLabs API key",
@@ -2868,6 +2873,7 @@
       "schedules": "Scheduled Tasks",
       "usage": "Usage & Analytics",
       "channels": "Channels",
+      "folders": "Folders",
       "noActiveChannels": "No active channels",
       "startNew": "Start new chat",
       "new": "New",
@@ -4009,6 +4015,10 @@
       "remove": "Remove"
     },
     "selected": "Done",
+    "voice": {
+      "title": "Edge TTS Voice",
+      "description": "Select the voice your avatar speaks with."
+    },
     "error": {
       "tooLarge": "Max 20MB",
       "invalidType": "Only .glb files",

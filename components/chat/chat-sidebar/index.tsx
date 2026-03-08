@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
+import { FolderManagerDialog } from "@/components/character-picker-dialogs";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { getSessionActivityTimestamp } from "@/components/chat/chat-interface-utils";
@@ -104,6 +105,7 @@ export function CharacterSidebar({
   const [archivedSessions, setArchivedSessions] = useState<SessionInfo[]>([]);
   const [loadingArchived, setLoadingArchived] = useState(false);
   const [channelsOpen, setChannelsOpen] = useState(false);
+  const [foldersOpen, setFoldersOpen] = useState(false);
   const [channelConnections, setChannelConnections] = useState<
     ChannelConnectionSummary[]
   >([]);
@@ -266,6 +268,11 @@ export function CharacterSidebar({
         characterName={character.displayName || character.name}
         onConnectionsChange={setChannelConnections}
       />
+      <FolderManagerDialog
+        open={foldersOpen}
+        onOpenChange={setFoldersOpen}
+        folderManagerCharacter={character as any}
+      />
       <SidebarDeleteDialog
         open={deleteDialogOpen}
         pendingSession={pendingDeleteSession}
@@ -288,6 +295,7 @@ export function CharacterSidebar({
         channelsLoading={channelsLoading}
         onOpenAvatarDialog={() => setAvatarDialogOpen(true)}
         onOpenChannelsDialog={() => setChannelsOpen(true)}
+        onOpenFoldersDialog={() => setFoldersOpen(true)}
       />
 
       <SessionList

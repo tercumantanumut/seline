@@ -213,6 +213,7 @@ export interface AppSettings {
     elevenLabsVoiceId?: string;
     openaiTtsVoice?: string;
     openaiTtsModel?: string;
+    edgeTtsVoice?: string;         // Edge TTS voice ID (e.g. "en-US-AriaNeural")
     ttsSummarizeThreshold?: number; // Chars above which to summarize before TTS
 
     // Audio Transcription (STT) settings
@@ -343,6 +344,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     ttsSummarizeThreshold: 1500,
     openaiTtsVoice: "alloy",
     openaiTtsModel: "gpt-4o-mini-tts",
+    edgeTtsVoice: "en-US-AriaNeural",
     // STT defaults
     sttEnabled: true,
     sttProvider: "local",

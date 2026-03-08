@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Plug } from "lucide-react";
+import { Camera, FolderPlus, Plug } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ interface SidebarCharacterProfileProps {
   channelsLoading: boolean;
   onOpenAvatarDialog: () => void;
   onOpenChannelsDialog: () => void;
+  onOpenFoldersDialog: () => void;
 }
 
 export function SidebarCharacterProfile({
@@ -39,6 +40,7 @@ export function SidebarCharacterProfile({
   channelsLoading,
   onOpenAvatarDialog,
   onOpenChannelsDialog,
+  onOpenFoldersDialog,
 }: SidebarCharacterProfileProps) {
   const t = useTranslations("chat");
   const tChannels = useTranslations("channels");
@@ -74,30 +76,34 @@ export function SidebarCharacterProfile({
               <h2 className="truncate font-semibold font-mono text-terminal-dark">
                 {character.displayName || character.name}
               </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onOpenChannelsDialog}
-                className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
-              >
-                <Plug className="mr-1 h-3.5 w-3.5" />
-                <span className="text-[11px] font-mono">
-                  {t("sidebar.channels")}
-                </span>
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onOpenFoldersDialog}
+                  className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
+                >
+                  <FolderPlus className="mr-1 h-3.5 w-3.5" />
+                  <span className="text-[11px] font-mono">
+                    {t("sidebar.folders")}
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onOpenChannelsDialog}
+                  className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
+                >
+                  <Plug className="mr-1 h-3.5 w-3.5" />
+                  <span className="text-[11px] font-mono">
+                    {t("sidebar.channels")}
+                  </span>
+                </Button>
+              </div>
             </div>
-            {character.tagline ? (
-              <p className="mt-0.5 truncate text-[11px] text-terminal-muted/80 font-mono">
-                {character.tagline}
-              </p>
-            ) : null}
-            <div className="mt-1.5 flex flex-wrap items-center gap-1">
-              {channelsLoading ? (
-                <span className="text-[10px] font-mono text-terminal-muted">
-                  {tChannels("connections.loading")}
-                </span>
-              ) : connectedCount > 0 ? (
-                channelConnections
+            {connectedCount > 0 && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                {channelConnections
                   .filter((connection) => connection.status === "connected")
                   .map((connection) => {
                     const Icon = CHANNEL_TYPE_ICONS[connection.channelType];
@@ -110,13 +116,9 @@ export function SidebarCharacterProfile({
                         {tChannels(`types.${connection.channelType}`)}
                       </Badge>
                     );
-                  })
-              ) : (
-                <span className="text-[10px] font-mono text-terminal-muted">
-                  {t("sidebar.noActiveChannels")}
-                </span>
-              )}
-            </div>
+                  })}
+              </div>
+            )}
           </div>
         </div>
       </div>

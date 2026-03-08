@@ -20,6 +20,7 @@ import {
 import type { FormState, SettingsSection } from "./settings-types";
 import { WhisperModelSelector } from "./whisper-model-selector";
 import { ParakeetModelSelector } from "./parakeet-model-selector";
+import { EdgeTTSVoiceSelector } from "./edge-tts-voice-selector";
 import { PreferencesSection } from "./preferences-section";
 import { MemorySection } from "./memory-section";
 import { ApiKeysSection } from "./api-keys-section";
@@ -595,6 +596,13 @@ export function SettingsPanel({
                       ))}
                     </select>
                   </SettingsField>
+                )}
+
+                {formState.ttsProvider === "edge" && (
+                  <EdgeTTSVoiceSelector
+                    value={formState.edgeTtsVoice}
+                    onChange={(voice) => updateField("edgeTtsVoice", voice)}
+                  />
                 )}
 
                 {formState.ttsProvider === "elevenlabs" && (

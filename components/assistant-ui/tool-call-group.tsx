@@ -202,10 +202,6 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     () => toolGroupExpansionState.get(expansionKey) ?? false
   );
 
-  const hasError = useMemo(() => {
-    return toolParts.some((part) => getStatus(part) === "error");
-  }, [toolParts]);
-
   const hasInteractiveUI = useMemo(() => {
     return toolParts.some((part) => TOOLS_AUTO_EXPAND.has(getCanonicalToolName(part.toolName)));
   }, [toolParts]);
@@ -262,7 +258,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
 
   const hasMedia = mediaPreviews.length > 0;
   const hasCompactReveal = !isDetailedMode && summaryItems.some(
-    (item) => item.detail || item.inputPreview || item.outputPreview
+    (item) => item.phase !== "error" && (item.detail || item.inputPreview || item.outputPreview)
   );
   const showCompactReveal = hasCompactReveal && !isExpanded && (isCompactRevealHovered || isCompactRevealPinned);
   const showChildren = isDetailedMode || isExpanded;
@@ -276,11 +272,11 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [expansionKey]);
 
   useEffect(() => {
-    if ((isDetailedMode || hasError || hasMedia || hasInteractiveUI) && !toolGroupExpansionState.has(expansionKey)) {
+    if ((isDetailedMode || hasMedia || hasInteractiveUI) && !toolGroupExpansionState.has(expansionKey)) {
       setIsExpanded(true);
       toolGroupExpansionState.set(expansionKey, true);
     }
-  }, [expansionKey, hasError, hasInteractiveUI, hasMedia, isDetailedMode]);
+  }, [expansionKey, hasInteractiveUI, hasMedia, isDetailedMode]);
 
   const expansionCtx = useToolExpansion();
   const lastSignalRef = useRef(0);
@@ -345,6 +341,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       {showCompactReveal && (
         <div className={cn("mt-2 space-y-2 border-t pt-2", isGlass ? "border-white/10" : "border-terminal-dark/10")}>
           {summaryItems.map((item) => {
+            if (item.phase === "error") return null;
             const previewText = item.detail ?? item.inputPreview ?? item.outputPreview;
             if (!previewText) return null;
 
