@@ -96,7 +96,7 @@ export function WorkflowCard({
       : "bg-gray-100 text-gray-500 border-gray-200";
 
   return (
-    <Card className="transition-all border-terminal-border bg-terminal-cream">
+    <Card className="transition-all border-terminal-border bg-terminal-cream/50 backdrop-blur-sm">
       <CardHeader className="pb-3">
         <div
           role="button"
@@ -189,7 +189,7 @@ export function WorkflowCard({
       {isExpanded && (
         <CardContent className="pt-0">
           <div className="space-y-4 border-t border-terminal-border/20 pt-4">
-            <div className="rounded-lg p-3 bg-terminal-bg/5">
+            <div className="rounded-lg border border-terminal-border/30 bg-terminal-cream/50 p-3 backdrop-blur-sm">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <select

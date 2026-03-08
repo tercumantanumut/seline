@@ -231,7 +231,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                 transition={{ duration: 0.2, delay: i * 0.05 }}
                 className={cn(
                   "rounded-lg border p-3 transition-colors",
-                  "border-terminal-border bg-terminal-cream/50",
+                  "border-terminal-border bg-terminal-cream/50 backdrop-blur-sm",
                   "hover:border-terminal-dark/20 hover:shadow-sm",
                   isStale && "opacity-60",
                 )}

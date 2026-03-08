@@ -32,6 +32,13 @@ interface ProgressToolPartLike {
   errorText?: string;
 }
 
+function isProgressTruncatedMarker(value: unknown): value is {
+  _progressTruncated: true;
+  summary?: unknown;
+} {
+  return !!value && typeof value === "object" && (value as { _progressTruncated?: unknown })._progressTruncated === true;
+}
+
 function summarizeString(value: string, maxLength: number): string {
   const compact = value.replace(/\s+/g, " ").trim();
   if (compact.length <= maxLength) return compact;
@@ -58,6 +65,12 @@ export function summarizeToolValue(value: unknown, maxLength: number = 120): str
 
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
+    if (isProgressTruncatedMarker(record)) {
+      if (typeof record.summary === "string" && record.summary.trim()) {
+        return summarizeString(record.summary, maxLength);
+      }
+      return "Truncated for progress display";
+    }
     if (Array.isArray(record.images)) return `${record.images.length} image${record.images.length === 1 ? "" : "s"}`;
     if (Array.isArray(record.videos)) return `${record.videos.length} video${record.videos.length === 1 ? "" : "s"}`;
     if (Array.isArray(record.sources)) return `${record.sources.length} source${record.sources.length === 1 ? "" : "s"}`;
@@ -133,7 +146,15 @@ function buildLiveStatusFromProgress(event: TaskProgressEvent): LiveToolStatus |
 
   if (part.type === "tool-result") {
     const rawStatus = typeof part.status === "string" ? part.status.toLowerCase() : "";
-    const isError = rawStatus === "error" || rawStatus === "failed" || rawStatus === "denied" || typeof part.errorText === "string";
+    const resultRecord = part.result && typeof part.result === "object"
+      ? (part.result as Record<string, unknown>)
+      : undefined;
+    const isError =
+      rawStatus === "error" ||
+      rawStatus === "failed" ||
+      rawStatus === "denied" ||
+      typeof part.errorText === "string" ||
+      typeof resultRecord?.error === "string";
     return {
       toolCallId: part.toolCallId,
       toolName: part.toolName,
@@ -150,6 +171,8 @@ function buildLiveStatusFromProgress(event: TaskProgressEvent): LiveToolStatus |
   const phase: LiveToolPhase = rawState === "input-streaming" || rawState === "input-available"
     ? "preparing"
     : "running";
+  const inputPreviewValue = part.input ?? part.args ?? part.argsText;
+  const isTruncatedPreview = isProgressTruncatedMarker(inputPreviewValue);
 
   return {
     toolCallId: part.toolCallId,
@@ -158,7 +181,7 @@ function buildLiveStatusFromProgress(event: TaskProgressEvent): LiveToolStatus |
     phase,
     label: phase === "preparing" ? "Preparing" : "Running",
     detail: scopedDetail,
-    argsPreview: summarizeToolInput(part.input ?? part.args ?? part.argsText),
+    argsPreview: isTruncatedPreview ? undefined : summarizeToolInput(inputPreviewValue),
     updatedAt: Date.now(),
   };
 }
@@ -166,7 +189,10 @@ function buildLiveStatusFromProgress(event: TaskProgressEvent): LiveToolStatus |
 export function getFallbackToolPhase(result: unknown, isRunning: boolean): LiveToolPhase {
   if (isRunning) return "running";
   const record = result && typeof result === "object" ? (result as Record<string, unknown>) : undefined;
-  if (record?.status === "error") return "error";
+  const status = typeof record?.status === "string" ? record.status.toLowerCase() : undefined;
+  if (status === "error" || status === "failed" || status === "denied" || typeof record?.error === "string") {
+    return "error";
+  }
   return "completed";
 }
 
@@ -182,6 +208,9 @@ export function useLiveToolStatuses(sessionId: string | undefined) {
 
       const status = buildLiveStatusFromProgress(detail);
       if (!status || !status.toolCallId) return;
+      if (detail.progressContentProjectionOnly && detail.progressContentLimited && status.phase !== "completed" && status.phase !== "error") {
+        return;
+      }
 
       setStatusByToolCallId((previous) => {
         const existing = previous[status.toolCallId!];

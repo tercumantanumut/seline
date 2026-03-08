@@ -1,3 +1,4 @@
+import { readFileSync, existsSync } from "fs";
 import { saveBase64Image, readLocalFile, fileExists } from "@/lib/storage/local-storage";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
@@ -96,6 +97,23 @@ async function convertImageToBase64(imageSource: string): Promise<string> {
     // Already valid base64
     return imageSource.replace(/^data:image\/\w+;base64,/, "");
   } else {
+    // Local filesystem path (file:// URL or absolute path)
+    let absolutePath: string | undefined;
+    if (imageSource.startsWith("file://")) {
+      absolutePath = decodeURIComponent(imageSource.replace(/^file:\/\//, ""));
+    } else if (imageSource.startsWith("/")) {
+      absolutePath = imageSource;
+    }
+
+    if (absolutePath) {
+      if (!existsSync(absolutePath)) {
+        throw new Error(`Local file not found: ${absolutePath}`);
+      }
+      console.log(`[ImageEdit] Reading local filesystem image: ${absolutePath}`);
+      const buffer = readFileSync(absolutePath);
+      return buffer.toString("base64");
+    }
+
     throw new Error(`Unsupported image format: ${imageSource.substring(0, 50)}...`);
   }
 }

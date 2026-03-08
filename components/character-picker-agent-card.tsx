@@ -101,7 +101,7 @@ export function AgentCardInWorkflow({
       hoverLift
       className={cn(
         "group relative w-full overflow-hidden flex flex-col min-h-[180px]",
-        "border border-terminal-border/30 bg-terminal-cream shadow-sm"
+        "border border-terminal-border/30 bg-terminal-cream/50 shadow-sm"
       )}
     >
       {/* Subtle accent gradient strip at top */}

@@ -79,16 +79,18 @@ function getResultCount(result: unknown): number | null {
   return null;
 }
 
-function getStatus(part: ToolCallPart): ToolCallBadgeStatus {
+function getStatus(part: ToolCallPartLike): ToolCallBadgeStatus {
   if (part.status?.type === "incomplete") return "error";
   if (part.status?.type === "running" || part.status?.type === "requires-action") {
     return "running";
   }
 
   const result = part.result as Record<string, unknown> | undefined;
-  const status = result?.status;
+  const status = typeof result?.status === "string" ? result.status.toLowerCase() : undefined;
 
-  if (status === "error") return "error";
+  if (part.isError || status === "error" || status === "failed" || status === "denied" || typeof result?.error === "string") {
+    return "error";
+  }
   if (part.result === undefined || status === "processing") return "running";
   return "completed";
 }
@@ -236,8 +238,11 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         : t.has(part.toolName)
           ? t(part.toolName)
           : canonicalToolName;
-      const liveStatus = partLike.toolCallId ? liveStatuses[partLike.toolCallId] : undefined;
-      const phase = liveStatus?.phase ?? getFallbackToolPhase(part.result, getStatus(part) === "running");
+      const canonicalStatus = getStatus(partLike);
+      const liveStatus = canonicalStatus === "running" && partLike.toolCallId
+        ? liveStatuses[partLike.toolCallId]
+        : undefined;
+      const phase = liveStatus?.phase ?? getFallbackToolPhase(part.result, canonicalStatus === "running");
       const detail = liveStatus?.detail;
       const inputPreview = liveStatus?.argsPreview ?? summarizeToolInput(partLike.input ?? partLike.args ?? partLike.argsText);
       const outputPreview = liveStatus?.outputPreview ?? summarizeToolOutput(part.result);
@@ -245,7 +250,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       return {
         key: partLike.toolCallId ?? `${part.toolName}-${index}`,
         label,
-        badgeStatus: liveStatus ? phaseToBadgeStatus(liveStatus.phase) : getStatus(part),
+        badgeStatus: liveStatus ? phaseToBadgeStatus(liveStatus.phase) : canonicalStatus,
         phase,
         count: getResultCount(part.result),
         detail,

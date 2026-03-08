@@ -14,6 +14,7 @@ import {
     generateFlux2KleinWithPolling,
     checkFlux2KleinHealth,
 } from "@/lib/comfyui";
+import { readFileSync, existsSync } from "fs";
 import { saveBase64Image, readLocalFile, fileExists } from "@/lib/storage/local-storage";
 
 interface Flux2Klein9BGenerateInput {
@@ -116,7 +117,23 @@ async function normalizeReferenceImages(referenceImages?: string[]): Promise<str
             } else if (isValidBase64(image)) {
                 base64 = image.replace(/^data:image\/\w+;base64,/, "");
             } else {
-                throw new Error(`Unsupported image format: ${image.substring(0, 50)}...`);
+                // Local filesystem path (file:// URL or absolute path)
+                let absolutePath: string | undefined;
+                if (image.startsWith("file://")) {
+                    absolutePath = decodeURIComponent(image.replace(/^file:\/\//, ""));
+                } else if (image.startsWith("/")) {
+                    absolutePath = image;
+                }
+
+                if (absolutePath) {
+                    if (!existsSync(absolutePath)) {
+                        throw new Error(`Local file not found: ${absolutePath}`);
+                    }
+                    const buffer = readFileSync(absolutePath);
+                    base64 = buffer.toString("base64");
+                } else {
+                    throw new Error(`Unsupported image format: ${image.substring(0, 50)}...`);
+                }
             }
 
             base64Images.push(base64);
