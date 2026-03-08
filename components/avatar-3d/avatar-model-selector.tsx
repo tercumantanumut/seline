@@ -36,7 +36,7 @@ interface Avatar3DModelSelectorProps {
   characterId: string;
   characterName: string;
   currentAvatarConfig?: AvatarConfig | null;
-  onAvatarConfigChange: () => void;
+  onAvatarConfigChange: (config: { modelUrl: string; bodyType: "M" | "F" }) => void;
 }
 
 export function Avatar3DModelSelector({
@@ -146,7 +146,7 @@ export function Avatar3DModelSelector({
           { metadata: { avatarConfig: config } },
         );
         if (patchError) throw new Error(patchError);
-        onAvatarConfigChange();
+        onAvatarConfigChange({ modelUrl: config.modelUrl, bodyType: config.bodyType });
       } catch {
         setLocalConfig(previous);
         setError(t("error.save"));

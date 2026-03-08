@@ -68,9 +68,22 @@ function isRecoverableStreamingError(error: Error): boolean {
   if (msg.includes("controller was closed")) return true;
   // Generic tool invocation errors from assistant-ui
   if (msg.includes("toolCallId") && msg.includes("not found")) return true;
-  // Tool result processing errors (e.g., accessing undefined properties during streaming)
+  // Tool result processing errors (e.g., accessing undefined/null properties during streaming)
   if (msg.includes("Cannot read properties of undefined")) return true;
   if (msg.includes("Cannot read property") && msg.includes("undefined")) return true;
+  if (msg.includes("Cannot read properties of null")) return true;
+  // Fetch/network errors from early abort (before response arrives)
+  if (msg.includes("Failed to fetch")) return true;
+  if (msg.includes("Load failed")) return true; // Safari variant
+  if (msg.includes("NetworkError")) return true;
+  if (msg.includes("network error")) return true;
+  if (msg.includes("fetch") && error instanceof TypeError) return true;
+  // Stream/reader errors from abort during stream consumption
+  if (msg.includes("reader") && (msg.includes("released") || msg.includes("cancel"))) return true;
+  if (msg.includes("enqueue") && msg.includes("closed")) return true;
+  if (msg.includes("stream") && (msg.includes("locked") || msg.includes("disturbed"))) return true;
+  // Generic TypeError during render of partially-constructed message state
+  if (error instanceof TypeError && (msg.includes("is not a function") || msg.includes("is not iterable"))) return true;
   return false;
 }
 
@@ -88,10 +101,37 @@ class ChatErrorBoundary extends Component<
     processingText: string;
     genericError: string;
     recoveryRef?: MutableRefObject<(() => void) | null>;
+    /** Ref that holds the timestamp of the last active stream. Used to treat
+     *  any error occurring shortly after a cancel/abort as recoverable. */
+    lastStreamingRef?: MutableRefObject<number>;
   },
   ErrorBoundaryState
 > {
   private resetTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Grace period (ms) after streaming ends during which ALL errors are
+   *  treated as recoverable. This catches unpredictable errors from
+   *  partially-constructed message state after a fast Stop press. */
+  private static readonly ABORT_GRACE_MS = 2000;
+
+  /** Returns true when the chat was streaming very recently (within grace period). */
+  private wasRecentlyStreaming(): boolean {
+    const ts = this.props.lastStreamingRef?.current;
+    if (!ts) return false;
+    return Date.now() - ts < ChatErrorBoundary.ABORT_GRACE_MS;
+  }
+
+  private isRecoverable(error: Error): boolean {
+    if (isRecoverableStreamingError(error)) return true;
+    // Catch-all: any error within the abort grace window is treated as
+    // recoverable — the exact error message varies across browsers and
+    // assistant-ui/AI-SDK versions, so we can't enumerate them all.
+    if (this.wasRecentlyStreaming()) {
+      console.warn("[ChatErrorBoundary] Error within abort grace window — treating as recoverable:", error.message);
+      return true;
+    }
+    return false;
+  }
 
   private scheduleRecoverableReset() {
     if (this.resetTimer) {
@@ -114,7 +154,7 @@ class ChatErrorBoundary extends Component<
 
   private handleAsyncError = (errorLike: unknown): boolean => {
     const error = toError(errorLike);
-    if (!isRecoverableStreamingError(error)) {
+    if (!this.isRecoverable(error)) {
       return false;
     }
     console.warn("[ChatErrorBoundary] Recoverable async streaming error - will retry", error.message);
@@ -159,7 +199,7 @@ class ChatErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    if (isRecoverableStreamingError(error)) {
+    if (this.isRecoverable(error)) {
       console.warn("[ChatErrorBoundary] Recoverable streaming error - will retry", error.message);
       this.scheduleRecoverableReset();
     } else {
@@ -170,7 +210,7 @@ class ChatErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       // Show loading state for recoverable streaming errors
-      if (this.state.error && isRecoverableStreamingError(this.state.error)) {
+      if (this.state.error && this.isRecoverable(this.state.error)) {
         return (
           <div className="flex items-center justify-center p-8 bg-terminal-cream min-h-full">
             <div className="flex flex-col items-center gap-4">
@@ -853,6 +893,17 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     // uuidRegex check, causing the server to assign new UUIDs — the resulting
     // ID mismatch creates phantom branches in assistant-ui's MessageRepository.
     generateId: () => crypto.randomUUID(),
+    // Suppress abort-related errors that escape when the user presses Stop
+    // before the stream is fully initialized. Without this, the error propagates
+    // as an unhandled rejection and crashes the error boundary.
+    onError: (error) => {
+      if (error.name === "AbortError") return;
+      const msg = error.message || "";
+      if (msg.includes("aborted")) return;
+      if (msg.includes("Failed to fetch") || msg.includes("Load failed")) return;
+      if (msg.includes("network") && error instanceof TypeError) return;
+      console.error("[ChatProvider] useChat error:", error.message);
+    },
   });
 
   const runtime = useAISDKRuntime(chat, {
@@ -878,11 +929,22 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     };
   }, [chat]);
 
+  // Track when streaming was last active. The error boundary uses this
+  // to treat ANY error within a short grace window after stop/abort as
+  // recoverable — prevents crash from unpredictable abort-time errors.
+  // Updated on every render (not just status changes) so the timestamp
+  // stays fresh during long streaming runs.
+  const lastStreamingRef = useRef<number>(0);
+  if (chat.status === "streaming" || chat.status === "submitted") {
+    lastStreamingRef.current = Date.now();
+  }
+
   return (
     <ChatErrorBoundary
       processingText={tAssistant("processingTool")}
       genericError={tErrors("genericRefresh")}
       recoveryRef={recoveryRef}
+      lastStreamingRef={lastStreamingRef}
     >
       <AssistantRuntimeProvider runtime={runtime}>
         <ChatSessionIdContext.Provider value={sessionId}>

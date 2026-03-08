@@ -332,6 +332,24 @@ export default function ChatInterface({
             .catch(() => {});
     }, []);
 
+    // Sync avatar config when character metadata changes (e.g. after 3D avatar change via router.refresh)
+    useEffect(() => {
+        setAvatarConfig((prev) => {
+            if (!prev.enabled) return prev;
+            const meta = character.metadata as Record<string, unknown> | null;
+            const ac = meta?.avatarConfig as { modelUrl?: string; bodyType?: string } | undefined;
+            const nextModelUrl = ac?.modelUrl;
+            const nextBodyType = (ac?.bodyType as "M" | "F") ?? prev.bodyType;
+            if (nextModelUrl === prev.modelUrl && nextBodyType === prev.bodyType) return prev;
+            return { ...prev, modelUrl: nextModelUrl, bodyType: nextBodyType };
+        });
+    }, [character]);
+
+    // Sync characterDisplay when server data changes (e.g. after router.refresh)
+    useEffect(() => {
+        setCharacterDisplay(initialCharacterDisplay);
+    }, [initialCharacterDisplay]);
+
     const activeTasks = useUnifiedTasksStore((state) => state.tasks);
     const completeTask = useUnifiedTasksStore((state) => state.completeTask);
     const activeTaskForSession = sessionId
@@ -858,6 +876,13 @@ export default function ChatInterface({
         }));
     }, []);
 
+    const handleAvatar3dConfigChange = useCallback((config: { modelUrl: string; bodyType: "M" | "F" }) => {
+        setAvatarConfig((prev) => {
+            if (!prev.enabled) return prev;
+            return { ...prev, modelUrl: config.modelUrl, bodyType: config.bodyType };
+        });
+    }, []);
+
     // Re-key only on session change. Background polling now updates the thread
     // in-place via chat.setMessages (no remount needed).
     const chatProviderKey = sessionId || "no-session";
@@ -939,6 +964,7 @@ export default function ChatInterface({
                     onRestoreSession={sm.restoreSession}
                     characterId={character.id}
                     onAvatarChange={handleAvatarChange}
+                    onAvatar3dConfigChange={handleAvatar3dConfigChange}
                 />
             }
         >

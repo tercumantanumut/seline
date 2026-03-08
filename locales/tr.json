@@ -233,7 +233,14 @@
         "telegramTokenPlaceholder": "@BotFather tokenini yapistir...",
         "telegramTokenHint": "Istege bagli",
         "ttsAutoReply": "Her yaniti otomatik seslendir",
-        "ttsAutoReplyDesc": "Her asistan yaniti ses ciktisi icerir"
+        "ttsAutoReplyDesc": "Her asistan yaniti ses ciktisi icerir",
+        "postEditChecks": "Duzenleme sonrasi kontroller",
+        "postEditChecksDesc": "Her dosya duzenlemesinden sonra tip kontrolu ve lint calistir",
+        "postEditOff": "Kapali — kontrol yok",
+        "postEditFast": "Hizli — sadece tip kontrolu (otomatik kapsam)",
+        "postEditStrict": "Siki — tip kontrolu + ESLint (tumu)",
+        "rtk": "RTK (token optimizasyonu)",
+        "rtkDesc": "Komut ciktisini sikistirarak baglam tokenlerinden tasarruf et"
       }
     },
     "complete": {
@@ -3959,10 +3966,8 @@
     },
     "presets": {
       "default": "Varsayılan",
-      "brunette": "Esmer",
       "aria": "Aria",
       "kai": "Kai",
-      "marcus": "Marcus",
       "playerzero": "Player Zero"
     },
     "custom": {

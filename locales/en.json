@@ -233,7 +233,14 @@
         "telegramTokenPlaceholder": "Paste your @BotFather token...",
         "telegramTokenHint": "Optional",
         "ttsAutoReply": "Auto-speak every reply",
-        "ttsAutoReplyDesc": "Every assistant reply includes audio output"
+        "ttsAutoReplyDesc": "Every assistant reply includes audio output",
+        "postEditChecks": "After-edit checks",
+        "postEditChecksDesc": "Run type-check and lint after every file edit",
+        "postEditOff": "Off — no checks",
+        "postEditFast": "Fast — type-check only (auto scope)",
+        "postEditStrict": "Strict — type-check + ESLint (all)",
+        "rtk": "RTK (token optimizer)",
+        "rtkDesc": "Compress command output to save context tokens"
       }
     },
     "complete": {
@@ -4039,10 +4046,8 @@
     },
     "presets": {
       "default": "Default",
-      "brunette": "Brunette",
       "aria": "Aria",
       "kai": "Kai",
-      "marcus": "Marcus",
       "playerzero": "Player Zero"
     },
     "custom": {

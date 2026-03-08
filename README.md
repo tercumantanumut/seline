@@ -16,6 +16,39 @@
 
 Selene is a desktop app that runs AI agents on your machine. Connect them to your WhatsApp, Telegram, Slack, or Discord. Write code, generate images, build personal assistants. All from one place. Your data stays on your device.
 
+<div align="center">
+<img src="public/icons/brands/selene.png" alt="Selene" height="40">
+<br/>
+<sub>Integrates with</sub>
+<br/><br/>
+<a href="#providers"><img src="public/icons/brands/anthropic.svg" alt="Anthropic" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/openai.svg" alt="OpenAI" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/ollama.svg" alt="Ollama" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/openrouter.svg" alt="OpenRouter" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/google.svg" alt="Google" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/minimax.svg" alt="Minimax" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/kimi.svg" alt="Kimi" height="14"></a>&nbsp;&nbsp;
+<a href="#channels"><img src="public/icons/brands/slack.svg" alt="Slack" height="14"></a>&nbsp;&nbsp;
+<a href="#channels"><img src="public/icons/brands/telegram.svg" alt="Telegram" height="14"></a>&nbsp;&nbsp;
+<a href="#channels"><img src="public/icons/brands/discord.svg" alt="Discord" height="14"></a>&nbsp;&nbsp;
+<a href="#channels"><img src="public/icons/brands/whatsapp.svg" alt="WhatsApp" height="14"></a>&nbsp;&nbsp;
+<a href="#voice--avatar"><img src="public/icons/brands/elevenlabs.svg" alt="ElevenLabs" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/comfyui.svg" alt="ComfyUI" height="14"></a>&nbsp;&nbsp;
+<a href="#modes"><img src="public/icons/brands/chromium.svg" alt="Chromium" height="14"></a>&nbsp;&nbsp;
+<a href="#extend-it"><img src="public/icons/brands/mcp.svg" alt="MCP" height="14"></a>&nbsp;&nbsp;
+<a href="#modes"><img src="public/icons/brands/puppeteer.svg" alt="Playwright" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/duckduckgo.svg" alt="DuckDuckGo" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/firecrawl.svg" alt="Firecrawl" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/lancedb.png" alt="LanceDB" height="14"></a>&nbsp;&nbsp;
+<a href="#voice--avatar"><img src="public/icons/brands/microsoft.svg" alt="Microsoft" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/remotion.svg" alt="Remotion" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/tavily.svg" alt="Tavily" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/onnx.svg" alt="ONNX Runtime" height="14"></a>&nbsp;&nbsp;
+<a href="#for-developers"><img src="public/icons/brands/github.svg" alt="GitHub" height="14"></a>
+</div>
+
+<br/>
+
 ## Agent-First, Not Button-First
 
 Most AI apps work like this: you click a button, the AI responds. Selene flips that.

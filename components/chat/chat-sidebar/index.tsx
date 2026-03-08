@@ -86,6 +86,7 @@ interface CharacterSidebarProps {
   onRestoreSession: (sessionId: string) => Promise<void>;
   characterId: string;
   onAvatarChange: (newAvatarUrl: string | null) => void;
+  onAvatar3dConfigChange?: (config: { modelUrl: string; bodyType: "M" | "F" }) => void;
 }
 
 export function CharacterSidebar({
@@ -114,6 +115,7 @@ export function CharacterSidebar({
   onRestoreSession,
   characterId,
   onAvatarChange,
+  onAvatar3dConfigChange,
 }: CharacterSidebarProps) {
   const router = useRouter();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -407,7 +409,7 @@ export function CharacterSidebar({
           characterId={charActions.avatar3dSelectorCharacter.id}
           characterName={charActions.avatar3dSelectorCharacter.displayName || charActions.avatar3dSelectorCharacter.name}
           currentAvatarConfig={charActions.avatar3dSelectorCharacter.metadata?.avatarConfig as any}
-          onAvatarConfigChange={() => { void reloadPage(); }}
+          onAvatarConfigChange={(config) => { onAvatar3dConfigChange?.(config); void reloadPage(); }}
         />
       )}
 
@@ -438,7 +440,7 @@ export function CharacterSidebar({
         onEditMcp={() => charActions.openMcpToolEditor(characterSummary)}
         onEditPlugins={() => charActions.openPluginEditor(characterSummary)}
         onEditAvatar3d={() => charActions.openAvatar3dSelector(characterSummary)}
-        onNavigateDashboard={() => router.push(`/dashboard/${character.id}`)}
+        onNavigateDashboard={() => router.push("/dashboard")}
         onDuplicate={() => charActions.handleDuplicate(character.id)}
         isDuplicating={charActions.isDuplicating}
         onDelete={() => charActions.openDeleteDialog(characterSummary)}

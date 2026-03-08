@@ -83,6 +83,21 @@ function applyOnboardingPreferences(settings: ReturnType<typeof loadSettings>, b
         if (pathConfig.browserAutomationEnabled === true) {
             settings.chromiumBrowserMode = "standalone";
         }
+        if (
+            pathConfig.postEditHooksPreset === "off" ||
+            pathConfig.postEditHooksPreset === "fast" ||
+            pathConfig.postEditHooksPreset === "strict"
+        ) {
+            settings.postEditHooksPreset = pathConfig.postEditHooksPreset;
+            settings.postEditHooksEnabled = pathConfig.postEditHooksPreset !== "off";
+            settings.postEditTypecheckEnabled = pathConfig.postEditHooksPreset !== "off";
+            settings.postEditLintEnabled = pathConfig.postEditHooksPreset === "strict";
+            settings.postEditTypecheckScope = pathConfig.postEditHooksPreset === "strict" ? "all" : "auto";
+            settings.postEditRunInPatchTool = pathConfig.postEditHooksPreset === "strict";
+        }
+        if (typeof pathConfig.rtkEnabled === "boolean") {
+            settings.rtkEnabled = pathConfig.rtkEnabled;
+        }
 
         // Fun path settings
         if (

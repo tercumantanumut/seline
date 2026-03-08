@@ -132,7 +132,7 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
               className={cn(
                 "size-8",
                 isDeepResearchMode
-                  ? "text-purple-600 bg-purple-100 hover:bg-purple-200"
+                  ? "text-purple-600 bg-purple-100 hover:bg-purple-200 dark:text-purple-400 dark:bg-purple-900/40 dark:hover:bg-purple-800/50"
                   : "text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
               )}
             >
@@ -174,7 +174,7 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
               className={cn(
                 "size-8 select-none",
                 isRecordingVoice
-                  ? "text-red-600 bg-red-100 hover:bg-red-200"
+                  ? "text-red-600 bg-red-100 hover:bg-red-200 dark:text-red-400 dark:bg-red-900/40 dark:hover:bg-red-800/50"
                   : "text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
               )}
             >
@@ -229,7 +229,7 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
               className={cn(
                 "size-8",
                 isEditorMode
-                  ? "text-blue-600 bg-blue-100 hover:bg-blue-200"
+                  ? "text-blue-600 bg-blue-100 hover:bg-blue-200 dark:text-blue-400 dark:bg-blue-900/40 dark:hover:bg-blue-800/50"
                   : "text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
               )}
             >
@@ -254,8 +254,8 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
               className={cn(
                 "size-8 relative",
                 enhancedContext
-                  ? "text-emerald-600 bg-emerald-100 hover:bg-emerald-200"
-                  : "text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200"
+                  ? "text-emerald-600 bg-emerald-100 hover:bg-emerald-200 dark:text-emerald-400 dark:bg-emerald-900/40 dark:hover:bg-emerald-800/50"
+                  : "text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 dark:text-amber-400 dark:bg-amber-900/30 dark:hover:bg-amber-800/40 dark:border-amber-700"
               )}
             >
               {isEnhancing ? (

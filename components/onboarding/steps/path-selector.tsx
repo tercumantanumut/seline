@@ -21,6 +21,8 @@ export interface PathConfigState {
     // Dev
     devWorkspaceEnabled: boolean;
     browserAutomationEnabled: boolean;
+    postEditHooksPreset: "off" | "fast" | "strict";
+    rtkEnabled: boolean;
     // Fun
     sttProvider: "openai" | "local" | "parakeet";
     ttsProvider: "elevenlabs" | "openai" | "edge";
@@ -34,6 +36,8 @@ export interface PathConfigState {
 export const DEFAULT_PATH_CONFIG: PathConfigState = {
     devWorkspaceEnabled: true,
     browserAutomationEnabled: true,
+    postEditHooksPreset: "fast",
+    rtkEnabled: false,
     sttProvider: "local",
     ttsProvider: "edge",
     edgeTtsVoice: DEFAULT_EDGE_TTS_VOICE,
@@ -217,6 +221,60 @@ function DevConfigPanel({
                     <Toggle
                         checked={config.browserAutomationEnabled}
                         onChange={(v) => onChange({ browserAutomationEnabled: v })}
+                    />
+                </div>
+            </motion.div>
+
+            {/* Post-edit checks */}
+            <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.15 }}
+            >
+                <div className="p-3 rounded-xl border border-white/[0.08] bg-white/[0.04]">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Check className="w-4 h-4 opacity-60 text-white" />
+                        <span className="font-mono text-sm text-white/90">
+                            {t("config.postEditChecks")}
+                        </span>
+                    </div>
+                    <select
+                        value={config.postEditHooksPreset}
+                        onChange={(e) =>
+                            onChange({
+                                postEditHooksPreset: e.target.value as PathConfigState["postEditHooksPreset"],
+                            })
+                        }
+                        className={selectCls}
+                    >
+                        <option value="off">{t("config.postEditOff")}</option>
+                        <option value="fast">{t("config.postEditFast")}</option>
+                        <option value="strict">{t("config.postEditStrict")}</option>
+                    </select>
+                    <p className="font-mono text-[11px] text-white/40 mt-1.5">
+                        {t("config.postEditChecksDesc")}
+                    </p>
+                </div>
+            </motion.div>
+
+            {/* RTK (Rust Token Killer) */}
+            <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+            >
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-white/[0.08] bg-white/[0.04]">
+                    <div className="min-w-0">
+                        <p className="font-mono text-sm text-white/90">
+                            {t("config.rtk")}
+                        </p>
+                        <p className="font-mono text-[11px] text-white/40 truncate">
+                            {t("config.rtkDesc")}
+                        </p>
+                    </div>
+                    <Toggle
+                        checked={config.rtkEnabled}
+                        onChange={(v) => onChange({ rtkEnabled: v })}
                     />
                 </div>
             </motion.div>
