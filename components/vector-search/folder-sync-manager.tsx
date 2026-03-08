@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FolderIcon, Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost, resilientDelete } from "@/lib/utils/resilient-fetch";
 import type {
@@ -420,14 +419,9 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
         folderId: folder.id,
       });
       if (error) throw new Error(error);
-      toast.success(isPaused ? t("resumedToast") : t("pausedToast"), {
-        description: folder.displayName || folder.folderPath.split(/[/\\]/).pop(),
-      });
       await loadFolders();
     } catch (err) {
-      toast.error(isPaused ? t("errorResume") : t("errorPause"), {
-        description: err instanceof Error ? err.message : undefined,
-      });
+      setError(err instanceof Error ? err.message : (isPaused ? t("errorResume") : t("errorPause")));
     } finally {
       setUpdatingFolderId(null);
     }

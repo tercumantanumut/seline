@@ -196,21 +196,26 @@ export function FolderItem({
               variant="ghost"
               size="icon"
               onClick={() => onSync(folder.id)}
-              disabled={syncingFolderId === folder.id}
+              disabled={syncingFolderId === folder.id || folder.status === "paused"}
+              title={folder.status === "paused" ? t("resumeFirst") : undefined}
               className="h-8 w-8 shrink-0"
             >
               <RefreshCwIcon className={cn("w-4 h-4", syncingFolderId === folder.id && "animate-spin")} />
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPauseResume(folder)}
-            disabled={updatingFolderId === folder.id}
-            className="h-8 px-2 font-mono text-[10px] whitespace-nowrap"
-          >
-            {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : (folder.status === "paused" ? t("resumeUpdatesShort") : t("pauseUpdatesShort"))}
-          </Button>
+          {folder.status !== "syncing" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPauseResume(folder)}
+              disabled={updatingFolderId === folder.id}
+              title={folder.status === "paused" ? t("resumeUpdates") : t("pauseUpdates")}
+              aria-label={folder.status === "paused" ? t("resumeUpdates") : t("pauseUpdates")}
+              className="h-8 px-2 font-mono text-[10px] whitespace-nowrap"
+            >
+              {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : (folder.status === "paused" ? t("resumeUpdatesShort") : t("pauseUpdatesShort"))}
+            </Button>
+          )}
           {!isSimpleDefaults && (
             <Button
               variant="outline"
@@ -347,7 +352,7 @@ export function FolderItem({
               </div>
             )}
           </div>
-          {folder.lastError && (
+          {folder.lastError && folder.status !== "paused" && (
             <p className="text-xs font-mono text-destructive">{t("error")} {folder.lastError}</p>
           )}
         </div>

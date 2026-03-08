@@ -1465,6 +1465,7 @@
     "resumedToast": "Klasör izleme sürdürüldü",
     "errorPause": "Klasör durdurulamadı",
     "errorResume": "Klasör sürdürülemedi",
+    "resumeFirst": "Senkronlamadan önce klasörü sürdürün",
     "applySimpleDefaults": "Basit varsayılanları uygula",
     "applySimpleDefaultsShort": "Basit varsayılanlar",
     "statusSummary": "Durum: {syncing} senkronlanıyor, {synced} hazır, {paused} duraklatıldı",

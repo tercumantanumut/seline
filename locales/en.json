@@ -1472,6 +1472,7 @@
     "resumedToast": "Folder watching resumed",
     "errorPause": "Failed to pause folder",
     "errorResume": "Failed to resume folder",
+    "resumeFirst": "Resume this folder before syncing",
     "applySimpleDefaults": "Use Simple defaults",
     "applySimpleDefaultsShort": "Simple defaults",
     "statusSummary": "Status: {syncing} syncing, {synced} ready, {paused} paused",

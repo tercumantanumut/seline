@@ -687,7 +687,43 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
  * Stop watching a folder
  */
 export async function stopWatching(folderId: string): Promise<void> {
-  if (watchers.has(folderId)) {
+  // Check if another non-paused folder shares the same resolved path.
+  // If so, keep the watcher alive and transfer ownership instead of killing it.
+  let keepWatcherAlive = false;
+  let claimedPath: string | undefined;
+
+  for (const [p, id] of watchingPaths.entries()) {
+    if (id === folderId) {
+      claimedPath = p;
+      break;
+    }
+  }
+
+  if (claimedPath && watchers.has(folderId)) {
+    // Query DB for other folders on the same resolved path that are not paused
+    const otherFolders = await db
+      .select({ id: agentSyncFolders.id })
+      .from(agentSyncFolders)
+      .where(
+        and(
+          eq(agentSyncFolders.folderPath, claimedPath),
+          eq(agentSyncFolders.status, "synced")
+        )
+      );
+
+    const otherActive = otherFolders.filter(f => f.id !== folderId);
+    if (otherActive.length > 0) {
+      // Transfer path ownership to another active folder
+      watchingPaths.set(claimedPath, otherActive[0].id);
+      keepWatcherAlive = true;
+      console.log(
+        `[FileWatcher] Keeping watcher alive for ${claimedPath}, ` +
+        `transferred ownership from ${folderId} to ${otherActive[0].id}`
+      );
+    }
+  }
+
+  if (!keepWatcherAlive && watchers.has(folderId)) {
     await safeCloseWatcher(folderId);
     console.log(`[FileWatcher] Stopped watching folder: ${folderId}`);
   }
@@ -710,12 +746,9 @@ export async function stopWatching(folderId: string): Promise<void> {
     folderProcessors.delete(folderId);
   }
 
-  // Release path claim so another folder can watch this path if needed
-  for (const [p, id] of watchingPaths.entries()) {
-    if (id === folderId) {
-      watchingPaths.delete(p);
-      break;
-    }
+  // Release path claim (unless we transferred ownership above)
+  if (!keepWatcherAlive && claimedPath) {
+    watchingPaths.delete(claimedPath);
   }
 
   pendingBatchRun.delete(folderId);

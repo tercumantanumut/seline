@@ -451,10 +451,21 @@ export async function syncFolder(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Sync failed";
     result.errors.push(errorMsg);
-    await db
-      .update(agentSyncFolders)
-      .set({ status: "error", lastError: errorMsg, updatedAt: new Date().toISOString() })
+
+    // Re-read DB status: if user paused during sync, preserve paused state
+    const [currentState] = await db
+      .select({ status: agentSyncFolders.status })
+      .from(agentSyncFolders)
       .where(eq(agentSyncFolders.id, folderId));
+
+    if (currentState?.status === "paused") {
+      console.log(`[SyncService] Folder ${folderId} was paused during sync error, preserving paused state`);
+    } else {
+      await db
+        .update(agentSyncFolders)
+        .set({ status: "error", lastError: errorMsg, updatedAt: new Date().toISOString() })
+        .where(eq(agentSyncFolders.id, folderId));
+    }
   } finally {
     syncingFolders.delete(folderId);
     syncingPaths.delete(folderPath);
@@ -588,6 +599,7 @@ export async function pauseSyncFolder(folderId: string): Promise<void> {
     .where(eq(agentSyncFolders.id, folderId));
 
   if (!folder) throw new Error("Folder not found");
+  if (folder.status === "paused") return; // Already paused, no-op
 
   // Cancel any running sync first
   if (isSyncing(folderId)) {
@@ -622,6 +634,7 @@ export async function resumeSyncFolder(folderId: string): Promise<void> {
     .where(eq(agentSyncFolders.id, folderId));
 
   if (!folder) throw new Error("Folder not found");
+  if (folder.status !== "paused") return; // Not paused, no-op
 
   const { normalizedPath, error: pathError } = await validateSyncFolderPath(folder.folderPath);
   if (pathError) {
@@ -703,6 +716,7 @@ export async function syncAllFolders(
   const folders = await getSyncFolders(characterId);
   const results: SyncResult[] = [];
   for (const folder of folders) {
+    if (folder.status === "paused") continue;
     results.push(await syncFolder(folder.id, parallelConfig, forceReindex, trigger));
   }
   return results;
