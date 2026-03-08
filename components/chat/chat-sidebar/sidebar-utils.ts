@@ -8,9 +8,14 @@ export function parseAsUTC(dateStr: string): Date {
 
 export function getDateBucket(date: Date): "today" | "week" | "older" {
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days <= 0) return "today";
-  if (days < 7) return "week";
+  // Compare calendar days (midnight-to-midnight) so that yesterday 23:52
+  // isn't bucketed as "today" when current time is e.g. 01:30.
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysDiff = Math.round(
+    (todayStart.getTime() - dateStart.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (daysDiff <= 0) return "today";
+  if (daysDiff < 7) return "week";
   return "older";
 }

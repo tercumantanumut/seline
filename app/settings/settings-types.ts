@@ -222,7 +222,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   rtkEnabled: false,
   rtkVerbosity: 0,
   rtkUltraCompact: false,
-  devWorkspaceEnabled: false,
+  devWorkspaceEnabled: true,
   devWorkspaceAutoCleanup: true,
   devWorkspaceAutoCleanupDays: 7,
   chromiumBrowserMode: "standalone",

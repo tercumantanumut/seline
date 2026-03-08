@@ -54,6 +54,7 @@ export const UTILITY_TOOLS = [
   "updatePlan",
   "updateSkill",
   "delegateToSubagent",
+  "workspace",
 ] as const;
 
 /**
@@ -127,13 +128,8 @@ export function resolveSeleneTemplateTools(settings: AppSettings): ToolResolutio
   enabledTools.push("chromiumWorkspace");
   console.log("[SeleneTemplate] Chromium Workspace enabled: embedded browser automation");
 
-  // 6. Conditional: Developer Workspace (git worktree integration)
-  if (settings.devWorkspaceEnabled === true) {
-    enabledTools.push("workspace");
-    console.log("[SeleneTemplate] Workspace enabled: devWorkspaceEnabled=true");
-  } else {
-    console.log("[SeleneTemplate] Workspace disabled: devWorkspaceEnabled is not true");
-  }
+  // 6. Workspace is now always enabled via UTILITY_TOOLS (git worktree integration).
+  //    The tool itself handles missing git repos gracefully.
 
   // 7. Log excluded tools
   for (const toolId of EXCLUDED_TOOLS) {

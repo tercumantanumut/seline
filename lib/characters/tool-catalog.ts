@@ -56,7 +56,7 @@ export const CHARACTER_TOOL_CATALOG: CharacterToolCatalogItem[] = [
   { id: "askUserQuestion", category: "utility" },
   { id: "speakAloud", category: "utility" },
   { id: "transcribe", category: "utility" },
-  { id: "workspace", category: "utility", dependencies: ["devWorkspaceEnabled"] },
+  { id: "workspace", category: "utility" },
   { id: "chromiumWorkspace", category: "browser" },
   { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
   { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },

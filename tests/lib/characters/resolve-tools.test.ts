@@ -76,6 +76,7 @@ describe("resolveSeleneTemplateTools", () => {
         "updatePlan",
         "updateSkill",
         "delegateToSubagent",
+        "workspace",
       ];
       for (const tool of utilityTools) {
         expect(result.enabledTools).toContain(tool);
@@ -188,25 +189,17 @@ describe("resolveSeleneTemplateTools", () => {
   });
 
   // =========================================================================
-  // Workspace — conditional on devWorkspaceEnabled
+  // Workspace — always enabled as a utility tool
   // =========================================================================
   describe("workspace", () => {
-    it("should include workspace when devWorkspaceEnabled is true", () => {
-      const settings = buildSettings({ devWorkspaceEnabled: true });
+    it("should always include workspace", () => {
+      const settings = buildSettings();
       const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).toContain("workspace");
     });
 
-    it("should NOT include workspace when devWorkspaceEnabled is false", () => {
-      const settings = buildSettings({ devWorkspaceEnabled: false });
-      const result = resolveSeleneTemplateTools(settings);
-      expect(result.enabledTools).not.toContain("workspace");
-    });
-
-    it("should NOT include workspace when devWorkspaceEnabled is undefined", () => {
-      const settings = buildSettings();
-      const result = resolveSeleneTemplateTools(settings);
-      expect(result.enabledTools).not.toContain("workspace");
+    it("should be in UTILITY_TOOLS constant", () => {
+      expect(UTILITY_TOOLS).toContain("workspace");
     });
   });
 
@@ -281,8 +274,8 @@ describe("resolveSeleneTemplateTools", () => {
       });
       const result = resolveSeleneTemplateTools(settings);
 
-      // 6 core + 10 utility + 1 always-on webSearch + 1 chromiumWorkspace = 18 tools minimum
-      expect(result.enabledTools.length).toBeGreaterThanOrEqual(18);
+      // 6 core + 11 utility + 1 always-on webSearch + 1 chromiumWorkspace = 19 tools minimum
+      expect(result.enabledTools.length).toBeGreaterThanOrEqual(19);
       expect(result.enabledTools).not.toContain("vectorSearch");
       expect(result.enabledTools).toContain("webSearch");
     });
@@ -292,7 +285,7 @@ describe("resolveSeleneTemplateTools", () => {
   // Tool count verification
   // =========================================================================
   describe("tool count", () => {
-    it("should return exactly 19 tools when all prerequisites are met (no devWorkspace)", () => {
+    it("should return exactly 20 tools when all prerequisites are met", () => {
       const settings = buildSettings({
         vectorDBEnabled: true,
         tavilyApiKey: "tvly-test-key",
@@ -300,25 +293,12 @@ describe("resolveSeleneTemplateTools", () => {
       });
       const result = resolveSeleneTemplateTools(settings);
 
-      // 6 core + 10 utility + 1 vectorSearch + 1 webSearch + 1 chromiumWorkspace = 19
-      expect(result.enabledTools).toHaveLength(19);
-    });
-
-    it("should return exactly 20 tools when all prerequisites + devWorkspace are met", () => {
-      const settings = buildSettings({
-        vectorDBEnabled: true,
-        tavilyApiKey: "tvly-test-key",
-        firecrawlApiKey: "fc-test-key",
-        devWorkspaceEnabled: true,
-      });
-      const result = resolveSeleneTemplateTools(settings);
-
-      // 6 core + 10 utility + 1 vectorSearch + 1 webSearch + 1 chromiumWorkspace + 1 workspace = 20
+      // 6 core + 11 utility (incl. workspace) + 1 vectorSearch + 1 webSearch + 1 chromiumWorkspace = 20
       expect(result.enabledTools).toHaveLength(20);
       expect(result.enabledTools).toContain("workspace");
     });
 
-    it("should return exactly 18 tools when no optional tools are available (webSearch always on)", () => {
+    it("should return exactly 19 tools when no optional tools are available (webSearch always on)", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
@@ -327,8 +307,8 @@ describe("resolveSeleneTemplateTools", () => {
       });
       const result = resolveSeleneTemplateTools(settings);
 
-      // 6 core + 10 utility + 1 always-on webSearch + 1 chromiumWorkspace = 18
-      expect(result.enabledTools).toHaveLength(18);
+      // 6 core + 11 utility (incl. workspace) + 1 always-on webSearch + 1 chromiumWorkspace = 19
+      expect(result.enabledTools).toHaveLength(19);
     });
   });
 

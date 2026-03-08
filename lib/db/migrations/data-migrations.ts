@@ -567,6 +567,41 @@ export function runDataMigrations(sqlite: Database.Database): void {
     console.warn("[SQLite Migration] chromiumWorkspace migration failed:", error);
   }
 
+  // Migration: Add workspace and compactSession to existing agents' enabledTools
+  // These tools are now always-on (part of UTILITY_TOOLS) but older agents may
+  // have been created before they were added.
+  try {
+    const toolsToAdd = ["workspace", "compactSession"];
+    const rows = sqlite.prepare(
+      `SELECT id, metadata FROM characters WHERE metadata LIKE '%enabledTools%'`
+    ).all() as Array<{ id: string; metadata: string }>;
+
+    let updatedCount = 0;
+    for (const row of rows) {
+      try {
+        const metadata = JSON.parse(row.metadata || "{}");
+        if (!metadata.enabledTools || !Array.isArray(metadata.enabledTools)) continue;
+
+        const missing = toolsToAdd.filter((t) => !metadata.enabledTools.includes(t));
+        if (missing.length === 0) continue;
+
+        metadata.enabledTools.push(...missing);
+        sqlite.prepare(
+          `UPDATE characters SET metadata = ?, updated_at = datetime('now') WHERE id = ?`
+        ).run(JSON.stringify(metadata), row.id);
+        updatedCount++;
+      } catch {
+        // Skip unparseable rows
+      }
+    }
+
+    if (updatedCount > 0) {
+      console.log(`[SQLite Migration] Added workspace/compactSession to ${updatedCount} agent(s)`);
+    }
+  } catch (error) {
+    console.warn("[SQLite Migration] workspace/compactSession migration failed:", error);
+  }
+
   // Migration: Add workflow folder inheritance tracking columns
   try {
     const folderCols = sqlite.prepare("PRAGMA table_info(agent_sync_folders)").all() as Array<{ name: string }>;

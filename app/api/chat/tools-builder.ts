@@ -269,8 +269,7 @@ export async function buildToolsForRequest(
     ...(allTools.compactSession && {
       compactSession: createCompactSessionTool({ sessionId }),
     }),
-    ...(allTools.workspace &&
-      devWorkspaceEnabled && {
+    ...(allTools.workspace && {
         workspace: createWorkspaceTool({
           sessionId,
           characterId: characterId || "",
