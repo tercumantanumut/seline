@@ -273,6 +273,9 @@ export interface AppSettings {
     chromiumBrowserMode?: "standalone" | "user-chrome";  // standalone = headless Playwright, user-chrome = user's Chrome profile
     chromiumUserProfilePath?: string;       // Custom Chrome profile path (empty = OS default)
 
+    // First-visit modals
+    hasSeenThemeChooser?: boolean;          // Whether user has seen the post-onboarding theme chooser
+
 }
 
 const DEFAULT_SETTINGS: AppSettings = {

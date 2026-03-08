@@ -4025,5 +4025,18 @@
       "upload": "Upload failed",
       "save": "Save failed"
     }
+  },
+  "themeChooser": {
+    "title": "Pick your look",
+    "description": "Choose a theme and color palette. You can change these anytime in settings.",
+    "modeLabel": "Appearance",
+    "mode": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "paletteLabel": "Color palette",
+    "moreOptions": "Wallpapers & more in Settings",
+    "done": "Done"
   }
 }
