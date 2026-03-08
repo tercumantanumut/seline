@@ -113,10 +113,6 @@ export const MODEL_METADATA: Record<
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "1M", speed: "fast" },
   },
-  "gpt-5.4-pro": {
-    tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "1M", speed: "standard" },
-  },
   // Codex (GPT-5 legacy models — 400K context)
   "gpt-5.3-codex": {
     tier: "standard",

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  mapSelineToolsToSdk,
+  mapSeleneToolsToSdk,
   templateToAgentDefinition,
   systemAgentsToSdkAgents,
   systemAgentsToSdkAgentsById,
@@ -9,33 +9,33 @@ import { SYSTEM_AGENT_TEMPLATES } from "@/lib/characters/templates/system-agents
 import type { AgentTemplate } from "@/lib/characters/templates/types";
 
 // ---------------------------------------------------------------------------
-// mapSelineToolsToSdk
+// mapSeleneToolsToSdk
 // ---------------------------------------------------------------------------
 
-describe("mapSelineToolsToSdk", () => {
-  it("maps known Seline tool names to their SDK equivalents", () => {
-    const result = mapSelineToolsToSdk(["readFile", "editFile", "executeCommand"]);
+describe("mapSeleneToolsToSdk", () => {
+  it("maps known Selene tool names to their SDK equivalents", () => {
+    const result = mapSeleneToolsToSdk(["readFile", "editFile", "executeCommand"]);
     expect(result).toEqual(["Read", "Edit", "Bash"]);
   });
 
   it("deduplicates tools that map to the same SDK name", () => {
     // Both editFile and patchFile map to "Edit"
-    const result = mapSelineToolsToSdk(["editFile", "patchFile"]);
+    const result = mapSeleneToolsToSdk(["editFile", "patchFile"]);
     expect(result).toEqual(["Edit"]);
   });
 
   it("returns undefined when no tools have an SDK mapping", () => {
-    // Custom Seline tools with no SDK equivalent
-    const result = mapSelineToolsToSdk(["vectorSearch", "memorize", "runSkill", "scheduleTask"]);
+    // Custom Selene tools with no SDK equivalent
+    const result = mapSeleneToolsToSdk(["vectorSearch", "memorize", "runSkill", "scheduleTask"]);
     expect(result).toBeUndefined();
   });
 
   it("returns undefined for an empty input array", () => {
-    expect(mapSelineToolsToSdk([])).toBeUndefined();
+    expect(mapSeleneToolsToSdk([])).toBeUndefined();
   });
 
   it("silently ignores unknown tool names and maps the rest", () => {
-    const result = mapSelineToolsToSdk(["readFile", "unknownTool", "webSearch"]);
+    const result = mapSeleneToolsToSdk(["readFile", "unknownTool", "webSearch"]);
     expect(result).toContain("Read");
     expect(result).toContain("WebSearch");
     expect(result).not.toContain("unknownTool");

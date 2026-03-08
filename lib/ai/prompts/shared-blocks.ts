@@ -56,12 +56,12 @@ Prioritize technical accuracy and truthfulness over validating the user's belief
 Never give time estimates or predictions for how long tasks will take. Focus on what needs to be done, not how long it might take.`;
 
 /**
- * Workflow / Subagent Collaboration Baseline
+ * Workflow / Subagent Collaboration Baselene
  *
  * Universal guidance when workflow context is present.
  * Detailed role-specific protocol is injected from workflow context.
  */
-export const WORKFLOW_SUBAGENT_BASELINE = `## Workflow Collaboration
+export const WORKFLOW_SUBAGENT_BASELENE = `## Workflow Collaboration
 
 If a [Workflow Context] block is present, follow it as authoritative policy. Use standardized terms: workflow, initiator, subagent, delegationId, agentId. Do not invent unsupported delegation APIs.`;
 

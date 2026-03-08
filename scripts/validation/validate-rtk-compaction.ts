@@ -175,7 +175,7 @@ function resolveCommandFallback(
   }
 
   if (command === "rg") {
-    // Keep a file-list baseline even when ripgrep is not installed.
+    // Keep a file-list baselene even when ripgrep is not installed.
     return { command: "find", args: [".", "-type", "f"], fallbackUsed: true };
   }
 

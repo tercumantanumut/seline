@@ -29,7 +29,7 @@ export class EmailDeliveryHandler implements DeliveryHandler {
     }
 
     const resolvedSubject = this.resolveVariables(
-      subject || `[Seline] ${payload.taskName} - ${payload.status}`,
+      subject || `[Selene] ${payload.taskName} - ${payload.status}`,
       payload
     );
 
@@ -43,7 +43,7 @@ export class EmailDeliveryHandler implements DeliveryHandler {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM || "Seline <notifications@seline.app>",
+        from: process.env.EMAIL_FROM || "Selene <notifications@selene.app>",
         to: recipients,
         subject: resolvedSubject,
         html,
@@ -127,7 +127,7 @@ ${payload.summary}
     </div>
     
     <div style="padding: 16px 24px; background: #f9f9f9; border-top: 1px solid #e5e5e5; font-size: 12px; color: #666;">
-      Sent by Seline • ${new Date().toLocaleDateString()}
+      Sent by Selene • ${new Date().toLocaleDateString()}
     </div>
   </div>
 </body>

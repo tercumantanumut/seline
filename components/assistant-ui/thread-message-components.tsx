@@ -25,6 +25,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { GradientBackground } from "@/components/ui/noisy-gradient-backgrounds";
+import type { GradientColor } from "@/components/ui/noisy-gradient-backgrounds";
+import { getAgentAccentColor } from "@/lib/personalization/accent-colors";
 import { MarkdownText, UserMarkdownText } from "./markdown-text";
 import { ToolFallback } from "./tool-fallback";
 import { ToolCallGroup } from "./tool-call-group";
@@ -40,6 +43,26 @@ import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
 import { ChromiumWorkspaceToolUI } from "./chromium-workspace-tool-ui";
 import { AskFollowupQuestionToolUI } from "./ask-question-tool-ui";
 import { PromptLibraryToolUI } from "./prompt-library-tool-ui";
+import {
+  ClaudeEditToolUI,
+  ClaudeBashToolUI,
+  ClaudeReadToolUI,
+  ClaudeWriteToolUI,
+  ClaudeGlobToolUI,
+  ClaudeGrepToolUI,
+  ClaudeAgentToolUI,
+  ClaudeWebFetchToolUI,
+  ClaudeWebSearchToolUI,
+  ClaudeNotebookEditToolUI,
+  ClaudeTodoWriteToolUI,
+  ClaudeEnterPlanModeToolUI,
+  ClaudeExitPlanModeToolUI,
+  ClaudeEnterWorktreeToolUI,
+  ClaudeAskUserQuestionToolUI,
+  ClaudeSkillToolUI,
+  ClaudeTaskOutputToolUI,
+  ClaudeTaskStopToolUI,
+} from "./claude-code-tools";
 import { useOptionalVoice } from "./voice-context";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
@@ -49,13 +72,21 @@ import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
 import { TextShimmer } from "@/components/ui/text-shimmer";
+import { useChatSessionId } from "@/components/chat-provider";
+import { useLiveToolStatuses } from "./tool-live-status";
+import {
+  getVisibleActivitySignature,
+  isMessageInitiallyThinking,
+  shouldShowIdleThinking,
+  SYNTHETIC_THINKING_IDLE_DELAY_MS,
+} from "./thread-message-activity";
 
 /**
- * Wraps a by_name tool map so MCP-prefixed names (e.g. mcp__seline-platform__vectorSearch)
+ * Wraps a by_name tool map so MCP-prefixed names (e.g. mcp__selene-platform__vectorSearch)
  * resolve to the same component as the short name (vectorSearch).
  * Without this, assistant-ui's by_name lookup fails for all MCP tools and falls back to ToolFallback.
  */
-const MCP_PREFIX = "mcp__seline-platform__";
+const MCP_PREFIX = "mcp__selene-platform__";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mcpAwareToolMap(map: Record<string, FC<any>>): Record<string, FC<any>> {
   return new Proxy(map, {
@@ -278,7 +309,32 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
   const displayChar = character || DEFAULT_CHARACTER;
   const messageRef = useRef<HTMLDivElement>(null);
   const hasAnimatedRef = useRef(false);
+  const lastVisibleActivityAtRef = useRef<number | null>(null);
+  const lastActivityKeyRef = useRef<string>("");
   const prefersReducedMotion = useReducedMotion();
+  const sessionId = useChatSessionId();
+  const liveStatuses = useLiveToolStatuses(sessionId);
+  const [isIdleThinking, setIsIdleThinking] = useState(false);
+
+  const accentColor = useMemo(
+    () => getAgentAccentColor(displayChar.id),
+    [displayChar.id]
+  );
+
+  const assistantGradientColors = useMemo((): GradientColor[] => {
+    const hex = accentColor.hex;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const dr = Math.max(0, Math.round(r * 0.3));
+    const dg = Math.max(0, Math.round(g * 0.3));
+    const db = Math.max(0, Math.round(b * 0.3));
+    return [
+      { color: `rgba(${dr},${dg},${db},1)`, stop: "0%" },
+      { color: `rgba(${r},${g},${b},1)`, stop: "60%" },
+      { color: `rgba(${Math.min(255, r + 30)},${Math.min(255, g + 30)},${Math.min(255, b + 30)},1)`, stop: "100%" },
+    ];
+  }, [accentColor.hex]);
 
   // Access message metadata for token usage
   // assistant-ui stores custom metadata in message.metadata.custom
@@ -293,16 +349,63 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
     outputTokens: steps.reduce((sum, s) => sum + (s.usage?.completionTokens || 0), 0),
   } : undefined);
 
-  // Detect thinking state: message is streaming but has no visible text yet
-  const isThinking = useMemo(() => {
-    const status = message?.status;
-    if (status?.type !== "running") return false;
-    const parts = message?.content;
-    if (!parts || !Array.isArray(parts) || parts.length === 0) return true;
-    return !parts.some(
-      (p: { type: string; text?: string }) => p.type === "text" && (p.text?.length ?? 0) > 0
-    );
-  }, [message?.status, message?.content]);
+  const isInitialThinking = useMemo(
+    () => isMessageInitiallyThinking(message?.status, message?.content),
+    [message?.status, message?.content]
+  );
+
+  const visibleActivitySignature = useMemo(
+    () => getVisibleActivitySignature(message?.content, liveStatuses),
+    [liveStatuses, message?.content]
+  );
+
+  const isThinking = isInitialThinking || isIdleThinking;
+
+  useEffect(() => {
+    if (message?.status?.type !== "running") {
+      lastVisibleActivityAtRef.current = null;
+      lastActivityKeyRef.current = "";
+      setIsIdleThinking(false);
+      return;
+    }
+
+    if (visibleActivitySignature === lastActivityKeyRef.current) {
+      return;
+    }
+
+    lastActivityKeyRef.current = visibleActivitySignature;
+    lastVisibleActivityAtRef.current = Date.now();
+    setIsIdleThinking(false);
+  }, [message?.status, visibleActivitySignature]);
+
+  useEffect(() => {
+    if (message?.status?.type !== "running") {
+      setIsIdleThinking(false);
+      return;
+    }
+
+    const lastVisibleActivityAt = lastVisibleActivityAtRef.current;
+    if (lastVisibleActivityAt === null || isInitialThinking) {
+      setIsIdleThinking(false);
+      return;
+    }
+
+    const elapsed = Date.now() - lastVisibleActivityAt;
+    const remaining = SYNTHETIC_THINKING_IDLE_DELAY_MS - elapsed;
+
+    if (remaining <= 0) {
+      setIsIdleThinking(true);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsIdleThinking(
+        shouldShowIdleThinking(message?.status, lastVisibleActivityAtRef.current, Date.now())
+      );
+    }, remaining);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isInitialThinking, message?.status, visibleActivitySignature]);
 
   // Extract text content from message for YouTube preview detection
   const messageText = useMemo(() => {
@@ -342,15 +445,28 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
             alt={displayChar.name}
           />
         ) : null}
-        <AvatarFallback className="bg-terminal-green/20 text-terminal-green text-xs font-mono">
-          {displayChar.initials || displayChar.name.substring(0, 2).toUpperCase()}
+        <AvatarFallback className="relative overflow-hidden">
+          <GradientBackground
+            colors={assistantGradientColors}
+            gradientOrigin="bottom-middle"
+            gradientSize="150% 150%"
+            noiseIntensity={0.9}
+            noisePatternAlpha={45}
+            noisePatternSize={60}
+            noisePatternRefreshInterval={7}
+            className="rounded-full"
+          />
         </AvatarFallback>
       </Avatar>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex min-w-0 flex-col gap-1 font-mono text-sm text-terminal-dark [overflow-wrap:anywhere]">
           {isThinking && (
-            <TextShimmer className="font-mono text-sm" duration={12} spread={3}>
+            <TextShimmer
+              className={cn("font-mono text-sm", isIdleThinking && "opacity-80")}
+              duration={12}
+              spread={3}
+            >
               Thinking...
             </TextShimmer>
           )}
@@ -360,6 +476,7 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
               ToolGroup: ToolCallGroup,
               tools: {
                 by_name: mcpAwareToolMap({
+                  // Selene MCP tools
                   vectorSearch: VectorSearchToolUI,
                   showProductImages: ProductGalleryToolUI,
                   executeCommand: ExecuteCommandToolUI,
@@ -374,9 +491,26 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
                   askUserQuestion: AskFollowupQuestionToolUI,
                   askFollowupQuestion: AskFollowupQuestionToolUI,
                   AskFollowupQuestion: AskFollowupQuestionToolUI,
-                  AskUserQuestion: AskFollowupQuestionToolUI,
-                  ExitPlanMode: PlanApprovalToolUI,
                   promptLibrary: PromptLibraryToolUI,
+                  // Claude Code native tools
+                  Edit: ClaudeEditToolUI,
+                  Bash: ClaudeBashToolUI,
+                  Read: ClaudeReadToolUI,
+                  Write: ClaudeWriteToolUI,
+                  Glob: ClaudeGlobToolUI,
+                  Grep: ClaudeGrepToolUI,
+                  Agent: ClaudeAgentToolUI,
+                  WebFetch: ClaudeWebFetchToolUI,
+                  WebSearch: ClaudeWebSearchToolUI,
+                  NotebookEdit: ClaudeNotebookEditToolUI,
+                  TodoWrite: ClaudeTodoWriteToolUI,
+                  EnterPlanMode: ClaudeEnterPlanModeToolUI,
+                  ExitPlanMode: ClaudeExitPlanModeToolUI,
+                  EnterWorktree: ClaudeEnterWorktreeToolUI,
+                  AskUserQuestion: ClaudeAskUserQuestionToolUI,
+                  Skill: ClaudeSkillToolUI,
+                  TaskOutput: ClaudeTaskOutputToolUI,
+                  TaskStop: ClaudeTaskStopToolUI,
                 }),
                 Fallback: ToolFallback,
               },

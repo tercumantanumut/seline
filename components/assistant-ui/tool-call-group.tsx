@@ -15,7 +15,7 @@ import { useToolDisplayPreferences } from "./tool-display-context";
 import { useToolExpansion } from "./tool-expansion-context";
 import {
   getFallbackToolPhase,
-  summarizeToolInput,
+  summarizeToolInputByName,
   summarizeToolOutput,
   useLiveToolStatuses,
   type LiveToolPhase,
@@ -58,6 +58,7 @@ const TOOLS_AUTO_EXPAND = new Set([
   "speakAloud",
   "askUserQuestion",
   "askFollowupQuestion",
+  "AskUserQuestion",
   "updatePlan",
   "ExitPlanMode",
   "showProductImages",
@@ -240,7 +241,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         : undefined;
       const phase = liveStatus?.phase ?? getFallbackToolPhase(part.result, canonicalStatus === "running");
       const detail = liveStatus?.detail;
-      const inputPreview = liveStatus?.argsPreview ?? summarizeToolInput(partLike.input ?? partLike.args ?? partLike.argsText);
+      const inputPreview = liveStatus?.argsPreview ?? summarizeToolInputByName(canonicalToolName, partLike.input ?? partLike.args ?? partLike.argsText);
       const outputPreview = liveStatus?.outputPreview ?? summarizeToolOutput(part.result);
 
       return {

@@ -15,7 +15,7 @@
   },
   "onboarding": {
     "welcome": {
-      "title": "Welcome to Seline",
+      "title": "Welcome to Selene",
       "subtitle": "Your AI agents platform. Chat, create, research, and automate — everywhere.",
       "features": {
         "agents": {
@@ -197,15 +197,15 @@
       "title": "Choose Your Path",
       "subtitle": "Each path unlocks different capabilities. Change anytime in Settings.",
       "dev": {
-        "title": "Seline Dev",
+        "title": "Selene Dev",
         "tagline": "Ship code with an AI pair programmer"
       },
       "fun": {
-        "title": "Seline Fun",
+        "title": "Selene Fun",
         "tagline": "Personal AI companions with personality"
       },
       "work": {
-        "title": "Seline Work",
+        "title": "Selene Work",
         "tagline": "Team agents for your organization",
         "comingSoon": "Coming Soon"
       },
@@ -231,7 +231,16 @@
         "emotionDetectionDesc": "Avatar reacts based on conversation mood",
         "telegramToken": "Telegram bot token",
         "telegramTokenPlaceholder": "Paste your @BotFather token...",
-        "telegramTokenHint": "Optional"
+        "telegramTokenHint": "Optional",
+        "ttsAutoReply": "Auto-speak every reply",
+        "ttsAutoReplyDesc": "Every assistant reply includes audio output",
+        "postEditChecks": "After-edit checks",
+        "postEditChecksDesc": "Run type-check and lint after every file edit",
+        "postEditOff": "Off — no checks",
+        "postEditFast": "Fast — type-check only (auto scope)",
+        "postEditStrict": "Strict — type-check + ESLint (all)",
+        "rtk": "RTK (token optimizer)",
+        "rtkDesc": "Compress command output to save context tokens"
       }
     },
     "complete": {
@@ -242,7 +251,7 @@
         "chat": "Start a conversation and explore capabilities",
         "settings": "Fine-tune your experience in Settings"
       },
-      "cta": "Start Using Seline"
+      "cta": "Start Using Selene"
     },
     "wizard": {
       "stepWelcome": "Welcome",
@@ -323,8 +332,8 @@
   },
   "layout": {
     "brandShort": "S",
-    "brand": "Seline",
-    "homeAria": "Seline Home",
+    "brand": "Selene",
+    "homeAria": "Selene Home",
     "minimizeWindow": "Minimize window",
     "maximizeWindow": "Maximize window",
     "closeWindow": "Close window",
@@ -340,7 +349,7 @@
   },
   "authLayout": {
     "logoShort": "S",
-    "logo": "Seline"
+    "logo": "Selene"
   },
   "login": {
     "title": "Welcome back",
@@ -356,7 +365,7 @@
     "ctaLink": "Create one"
   },
   "signup": {
-    "titleFirst": "Welcome to Seline",
+    "titleFirst": "Welcome to Selene",
     "title": "Create an account",
     "subtitleFirst": "Set up your first account to get started",
     "subtitle": "Sign up to start creating",
@@ -517,9 +526,9 @@
       "addToWorkflowNoAvailable": "No available workflows for this agent",
       "addToWorkflowCta": "Add to Workflow",
       "addToWorkflowAdding": "Adding...",
-      "restoreSystemSpecialists": "Restore System Specialists",
-      "restoreSuccess": "System specialists restored",
-      "restoreFailed": "Failed to restore system specialists"
+      "restoreSystemSpecialists": "Restore System Agents",
+      "restoreSuccess": "System agents restored",
+      "restoreFailed": "Failed to restore system agents"
     },
     "activeSession": {
       "label": "Active",
@@ -1025,6 +1034,24 @@
       "generateImageFlux2Klein9B": "Generate (FLUX.2 Klein 9B)",
       "editImageFlux2Klein9B": "Edit (FLUX.2 Klein 9B)",
       "referenceImageFlux2Klein9B": "Reference (FLUX.2 Klein 9B)",
+      "Edit": "Edit",
+      "Bash": "Terminal",
+      "Read": "Read File",
+      "Write": "Write File",
+      "Glob": "Find Files",
+      "Grep": "Search",
+      "Agent": "Agent",
+      "WebFetch": "Fetch URL",
+      "WebSearch": "Web Search",
+      "NotebookEdit": "Notebook Edit",
+      "TodoWrite": "Task List",
+      "EnterPlanMode": "Plan Mode",
+      "ExitPlanMode": "Plan Approval",
+      "EnterWorktree": "Worktree",
+      "Skill": "Skill",
+      "AskUserQuestion": "Ask Question",
+      "TaskOutput": "Task Output",
+      "TaskStop": "Stop Task",
       "toolOutputPreview": "Tool output preview {index}",
       "hide": "Hide",
       "details": "Details",
@@ -1216,7 +1243,7 @@
     },
     "skillsPage": {
       "title": "Skills",
-      "subtitle": "Give Seline superpowers.",
+      "subtitle": "Give Selene superpowers.",
       "learnMore": "Learn more",
       "refresh": "Refresh",
       "newSkill": "New skill",
@@ -1436,7 +1463,7 @@
     "lastRunReason": "Last run reason:",
     "lastRunReasonFileChange": "File change detected",
     "lastRunReasonManual": "Manual sync started by user",
-    "lastRunReasonInitial": "Initial baseline sync after adding folder",
+    "lastRunReasonInitial": "Initial baselene sync after adding folder",
     "lastRunReasonScheduledFull": "Scheduled check ran a full re-scan",
     "lastRunReasonScheduledCheck": "Scheduled periodic check",
     "maxFileSizeMb": "Largest file size (MB)",
@@ -1572,13 +1599,14 @@
       }
     },
     "intro": {
+      "title": "Create an Agent",
       "subtitle": "Configure a focused AI agent for your work or projects",
       "guidedCreation": "GUIDED CREATION",
       "or": "or",
       "quickCreate": "QUICK CREATE",
       "quickPrompt": "Describe your agent's role or purpose in one sentence:",
       "quickPlaceholder": "Customer support agent for our SaaS product that answers FAQs and drafts replies.",
-      "back": "← Back",
+      "back": "Back",
       "generate": "GENERATE",
       "templateCategory": "Category",
       "templateEmpty": "No templates found.",
@@ -1606,7 +1634,7 @@
       "example3": "Technical writing agent that explains APIs in clear, simple language",
       "errorMinLength": "Please describe your agent in at least 10 characters",
       "errorMaxLength": "Concept must be less than 500 characters",
-      "back": "← Back",
+      "back": "Back",
       "cmdEnter": "⌘+Enter to submit",
       "continue": "Continue →"
     },
@@ -1623,7 +1651,7 @@
       "errorTaglineMax": "Tagline must be less than 100 characters",
       "errorPurposeMin": "Please describe the agent's purpose in at least 10 characters",
       "errorPurposeMax": "Purpose must be less than 1000 characters",
-      "back": "← Back",
+      "back": "Back",
       "continue": "Continue →"
     },
     "capabilities": {
@@ -1758,7 +1786,7 @@
         "localGrepEnabled": "Requires Local Grep enabled",
         "devWorkspaceEnabled": "Requires Developer Workspace enabled"
       },
-      "back": "← Back",
+      "back": "Back",
       "continue": "Continue →"
     },
     "embeddingSetup": {
@@ -1798,6 +1826,9 @@
       "connected": "Connected",
       "toolsCount": "{enabled}/{total} tools",
       "continue": "Continue",
+      "connectionError": "Connection failed",
+      "disconnected": "disconnected",
+      "back": "Back",
       "loadingMode": {
         "label": "Loading Mode",
         "always": "Always",
@@ -1823,7 +1854,7 @@
         "pixel": "Pixel Art",
         "pixelDesc": "Retro pixel style"
       },
-      "back": "← Back",
+      "back": "Back",
       "generateCharacter": "Generate Character →"
     },
     "knowledgeBase": {
@@ -1833,8 +1864,9 @@
       "orDragFiles": "or drag files here",
       "supportedFormats": "Supports PDF, TXT, Markdown, HTML",
       "uploadedDocuments": "Uploaded Documents",
+      "confirmDelete": "Confirm?",
       "skipHint": "You can skip this step and add documents later",
-      "back": "← Back",
+      "back": "Back",
       "continue": "Continue →",
       "skip": "Skip →"
     },
@@ -1859,7 +1891,11 @@
       "toolsEnabled": "Tools: {count} enabled",
       "documentsCount": "Documents: {count} attached",
       "readyToDeploy": "Ready to deploy",
-      "back": "← Back",
+      "mcpTools": "MCP Tools",
+      "mcpServersCount": "{count, plural, =1 {# MCP server} other {# MCP servers}}",
+      "mcpToolCount": "{count} tools",
+      "mcpSummary": "{servers} MCP servers, {tools} tools",
+      "back": "Back",
       "creating": "Creating...",
       "createAgent": "Create Agent ✓"
     },
@@ -1908,7 +1944,7 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Manage how Seline works for you",
+    "subtitle": "Manage how Selene works for you",
     "save": {
       "cta": "Save Changes",
       "saving": "Saving...",
@@ -2030,9 +2066,9 @@
           "placeholder": "fc-...",
           "helper": "Needed only if you choose Firecrawl."
         },
-        "seline": {
-          "label": "Seline media key",
-          "placeholder": "Enter your Seline AI key",
+        "selene": {
+          "label": "Selene media key",
+          "placeholder": "Enter your Selene AI key",
           "helper": "Needed for image and video generation."
         },
         "ollama": {
@@ -2199,7 +2235,7 @@
       "subtitle": "Choose which model to use for each task. Leave blank to use provider defaults.",
       "defaults": {
         "label": "Defaults:",
-        "value": "If left empty, Seline chooses sensible defaults for your selected provider."
+        "value": "If left empty, Selene chooses sensible defaults for your selected provider."
       },
       "fields": {
         "chat": {
@@ -2581,7 +2617,7 @@
         "title": "Personal dictionary",
         "description": "Words and names to bias local transcription.",
         "helper": "Separate with commas. Saved words are used as whisper/parakeet hints.",
-        "placeholder": "e.g. Seline, k8s, OpenWhispr",
+        "placeholder": "e.g. Selene, k8s, OpenWhispr",
         "add": "Add words",
         "empty": "No dictionary words yet.",
         "remove": "Remove"
@@ -4010,10 +4046,8 @@
     },
     "presets": {
       "default": "Default",
-      "brunette": "Brunette",
       "aria": "Aria",
       "kai": "Kai",
-      "marcus": "Marcus",
       "playerzero": "Player Zero"
     },
     "custom": {

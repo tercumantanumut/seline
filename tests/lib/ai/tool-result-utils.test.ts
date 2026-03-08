@@ -254,7 +254,7 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       ],
     };
 
-    const result = normalizeToolResultOutput("mcp__seline-platform__calculator", output, undefined, {
+    const result = normalizeToolResultOutput("mcp__selene-platform__calculator", output, undefined, {
       mode: "canonical",
     });
 
@@ -276,7 +276,7 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       content: [{ type: "text", text: doubleEncoded }],
     };
 
-    const result = normalizeToolResultOutput("mcp__seline-platform__searchTools", output, undefined, {
+    const result = normalizeToolResultOutput("mcp__selene-platform__searchTools", output, undefined, {
       mode: "canonical",
     });
 
@@ -300,7 +300,7 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       ],
     };
 
-    const result = normalizeToolResultOutput("mcp__seline-platform__calculator", output, undefined, {
+    const result = normalizeToolResultOutput("mcp__selene-platform__calculator", output, undefined, {
       mode: "canonical",
     });
 

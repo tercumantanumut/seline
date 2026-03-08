@@ -222,11 +222,11 @@ describe("Codex large session: production failure reproduction", () => {
       { type: "message", role: "user", content: "Continue" },
     ];
 
-    // Baseline: nested-call envelope is ~110 items but ~940KB
+    // Baselene: nested-call envelope is ~110 items but ~940KB
     expect(input.length).toBe(110);
-    const baselineBytes = JSON.stringify(input).length;
-    expect(baselineBytes).toBeGreaterThan(900 * 1024);
-    expect(baselineBytes).toBeLessThan(1100 * 1024);
+    const baseleneBytes = JSON.stringify(input).length;
+    expect(baseleneBytes).toBeGreaterThan(900 * 1024);
+    expect(baseleneBytes).toBeLessThan(1100 * 1024);
 
     const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});

@@ -1,6 +1,6 @@
 ---
 name: "sora"
-description: "Use when the user asks to generate, remix, poll, list, download, or delete Sora videos via OpenAI\u2019s video API using the bundled CLI (`${SELINE_SKILL_ROOT}/scripts/sora.py`), including requests like \u201cgenerate AI video,\u201d \u201cSora,\u201d \u201cvideo remix,\u201d \u201cdownload video/thumbnail/spritesheet,\u201d and batch video generation; requires `OPENAI_API_KEY` and Sora API access."
+description: "Use when the user asks to generate, remix, poll, list, download, or delete Sora videos via OpenAI\u2019s video API using the bundled CLI (`${SELENE_SKILL_ROOT}/scripts/sora.py`), including requests like \u201cgenerate AI video,\u201d \u201cSora,\u201d \u201cvideo remix,\u201d \u201cdownload video/thumbnail/spritesheet,\u201d and batch video generation; requires `OPENAI_API_KEY` and Sora API access."
 ---
 
 
@@ -26,7 +26,7 @@ Creates or manages short video clips for the current project (product demos, mar
 2. Collect inputs: prompt, model, size, seconds, and any input reference image.
 3. If batch: write a temporary JSONL under tmp/ (one job per line), run once, then delete the JSONL.
 4. Prefer CLI augmentation flags (`--use-case`, `--scene`, `--camera`, etc.) instead of pre-writing a structured prompt. If you already produced a structured prompt file, pass `--no-augment` to avoid double-wrapping.
-5. Run the bundled CLI (`${SELINE_SKILL_ROOT}/scripts/sora.py`) with sensible defaults (see ${SELINE_SKILL_ROOT}/references/cli.md). For long prompts, prefer `--prompt-file` to avoid shell-escaping issues; pair with `--no-augment` if the prompt is already structured.
+5. Run the bundled CLI (`${SELENE_SKILL_ROOT}/scripts/sora.py`) with sensible defaults (see ${SELENE_SKILL_ROOT}/references/cli.md). For long prompts, prefer `--prompt-file` to avoid shell-escaping issues; pair with `--no-augment` if the prompt is already structured.
 6. For async jobs, poll until complete (or use create-and-poll).
 7. Download assets (video/thumbnail/spritesheet) and save locally.
 8. Remove intermediate files created during invocation (for example `prompt.txt`, `remix_job.json`, temp JSONL). If the sandbox blocks `rm`, skip cleanup or truncate the files without surfacing an error.
@@ -51,7 +51,7 @@ If the key is missing, give the user these steps:
 - If uv cache permissions fail, set `UV_CACHE_DIR=/tmp/uv-cache`.
 - Input reference images must be jpg/png/webp and should match target size.
 - Download URLs expire after about 1 hour; copy assets to your own storage.
-- Prefer the bundled CLI and **never modify** `${SELINE_SKILL_ROOT}/scripts/sora.py` unless the user asks.
+- Prefer the bundled CLI and **never modify** `${SELENE_SKILL_ROOT}/scripts/sora.py` unless the user asks.
 - Sora can generate audio; if a user requests voiceover/audio, specify it explicitly in the `Audio:` and `Dialogue:` lines and keep it short.
 
 ## API limitations
@@ -59,7 +59,7 @@ If the key is missing, give the user these steps:
 - API access to Sora models requires an organization-verified account.
 - Duration is limited to 4/8/12 seconds and must be set via the `seconds` parameter.
 - The API expects `seconds` as a string enum ("4", "8", "12").
-- Output sizes are limited by model (see `${SELINE_SKILL_ROOT}/references/video-api.md` for the supported sizes).
+- Output sizes are limited by model (see `${SELENE_SKILL_ROOT}/references/video-api.md` for the supported sizes).
 - Video creation is async; you must poll for completion before downloading.
 - Rate limits apply by usage tier (do not list specific limits).
 - Content restrictions are enforced by the API (see Guardrails below).
@@ -131,23 +131,23 @@ Constraints: keep the subject and camera move unchanged
 
 ## Guidance by asset type
 Use these modules when the request is for a specific artifact. They provide targeted templates and defaults.
-- Cinematic shots: `${SELINE_SKILL_ROOT}/references/cinematic-shots.md`
-- Social ads: `${SELINE_SKILL_ROOT}/references/social-ads.md`
+- Cinematic shots: `${SELENE_SKILL_ROOT}/references/cinematic-shots.md`
+- Social ads: `${SELENE_SKILL_ROOT}/references/social-ads.md`
 
 ## CLI + environment notes
-- CLI commands + examples: `${SELINE_SKILL_ROOT}/references/cli.md`
-- API parameter quick reference: `${SELINE_SKILL_ROOT}/references/video-api.md`
-- Prompting guidance: `${SELINE_SKILL_ROOT}/references/prompting.md`
-- Sample prompts: `${SELINE_SKILL_ROOT}/references/sample-prompts.md`
-- Troubleshooting: `${SELINE_SKILL_ROOT}/references/troubleshooting.md`
-- Network/sandbox tips: `${SELINE_SKILL_ROOT}/references/codex-network.md`
+- CLI commands + examples: `${SELENE_SKILL_ROOT}/references/cli.md`
+- API parameter quick reference: `${SELENE_SKILL_ROOT}/references/video-api.md`
+- Prompting guidance: `${SELENE_SKILL_ROOT}/references/prompting.md`
+- Sample prompts: `${SELENE_SKILL_ROOT}/references/sample-prompts.md`
+- Troubleshooting: `${SELENE_SKILL_ROOT}/references/troubleshooting.md`
+- Network/sandbox tips: `${SELENE_SKILL_ROOT}/references/codex-network.md`
 
 ## Reference map
-- **`${SELINE_SKILL_ROOT}/references/cli.md`**: how to run create/poll/remix/download/batch via `${SELINE_SKILL_ROOT}/scripts/sora.py`.
-- **`${SELINE_SKILL_ROOT}/references/video-api.md`**: API-level knobs (models, sizes, duration, variants, status).
-- **`${SELINE_SKILL_ROOT}/references/prompting.md`**: prompt structure and iteration guidance.
-- **`${SELINE_SKILL_ROOT}/references/sample-prompts.md`**: copy/paste prompt recipes (examples only; no extra theory).
-- **`${SELINE_SKILL_ROOT}/references/cinematic-shots.md`**: templates for filmic shots.
-- **`${SELINE_SKILL_ROOT}/references/social-ads.md`**: templates for short social ad beats.
-- **`${SELINE_SKILL_ROOT}/references/troubleshooting.md`**: common errors and fixes.
-- **`${SELINE_SKILL_ROOT}/references/codex-network.md`**: network/approval troubleshooting.
+- **`${SELENE_SKILL_ROOT}/references/cli.md`**: how to run create/poll/remix/download/batch via `${SELENE_SKILL_ROOT}/scripts/sora.py`.
+- **`${SELENE_SKILL_ROOT}/references/video-api.md`**: API-level knobs (models, sizes, duration, variants, status).
+- **`${SELENE_SKILL_ROOT}/references/prompting.md`**: prompt structure and iteration guidance.
+- **`${SELENE_SKILL_ROOT}/references/sample-prompts.md`**: copy/paste prompt recipes (examples only; no extra theory).
+- **`${SELENE_SKILL_ROOT}/references/cinematic-shots.md`**: templates for filmic shots.
+- **`${SELENE_SKILL_ROOT}/references/social-ads.md`**: templates for short social ad beats.
+- **`${SELENE_SKILL_ROOT}/references/troubleshooting.md`**: common errors and fixes.
+- **`${SELENE_SKILL_ROOT}/references/codex-network.md`**: network/approval troubleshooting.

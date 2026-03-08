@@ -51,8 +51,8 @@ export default function SettingsPage() {
   const [claudecodeLoading, setClaudecodeLoading] = useState(false);
 
   useEffect(() => {
-    document.title = `${t("title")} — Seline`;
-    return () => { document.title = "Seline"; };
+    document.title = `${t("title")} — Selene`;
+    return () => { document.title = "Selene"; };
   }, [t]);
 
   useEffect(() => {

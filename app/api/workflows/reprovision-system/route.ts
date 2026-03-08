@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { getUserDefaultCharacter, updateCharacter } from "@/lib/characters/queries";
-import { ensureSystemAgentsExist } from "@/lib/characters/templates";
+import { ensureSystemAgentsExist, createAgentFromTemplate, getDefaultTemplate } from "@/lib/characters/templates";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,12 +11,33 @@ export async function POST(req: NextRequest) {
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
 
-    const defaultAgent = await getUserDefaultCharacter(dbUser.id);
+    let defaultAgent = await getUserDefaultCharacter(dbUser.id);
+
+    // If no default agent exists, recreate the Selene agent from template
     if (!defaultAgent) {
-      return NextResponse.json(
-        { error: "No default agent found" },
-        { status: 404 }
-      );
+      const seleneTemplate = getDefaultTemplate();
+      if (!seleneTemplate) {
+        return NextResponse.json(
+          { error: "No default template found" },
+          { status: 500 }
+        );
+      }
+
+      const newAgentId = await createAgentFromTemplate(dbUser.id, seleneTemplate);
+      if (!newAgentId) {
+        return NextResponse.json(
+          { error: "Failed to recreate default agent" },
+          { status: 500 }
+        );
+      }
+
+      defaultAgent = await getUserDefaultCharacter(dbUser.id);
+      if (!defaultAgent) {
+        return NextResponse.json(
+          { error: "Default agent created but not found" },
+          { status: 500 }
+        );
+      }
     }
 
     // Clear dismissal flags AND reset provisioning flag so ensureSystemAgentsExist

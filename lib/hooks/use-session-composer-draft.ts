@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const COMPOSER_DRAFT_STORAGE_PREFIX = "seline:composer-draft";
+const COMPOSER_DRAFT_STORAGE_PREFIX = "selene:composer-draft";
 
 interface ComposerDraftSnapshot {
   text: string;

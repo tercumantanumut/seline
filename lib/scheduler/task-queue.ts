@@ -67,7 +67,7 @@ export class TaskQueue {
   private getChatApiBaseUrl(): string {
     // Detect Electron production environment (same logic as lib/channels/inbound.ts)
     const isElectronProduction =
-      (process.env.SELINE_PRODUCTION_BUILD === "1" ||
+      (process.env.SELENE_PRODUCTION_BUILD === "1" ||
        !!(process as any).resourcesPath ||
        !!process.env.ELECTRON_RESOURCES_PATH) &&
       process.env.ELECTRON_IS_DEV !== "1" &&
@@ -348,7 +348,7 @@ export class TaskQueue {
         `\n  Task: ${task.taskName}`,
         `\n  URL: ${endpoint}`,
         `\n  Error: ${error.message}`,
-        `\n  Environment: NODE_ENV=${process.env.NODE_ENV}, SELINE_PRODUCTION_BUILD=${process.env.SELINE_PRODUCTION_BUILD}`
+        `\n  Environment: NODE_ENV=${process.env.NODE_ENV}, SELENE_PRODUCTION_BUILD=${process.env.SELENE_PRODUCTION_BUILD}`
       );
     } else if (error instanceof Error && error.message.includes("ENOTFOUND")) {
       console.error(

@@ -1,7 +1,7 @@
 /**
  * MCP Tool Adapter
  * 
- * Converts MCP tools to Seline's ToolMetadata format and creates AI SDK-compatible wrappers.
+ * Converts MCP tools to Selene's ToolMetadata format and creates AI SDK-compatible wrappers.
  */
 
 import { tool, jsonSchema } from "ai";
@@ -449,7 +449,7 @@ export interface MCPToolLoadingPreference {
 }
 
 /**
- * Convert an MCP tool to Seline's ToolMetadata format
+ * Convert an MCP tool to Selene's ToolMetadata format
  * @param mcpTool - The MCP tool from the server
  * @param preference - Optional per-tool loading preference from agent settings
  */
@@ -526,7 +526,7 @@ export function createMCPToolWrapper(mcpTool: MCPDiscoveredTool): Tool {
                     args
                 );
 
-                // Format result according to Seline's conventions (strip base64 payloads)
+                // Format result according to Selene's conventions (strip base64 payloads)
                 return await formatMCPToolResult(
                     serverName,
                     toolName,

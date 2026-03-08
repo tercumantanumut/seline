@@ -24,17 +24,17 @@ pip install networkx
 
 1. Scope the repo and time window (optional `--since/--until`).
 2. Decide sensitivity rules (use defaults or provide a CSV config).
-3. Build the ownership map with `${SELINE_SKILL_ROOT}/scripts/run_ownership_map.py` (co-change graph is on by default; use `--cochange-max-files` to ignore supernode commits).
+3. Build the ownership map with `${SELENE_SKILL_ROOT}/scripts/run_ownership_map.py` (co-change graph is on by default; use `--cochange-max-files` to ignore supernode commits).
 4. Communities are computed by default; graphml output is optional (`--graphml`).
-5. Query the outputs with `${SELINE_SKILL_ROOT}/scripts/query_ownership.py` for bounded JSON slices.
-6. Persist and visualize (see `${SELINE_SKILL_ROOT}/references/neo4j-import.md`).
+5. Query the outputs with `${SELENE_SKILL_ROOT}/scripts/query_ownership.py` for bounded JSON slices.
+6. Persist and visualize (see `${SELENE_SKILL_ROOT}/references/neo4j-import.md`).
 
 By default, the co-change graph ignores common “glue” files (lockfiles, `.github/*`, editor config) so clusters reflect actual code movement instead of shared infra edits. Override with `--cochange-exclude` or `--no-default-cochange-excludes`. Dependabot commits are excluded by default; override with `--no-default-author-excludes` or add patterns via `--author-exclude-regex`.
 
 If you want to exclude Linux build glue like `Kbuild` from co-change clustering, pass:
 
 ```bash
-python "${SELINE_SKILL_ROOT}/scripts/run_ownership_map.py \
+python "${SELENE_SKILL_ROOT}/scripts/run_ownership_map.py \
   --repo /path/to/linux \
   --out ownership-map-out \
   --cochange-exclude "**/Kbuild"
@@ -45,7 +45,7 @@ python "${SELINE_SKILL_ROOT}/scripts/run_ownership_map.py \
 Run from the repo root:
 
 ```bash
-python "${SELINE_SKILL_ROOT}/scripts/run_ownership_map.py \
+python "${SELENE_SKILL_ROOT}/scripts/run_ownership_map.py \
   --repo . \
   --out ownership-map-out \
   --since "12 months ago" \
@@ -57,7 +57,7 @@ Defaults: author identity, author date, and merge commits excluded. Use `--ident
 Example (override co-change excludes):
 
 ```bash
-python "${SELINE_SKILL_ROOT}/scripts/run_ownership_map.py \
+python "${SELENE_SKILL_ROOT}/scripts/run_ownership_map.py \
   --repo . \
   --out ownership-map-out \
   --cochange-exclude "**/Cargo.lock" \
@@ -68,7 +68,7 @@ python "${SELINE_SKILL_ROOT}/scripts/run_ownership_map.py \
 Communities are computed by default. To disable:
 
 ```bash
-python "${SELINE_SKILL_ROOT}/scripts/run_ownership_map.py \
+python "${SELENE_SKILL_ROOT}/scripts/run_ownership_map.py \
   --repo . \
   --out ownership-map-out \
   --no-communities
@@ -105,18 +105,18 @@ Use it with `--sensitive-config path/to/sensitive.csv`.
 
 ## LLM query helper
 
-Use `${SELINE_SKILL_ROOT}/scripts/query_ownership.py` to return small, JSON-bounded slices without loading the full graph into context.
+Use `${SELENE_SKILL_ROOT}/scripts/query_ownership.py` to return small, JSON-bounded slices without loading the full graph into context.
 
 Examples:
 
 ```bash
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out people --limit 10
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out files --tag auth --bus-factor-max 1
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out person --person alice@corp --limit 10
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out file --file crypto/tls
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out cochange --file crypto/tls --limit 10
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out summary --section orphaned_sensitive_code
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out community --id 3
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out people --limit 10
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out files --tag auth --bus-factor-max 1
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out person --person alice@corp --limit 10
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out file --file crypto/tls
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out cochange --file crypto/tls --limit 10
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out summary --section orphaned_sensitive_code
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out community --id 3
 ```
 
 Use `--community-top-owners 5` (default) to control how many maintainers are stored per community.
@@ -127,36 +127,36 @@ Run these to answer common security ownership questions with bounded output:
 
 ```bash
 # Orphaned sensitive code (stale + low bus factor)
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out summary --section orphaned_sensitive_code
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out summary --section orphaned_sensitive_code
 
 # Hidden owners for sensitive tags
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out summary --section hidden_owners
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out summary --section hidden_owners
 
 # Sensitive hotspots with low bus factor
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out summary --section bus_factor_hotspots
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out summary --section bus_factor_hotspots
 
 # Auth/crypto files with bus factor <= 1
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out files --tag auth --bus-factor-max 1
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out files --tag crypto --bus-factor-max 1
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out files --tag auth --bus-factor-max 1
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out files --tag crypto --bus-factor-max 1
 
 # Who is touching sensitive code the most
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out people --sort sensitive_touches --limit 10
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out people --sort sensitive_touches --limit 10
 
 # Co-change neighbors (cluster hints for ownership drift)
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out cochange --file path/to/file --min-jaccard 0.05 --limit 20
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out cochange --file path/to/file --min-jaccard 0.05 --limit 20
 
 # Community maintainers (for a cluster)
-python "${SELINE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out community --id 3
+python "${SELENE_SKILL_ROOT}/scripts/query_ownership.py --data-dir ownership-map-out community --id 3
 
 # Monthly maintainers for the community containing a file
-python "${SELINE_SKILL_ROOT}/scripts/community_maintainers.py \
+python "${SELENE_SKILL_ROOT}/scripts/community_maintainers.py \
   --data-dir ownership-map-out \
   --file network/card.c \
   --since 2025-01-01 \
   --top 5
 
 # Quarterly buckets instead of monthly
-python "${SELINE_SKILL_ROOT}/scripts/community_maintainers.py \
+python "${SELENE_SKILL_ROOT}/scripts/community_maintainers.py \
   --data-dir ownership-map-out \
   --file network/card.c \
   --since 2025-01-01 \
@@ -197,7 +197,7 @@ Use this structure, add fields if needed:
 
 ## Graph persistence
 
-Use `${SELINE_SKILL_ROOT}/references/neo4j-import.md` when you need to load the CSVs into Neo4j. It includes constraints, import Cypher, and visualization tips.
+Use `${SELENE_SKILL_ROOT}/references/neo4j-import.md` when you need to load the CSVs into Neo4j. It includes constraints, import Cypher, and visualization tips.
 
 ## Notes
 

@@ -15,7 +15,7 @@
   },
   "onboarding": {
     "welcome": {
-      "title": "Seline'e hoş geldiniz",
+      "title": "Selene'e hoş geldiniz",
       "subtitle": "AI ajan platformunuz. Sohbet edin, oluşturun, araştırın ve otomatikleştirin — her yerde.",
       "features": {
         "agents": {
@@ -197,15 +197,15 @@
       "title": "Yolunu Sec",
       "subtitle": "Her yol farkli yetenekleri acar. Ayarlar'dan istedigin zaman degistirebilirsin.",
       "dev": {
-        "title": "Seline Dev",
+        "title": "Selene Dev",
         "tagline": "Yapay zeka es programcisiyla kod yaz"
       },
       "fun": {
-        "title": "Seline Fun",
+        "title": "Selene Fun",
         "tagline": "Kisilikli yapay zeka arkadaslari"
       },
       "work": {
-        "title": "Seline Work",
+        "title": "Selene Work",
         "tagline": "Organizasyonuz icin takim ajanlari",
         "comingSoon": "Yakinda"
       },
@@ -231,7 +231,16 @@
         "emotionDetectionDesc": "Avatar sohbet ruh haline gore tepki verir",
         "telegramToken": "Telegram bot tokeni",
         "telegramTokenPlaceholder": "@BotFather tokenini yapistir...",
-        "telegramTokenHint": "Istege bagli"
+        "telegramTokenHint": "Istege bagli",
+        "ttsAutoReply": "Her yaniti otomatik seslendir",
+        "ttsAutoReplyDesc": "Her asistan yaniti ses ciktisi icerir",
+        "postEditChecks": "Duzenleme sonrasi kontroller",
+        "postEditChecksDesc": "Her dosya duzenlemesinden sonra tip kontrolu ve lint calistir",
+        "postEditOff": "Kapali — kontrol yok",
+        "postEditFast": "Hizli — sadece tip kontrolu (otomatik kapsam)",
+        "postEditStrict": "Siki — tip kontrolu + ESLint (tumu)",
+        "rtk": "RTK (token optimizasyonu)",
+        "rtkDesc": "Komut ciktisini sikistirarak baglam tokenlerinden tasarruf et"
       }
     },
     "complete": {
@@ -242,7 +251,7 @@
         "chat": "Sohbete başlayın ve yetenekleri keşfedin",
         "settings": "Ayarlar'da deneyiminizi ince ayarlayın"
       },
-      "cta": "Seline'i kullanmaya başla"
+      "cta": "Selene'i kullanmaya başla"
     },
     "wizard": {
       "stepWelcome": "Hoş Geldiniz",
@@ -517,9 +526,9 @@
       "addToWorkflowNoAvailable": "Bu ajan için uygun iş akışı yok",
       "addToWorkflowCta": "İş Akışına Ekle",
       "addToWorkflowAdding": "Ekleniyor...",
-      "restoreSystemSpecialists": "Sistem Uzmanlarını Geri Yükle",
-      "restoreSuccess": "Sistem uzmanları geri yüklendi",
-      "restoreFailed": "Sistem uzmanları geri yüklenemedi"
+      "restoreSystemSpecialists": "Sistem Ajanlarını Geri Yükle",
+      "restoreSuccess": "Sistem ajanları geri yüklendi",
+      "restoreFailed": "Sistem ajanları geri yüklenemedi"
     },
     "activeSession": {
       "label": "Aktif",
@@ -1214,7 +1223,7 @@
     },
     "skillsPage": {
       "title": "Beceriler",
-      "subtitle": "Seline'e süper güçler ver.",
+      "subtitle": "Selene'e süper güçler ver.",
       "learnMore": "Daha fazla bilgi",
       "refresh": "Yenile",
       "newSkill": "Yeni beceri",
@@ -1565,13 +1574,14 @@
       }
     },
     "intro": {
+      "title": "Ajan Oluştur",
       "subtitle": "İşiniz veya projeleriniz için odaklanmış bir AI ajanı yapılandırın",
       "guidedCreation": "ADIM ADIM OLUŞTUR",
       "or": "veya",
       "quickCreate": "HIZLI OLUŞTUR",
       "quickPrompt": "Ajanınızın rolünü veya amacını tek cümlede açıklayın:",
       "quickPlaceholder": "SaaS ürünümüz için SSS'leri yanıtlayan ve yanıt taslakları hazırlayan müşteri destek ajanı.",
-      "back": "← Geri",
+      "back": "Geri",
       "generate": "OLUŞTUR",
       "templateCategory": "Kategori",
       "templateEmpty": "Şablon bulunamadı.",
@@ -1599,7 +1609,7 @@
       "example3": "API'leri açık ve basit bir dille açıklayan teknik yazım ajanı",
       "errorMinLength": "Lütfen ajanınızı en az 10 karakterle tanımlayın",
       "errorMaxLength": "Konsept 500 karakterden az olmalıdır",
-      "back": "← Geri",
+      "back": "Geri",
       "cmdEnter": "⌘+Enter ile gönder",
       "continue": "Devam →"
     },
@@ -1616,7 +1626,7 @@
       "errorTaglineMax": "Slogan 100 karakterden az olmalıdır",
       "errorPurposeMin": "Lütfen ajanın amacını en az 10 karakterle tanımlayın",
       "errorPurposeMax": "Amaç 1000 karakterden az olmalıdır",
-      "back": "← Geri",
+      "back": "Geri",
       "continue": "Devam →"
     },
     "capabilities": {
@@ -1739,7 +1749,7 @@
         "delegateToSubagent": "Alt Ajana Devret",
         "delegateToSubagentDesc": "Görevleri iş akışı alt ajanlarına gönder ve yanıtlarını al"
       },
-      "back": "← Geri",
+      "back": "Geri",
       "continue": "Devam →",
       "dependencyWarnings": {
         "syncedFolders": "Senkronize klasörler gerekli",
@@ -1773,7 +1783,7 @@
         "pixel": "Piksel Sanatı",
         "pixelDesc": "Retro piksel stili"
       },
-      "back": "← Geri",
+      "back": "Geri",
       "generateCharacter": "Karakter Oluştur →"
     },
     "knowledgeBase": {
@@ -1783,8 +1793,9 @@
       "orDragFiles": "veya dosyaları buraya sürükleyin",
       "supportedFormats": "PDF, TXT, Markdown, HTML desteklenir",
       "uploadedDocuments": "Yüklenen Belgeler",
+      "confirmDelete": "Onayla?",
       "skipHint": "Bu adımı atlayabilir ve belgeleri daha sonra ekleyebilirsiniz",
-      "back": "← Geri",
+      "back": "Geri",
       "continue": "Devam →",
       "skip": "Atla →"
     },
@@ -1809,7 +1820,11 @@
       "toolsEnabled": "Araçlar: {count} etkin",
       "documentsCount": "Belgeler: {count} eklendi",
       "readyToDeploy": "Dağıtıma hazır",
-      "back": "← Geri",
+      "mcpTools": "MCP Araçları",
+      "mcpServersCount": "{count, plural, =1 {# MCP sunucusu} other {# MCP sunucusu}}",
+      "mcpToolCount": "{count} araç",
+      "mcpSummary": "{servers} MCP sunucusu, {tools} araç",
+      "back": "Geri",
       "creating": "Oluşturuluyor...",
       "createAgent": "Ajan Oluştur ✓"
     },
@@ -1880,6 +1895,9 @@
       "connected": "Bağlı",
       "toolsCount": "{enabled}/{total} araç",
       "continue": "Devam",
+      "connectionError": "Bağlantı başarısız",
+      "disconnected": "bağlantı kesildi",
+      "back": "Geri",
       "loadingMode": {
         "label": "Yükleme Modu",
         "always": "Her Zaman",
@@ -2012,9 +2030,9 @@
           "placeholder": "fc-...",
           "helper": "Firecrawl ile web taraması için gerekli"
         },
-        "seline": {
-          "label": "Seline AI API Anahtarı",
-          "placeholder": "Seline AI anahtarınızı girin",
+        "selene": {
+          "label": "Selene AI API Anahtarı",
+          "placeholder": "Selene AI anahtarınızı girin",
           "helper": "Görsel/video üretimi için gerekli"
         },
         "ollama": {
@@ -3948,10 +3966,8 @@
     },
     "presets": {
       "default": "Varsayılan",
-      "brunette": "Esmer",
       "aria": "Aria",
       "kai": "Kai",
-      "marcus": "Marcus",
       "playerzero": "Player Zero"
     },
     "custom": {

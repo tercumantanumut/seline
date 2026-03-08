@@ -13,8 +13,8 @@
    └── README.md
    ```
 
-2. **Drag and drop into Seline app**
-   - Open Seline
+2. **Drag and drop into Selene app**
+   - Open Selene
    - Go to Plugins section
    - Drag the `task-completion-notifier` folder into the plugins area
    - Or click "Install Plugin" and select the folder
@@ -90,7 +90,7 @@ Input: {"hook_type":"Stop","session_id":"test-4","stop_reason":"unknown"}
 ## Uninstall
 
 ### If installed via drag & drop
-1. Open Seline plugin manager
+1. Open Selene plugin manager
 2. Find "task-completion-notifier"
 3. Click the trash/delete icon
 
@@ -176,9 +176,9 @@ The script parses this and sends a platform-specific notification:
 For issues, check:
 1. The [Troubleshooting](#troubleshooting) section above
 2. Run the test script: `./test-hook.sh`
-3. Check Seline logs with `--debug` flag
+3. Check Selene logs with `--debug` flag
 4. Open an issue on GitHub
 
 ---
 
-**Made with ❤️ for Seline**
+**Made with ❤️ for Selene**

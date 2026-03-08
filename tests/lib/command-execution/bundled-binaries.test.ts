@@ -183,7 +183,7 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
         });
 
         it("should prepend bundled binaries to PATH on Unix", () => {
-            const mockResourcesPath = "/Applications/Seline.app/Contents/Resources";
+            const mockResourcesPath = "/Applications/Selene.app/Contents/Resources";
             const mockSystemPath = "/usr/local/bin:/usr/bin:/bin";
             const expectedNodeBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
             const expectedToolsBinPath = join(mockResourcesPath, "standalone", "tools", "bin");

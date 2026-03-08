@@ -1,6 +1,6 @@
 ---
 name: "doc"
-description: "Use when the task involves reading, creating, or editing `.docx` documents, especially when formatting or layout fidelity matters; prefer `python-docx` plus the bundled `${SELINE_SKILL_ROOT}/scripts/render_docx.py` for visual checks."
+description: "Use when the task involves reading, creating, or editing `.docx` documents, especially when formatting or layout fidelity matters; prefer `python-docx` plus the bundled `${SELENE_SKILL_ROOT}/scripts/render_docx.py` for visual checks."
 ---
 
 
@@ -14,7 +14,7 @@ description: "Use when the task involves reading, creating, or editing `.docx` d
 ## Workflow
 1. Prefer visual review (layout, tables, diagrams).
    - If `soffice` and `pdftoppm` are available, convert DOCX -> PDF -> PNGs.
-   - Or use `${SELINE_SKILL_ROOT}/scripts/render_docx.py` (requires `pdf2image` and Poppler).
+   - Or use `${SELENE_SKILL_ROOT}/scripts/render_docx.py` (requires `pdf2image` and Poppler).
    - If these tools are missing, install them or ask the user to review rendered pages locally.
 2. Use `python-docx` for edits and structured creation (headings, styles, tables, lists).
 3. After each meaningful change, re-render and inspect the pages.
@@ -64,7 +64,7 @@ pdftoppm -png $OUTDIR/$BASENAME.pdf $OUTDIR/$BASENAME
 
 Bundled helper:
 ```
-python3 "${SELINE_SKILL_ROOT}/scripts/render_docx.py /path/to/file.docx --output_dir /tmp/docx_pages
+python3 "${SELENE_SKILL_ROOT}/scripts/render_docx.py /path/to/file.docx --output_dir /tmp/docx_pages
 ```
 
 ## Quality expectations

@@ -105,7 +105,7 @@ export class DualLayerMemoryManager {
           agentId,
           metadata: {
             localMemoryId: localEntry.id,
-            source: "seline-dual-layer",
+            source: "selene-dual-layer",
           },
         })
         .then(() => {

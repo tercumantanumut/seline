@@ -1,10 +1,10 @@
 # Acknowledgments & Thanks
 
-Seline is built on the shoulders of giants. We are grateful to the open-source projects and libraries that make this application possible.
+Selene is built on the shoulders of giants. We are grateful to the open-source projects and libraries that make this application possible.
 
 ## AI Foundation
 
-- **[Vercel AI SDK](https://sdk.vercel.ai/)** and its provider packages (`@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/google`, `@ai-sdk/openai-compatible`). The core of all AI interactions in Seline.
+- **[Vercel AI SDK](https://sdk.vercel.ai/)** and its provider packages (`@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/google`, `@ai-sdk/openai-compatible`). The core of all AI interactions in Selene.
 - **[Assistant UI](https://assistant-ui.com/)** (`@assistant-ui/react`, `@assistant-ui/react-ai-sdk`, `@assistant-ui/react-markdown`). Chat interface components.
 - **[Claude Agent SDK](https://docs.anthropic.com/en/docs/agents)** (`@anthropic-ai/claude-agent-sdk`). Powers the Claude Code provider.
 - **[Model Context Protocol SDK](https://modelcontextprotocol.io/)** (`@modelcontextprotocol/sdk`). Tool and data integration standard.

@@ -49,7 +49,7 @@ interface ChromiumManagerState {
   launching: Promise<void> | null;
 }
 
-const GLOBAL_KEY = "__seline_chromium_manager__" as const;
+const GLOBAL_KEY = "__selene_chromium_manager__" as const;
 
 function getState(): ChromiumManagerState {
   const g = globalThis as unknown as Record<string, ChromiumManagerState>;
@@ -157,7 +157,7 @@ async function ensureBrowser(): Promise<void> {
 }
 
 /**
- * Launch in standalone mode — headless, isolated contexts, Seline UA.
+ * Launch in standalone mode — headless, isolated contexts, Selene UA.
  * Current default behavior.
  */
 async function launchStandalone(
@@ -334,7 +334,7 @@ export async function getOrCreateSession(sessionId: string): Promise<BrowserSess
     context = await browser.newContext({
       viewport: { width: 1280, height: 720 },
       userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Seline/1.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Selene/1.0",
       javaScriptEnabled: true,
       ignoreHTTPSErrors: true,
     });

@@ -23,12 +23,12 @@ If the token is missing, give the user these steps:
 
 ## Core tasks (use bundled script)
 
-Use `${SELINE_SKILL_ROOT}/scripts/sentry_api.py` for deterministic API calls. It handles pagination and retries once on transient errors.
+Use `${SELENE_SKILL_ROOT}/scripts/sentry_api.py` for deterministic API calls. It handles pagination and retries once on transient errors.
 
 ## Skill path (set once)
 
 ```bash
-export SENTRY_API="${SELINE_SKILL_ROOT}/scripts/sentry_api.py"
+export SENTRY_API="${SELENE_SKILL_ROOT}/scripts/sentry_api.py"
 ```
 
 

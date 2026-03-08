@@ -23,7 +23,7 @@ export function getOpenRouterApiKey(): string | undefined {
  */
 export function getAppUrl(): string {
   const isElectronProduction =
-    (process.env.SELINE_PRODUCTION_BUILD === "1" ||
+    (process.env.SELENE_PRODUCTION_BUILD === "1" ||
       !!(process as any).resourcesPath ||
       !!process.env.ELECTRON_RESOURCES_PATH) &&
     process.env.ELECTRON_IS_DEV !== "1" &&

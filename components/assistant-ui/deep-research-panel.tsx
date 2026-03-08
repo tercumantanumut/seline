@@ -153,7 +153,7 @@ export const DeepResearchPanel: FC<DeepResearchPanelProps> = ({
 
       {/* Error Display */}
       {error && (
-        <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600 font-mono">
+        <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600 font-mono dark:bg-red-950/40 dark:border-red-800 dark:text-red-400">
           {error}
         </div>
       )}

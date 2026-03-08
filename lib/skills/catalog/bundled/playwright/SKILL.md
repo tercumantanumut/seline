@@ -34,7 +34,7 @@ Once `npx` is present, proceed with the wrapper script. A global install of `pla
 ## Skill path (set once)
 
 ```bash
-export PWCLI="${SELINE_SKILL_ROOT}/scripts/playwright_cli.sh"
+export PWCLI="${SELENE_SKILL_ROOT}/scripts/playwright_cli.sh"
 ```
 
 
@@ -131,8 +131,8 @@ Prefer the wrapper unless the repository already standardizes on a global instal
 
 Open only what you need:
 
-- CLI command reference: `${SELINE_SKILL_ROOT}/references/cli.md`
-- Practical workflows and troubleshooting: `${SELINE_SKILL_ROOT}/references/workflows.md`
+- CLI command reference: `${SELENE_SKILL_ROOT}/references/cli.md`
+- Practical workflows and troubleshooting: `${SELENE_SKILL_ROOT}/references/workflows.md`
 
 ## Guardrails
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ComputerGraphic } from "../computer-graphic";
 import { TypewriterText } from "@/components/ui/typewriter-text";
@@ -8,6 +8,7 @@ import { TerminalInput, TerminalTextArea } from "@/components/ui/terminal-input"
 import { TerminalPrompt } from "@/components/ui/terminal-prompt";
 import { useReducedMotion } from "../hooks/use-reduced-motion";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 
 export interface AgentIdentity {
   name: string;
@@ -35,13 +36,26 @@ export function IdentityPage({
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
 
+  const handleEscape = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement
+      ) {
+        active.blur();
+      } else {
+        onBack();
+      }
+    },
+    [onBack]
+  );
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onBack();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onBack]);
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [handleEscape]);
 
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof AgentIdentity, string>> = {};
@@ -112,10 +126,11 @@ export function IdentityPage({
             <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
               {/* Name Field */}
               <div className="space-y-2">
-                <label className="text-sm font-mono text-terminal-dark/70">{t("nameLabel")}</label>
+                <label htmlFor="agent-name" className="text-sm font-mono text-terminal-dark/70">{t("nameLabel")}</label>
                 <TerminalInput
+                  id="agent-name"
                   value={name}
-                  onChange={setName}
+                  onChange={(v) => { setName(v); if (errors.name) setErrors((prev) => { const { name: _, ...rest } = prev; return rest; }); }}
                   onSubmit={() => { }}
                   placeholder={t("namePlaceholder")}
                   autoFocusOnMount
@@ -126,10 +141,11 @@ export function IdentityPage({
 
               {/* Tagline Field */}
               <div className="space-y-2">
-                <label className="text-sm font-mono text-terminal-dark/70">{t("taglineLabel")}</label>
+                <label htmlFor="agent-tagline" className="text-sm font-mono text-terminal-dark/70">{t("taglineLabel")}</label>
                 <TerminalInput
+                  id="agent-tagline"
                   value={tagline}
-                  onChange={setTagline}
+                  onChange={(v) => { setTagline(v); if (errors.tagline) setErrors((prev) => { const { tagline: _, ...rest } = prev; return rest; }); }}
                   onSubmit={() => { }}
                   placeholder={t("taglinePlaceholder")}
                   className="text-terminal-dark placeholder:text-terminal-dark/50"
@@ -139,16 +155,23 @@ export function IdentityPage({
 
               {/* Purpose Field */}
               <div className="space-y-2">
-                <label className="text-sm font-mono text-terminal-dark/70">{t("purposeLabel")}</label>
+                <label htmlFor="agent-purpose" className="text-sm font-mono text-terminal-dark/70">{t("purposeLabel")}</label>
                 <TerminalTextArea
+                  id="agent-purpose"
                   value={purpose}
-                  onChange={setPurpose}
+                  onChange={(v) => { setPurpose(v); if (errors.purpose) setErrors((prev) => { const { purpose: _, ...rest } = prev; return rest; }); }}
                   onSubmit={handleSubmit}
                   placeholder={t("purposePlaceholder")}
                   rows={4}
                   className="text-terminal-dark placeholder:text-terminal-dark/50"
                 />
-                {errors.purpose && <div className="text-red-500 text-xs font-mono">! {errors.purpose}</div>}
+                <div className="flex items-center justify-between">
+                  {errors.purpose ? <div className="text-red-500 text-xs font-mono">! {errors.purpose}</div> : <div />}
+                  <span className={cn(
+                    "text-xs font-mono",
+                    purpose.length > 1000 ? "text-red-500" : purpose.length > 900 ? "text-amber-500" : "text-muted-foreground"
+                  )}>{purpose.length}/1000</span>
+                </div>
               </div>
             </div>
 

@@ -171,8 +171,8 @@ export function getAudioForChannel(
  */
 function convertToOpus(inputAudio: Buffer): Buffer {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const tmpIn = join(tmpdir(), `seline-tts-in-${id}.mp3`);
-  const tmpOut = join(tmpdir(), `seline-tts-out-${id}.ogg`);
+  const tmpIn = join(tmpdir(), `selene-tts-in-${id}.mp3`);
+  const tmpOut = join(tmpdir(), `selene-tts-out-${id}.ogg`);
 
   try {
     writeFileSync(tmpIn, inputAudio);

@@ -1,12 +1,12 @@
 /**
  * Agent Definition Mapper
  *
- * Converts Seline AgentTemplate objects to the Claude Agent SDK's AgentDefinition
+ * Converts Selene AgentTemplate objects to the Claude Agent SDK's AgentDefinition
  * format so they can be passed to the SDK's `agents` option in query() calls.
  *
  * This enables SDK-native multi-agent delegation via the Task tool: when the SDK
  * spawns a subagent, it will use the system prompt and tool restrictions defined
- * in the Seline system agent templates.
+ * in the Selene system agent templates.
  *
  * Usage:
  * ```ts
@@ -29,17 +29,17 @@ import { SYSTEM_AGENT_TEMPLATES } from "./system-agents";
 // ---------------------------------------------------------------------------
 
 /**
- * Maps Seline-native tool names to the nearest Claude Agent SDK built-in tool
+ * Maps Selene-native tool names to the nearest Claude Agent SDK built-in tool
  * names (PascalCase, as expected by AgentDefinition.tools).
  *
- * Seline has its own tool registry with camelCase names. SDK built-in tools
+ * Selene has its own tool registry with camelCase names. SDK built-in tools
  * use PascalCase and come from the Claude Code CLI tool set.
  *
- * Custom Seline tools (vectorSearch, memorize, runSkill, scheduleTask, etc.)
+ * Custom Selene tools (vectorSearch, memorize, runSkill, scheduleTask, etc.)
  * have no direct SDK equivalent and are omitted; the SDK will fall back to its
  * own tool-use rules for those capabilities.
  */
-const SELINE_TO_SDK_TOOL: Readonly<Record<string, string>> = {
+const SELENE_TO_SDK_TOOL: Readonly<Record<string, string>> = {
   readFile: "Read",
   editFile: "Edit",
   writeFile: "Write",
@@ -51,16 +51,16 @@ const SELINE_TO_SDK_TOOL: Readonly<Record<string, string>> = {
 };
 
 /**
- * Maps an array of Seline tool names to their SDK equivalents.
+ * Maps an array of Selene tool names to their SDK equivalents.
  * Returns `undefined` if none of the tools have a known SDK mapping
  * (the SDK will then inherit all tools from the parent context).
  */
-export function mapSelineToolsToSdk(selineTools: string[]): string[] | undefined {
+export function mapSeleneToolsToSdk(seleneTools: string[]): string[] | undefined {
   const seen = new Set<string>();
   const sdkTools: string[] = [];
 
-  for (const tool of selineTools) {
-    const sdkName = SELINE_TO_SDK_TOOL[tool];
+  for (const tool of seleneTools) {
+    const sdkName = SELENE_TO_SDK_TOOL[tool];
     if (sdkName && !seen.has(sdkName)) {
       seen.add(sdkName);
       sdkTools.push(sdkName);
@@ -75,7 +75,7 @@ export function mapSelineToolsToSdk(selineTools: string[]): string[] | undefined
 // ---------------------------------------------------------------------------
 
 /**
- * Converts a single Seline AgentTemplate to a Claude Agent SDK AgentDefinition.
+ * Converts a single Selene AgentTemplate to a Claude Agent SDK AgentDefinition.
  *
  * The AgentDefinition can be included in the `agents` option when calling the
  * SDK's query() function, enabling that agent to be spawned by the Task tool.
@@ -91,7 +91,7 @@ export function templateToAgentDefinition(template: AgentTemplate): AgentDefinit
     prompt: template.purpose,
     model: "inherit",
     ...(template.enabledTools.length > 0
-      ? { tools: mapSelineToolsToSdk(template.enabledTools) }
+      ? { tools: mapSeleneToolsToSdk(template.enabledTools) }
       : {}),
   };
 }

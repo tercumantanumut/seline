@@ -33,7 +33,7 @@ export async function register() {
       return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
     };
 
-    const memoryWatcherEnabled = parseTruthy(process.env.SELINE_MEMORY_WATCHER);
+    const memoryWatcherEnabled = parseTruthy(process.env.SELENE_MEMORY_WATCHER);
     if (memoryWatcherEnabled) {
       try {
         const v8 = await import("v8");
@@ -46,17 +46,17 @@ export async function register() {
         };
 
         if (!globalForMemoryWatcher.__memoryWatcherInterval) {
-          const intervalMs = parsePositiveNumber(process.env.SELINE_MEMORY_WATCH_INTERVAL_MS, 5000);
-          const snapshotEnabled = parseTruthy(process.env.SELINE_HEAP_SNAPSHOT);
+          const intervalMs = parsePositiveNumber(process.env.SELENE_MEMORY_WATCH_INTERVAL_MS, 5000);
+          const snapshotEnabled = parseTruthy(process.env.SELENE_HEAP_SNAPSHOT);
           const snapshotCooldownMs = parsePositiveNumber(
-            process.env.SELINE_HEAP_SNAPSHOT_COOLDOWN_MS,
+            process.env.SELENE_HEAP_SNAPSHOT_COOLDOWN_MS,
             10 * 60 * 1000
           );
-          const snapshotDir = process.env.SELINE_HEAP_SNAPSHOT_DIR
-            ? process.env.SELINE_HEAP_SNAPSHOT_DIR
+          const snapshotDir = process.env.SELENE_HEAP_SNAPSHOT_DIR
+            ? process.env.SELENE_HEAP_SNAPSHOT_DIR
             : path.join(process.cwd(), ".local-data", "heapshots");
 
-          let snapshotThreshold = Number(process.env.SELINE_HEAP_SNAPSHOT_THRESHOLD);
+          let snapshotThreshold = Number(process.env.SELENE_HEAP_SNAPSHOT_THRESHOLD);
           if (!Number.isFinite(snapshotThreshold)) {
             snapshotThreshold = 0.75;
           }
@@ -143,7 +143,7 @@ export async function register() {
     // Pre-resolve the user's shell environment while FDs are still available.
     // The vector sync that follows can exhaust file descriptors (EBADF), so
     // caching the shell PATH now ensures SDK auth can resolve 'node' later.
-    if (process.env.SELINE_PRODUCTION_BUILD === "1") {
+    if (process.env.SELENE_PRODUCTION_BUILD === "1") {
       try {
         const { getResolvedShellEnvironment } = await import("@/lib/shell-env/resolver");
         const shellEnv = getResolvedShellEnvironment();

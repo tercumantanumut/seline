@@ -45,6 +45,7 @@ export const ALWAYS_ENABLED_TOOLS = [
 /** Utility tools that are ALWAYS enabled — no external dependencies */
 export const UTILITY_TOOLS = [
   "calculator",
+  "compactSession",
   "memorize",
   "runSkill",
   "scheduleTask",
@@ -65,9 +66,10 @@ export const DEFAULT_ENABLED_TOOLS: string[] = [
   ...UTILITY_TOOLS,
   "webSearch",
   "chromiumWorkspace",
+  "workspace",
 ];
 
-/** Tools that are EXCLUDED from the Seline template by design */
+/** Tools that are EXCLUDED from the Selene template by design */
 const EXCLUDED_TOOLS = [
   "describeImage", // Not essential for default template; can be added manually
   "patchFile",     // Redundant with editFile for most use cases
@@ -78,7 +80,7 @@ const EXCLUDED_TOOLS = [
 // ============================================================================
 
 /**
- * Resolve which tools should be enabled for the Seline default template
+ * Resolve which tools should be enabled for the Selene default template
  * based on the current user settings.
  *
  * This function is called at agent creation time (not at template definition time)
@@ -87,7 +89,7 @@ const EXCLUDED_TOOLS = [
  * @param settings - Current application settings
  * @returns Resolved tool list and any warnings about excluded tools
  */
-export function resolveSelineTemplateTools(settings: AppSettings): ToolResolutionResult {
+export function resolveSeleneTemplateTools(settings: AppSettings): ToolResolutionResult {
   const enabledTools: string[] = [];
   const warnings: ToolWarning[] = [];
 
@@ -100,7 +102,7 @@ export function resolveSelineTemplateTools(settings: AppSettings): ToolResolutio
   // 3. Conditional: Vector Search
   if (settings.vectorDBEnabled === true) {
     enabledTools.push("vectorSearch");
-    console.log("[SelineTemplate] Vector Search enabled: vectorDBEnabled=true");
+    console.log("[SeleneTemplate] Vector Search enabled: vectorDBEnabled=true");
   } else {
     warnings.push({
       toolId: "vectorSearch",
@@ -109,7 +111,7 @@ export function resolveSelineTemplateTools(settings: AppSettings): ToolResolutio
       settingsKeys: ["vectorDBEnabled"],
       action: "Enable Vector Database in Settings → Vector Search to use semantic code search",
     });
-    console.log("[SelineTemplate] Vector Search disabled: vectorDBEnabled is not true");
+    console.log("[SeleneTemplate] Vector Search disabled: vectorDBEnabled is not true");
   }
 
   // 4. Unified Web tool (always enabled)
@@ -117,28 +119,32 @@ export function resolveSelineTemplateTools(settings: AppSettings): ToolResolutio
   const hasTavilyKey = typeof settings.tavilyApiKey === "string" && settings.tavilyApiKey.trim().length > 0;
   const webSearchProvider = settings.webSearchProvider || "auto";
   if (hasTavilyKey) {
-    console.log("[SelineTemplate] Web enabled: Tavily configured (provider: " + webSearchProvider + ")");
+    console.log("[SeleneTemplate] Web enabled: Tavily configured (provider: " + webSearchProvider + ")");
   } else {
-    console.log("[SelineTemplate] Web enabled: DuckDuckGo/local fallback active (provider: " + webSearchProvider + ")");
+    console.log("[SeleneTemplate] Web enabled: DuckDuckGo/local fallback active (provider: " + webSearchProvider + ")");
   }
 
   // 5. Chromium Workspace (always enabled — embedded browser, no external deps)
   enabledTools.push("chromiumWorkspace");
-  console.log("[SelineTemplate] Chromium Workspace enabled: embedded browser automation");
+  console.log("[SeleneTemplate] Chromium Workspace enabled: embedded browser automation");
 
-  // 6. Log excluded tools
+  // 6. Pre-selected conditional tools (enabled by default, user can toggle off)
+  enabledTools.push("workspace");
+  console.log("[SeleneTemplate] Workspace pre-selected: git worktree integration");
+
+  // 7. Log excluded tools
   for (const toolId of EXCLUDED_TOOLS) {
-    console.log(`[SelineTemplate] ${toolId} excluded by design (not in Seline default template)`);
+    console.log(`[SeleneTemplate] ${toolId} excluded by design (not in Selene default template)`);
   }
 
   return { enabledTools, warnings };
 }
 
 /**
- * Get the list of tools that are always excluded from the Seline template.
+ * Get the list of tools that are always excluded from the Selene template.
  * Useful for UI to show which tools were intentionally removed.
  */
-export function getExcludedSelineTools(): readonly string[] {
+export function getExcludedSeleneTools(): readonly string[] {
   return EXCLUDED_TOOLS;
 }
 
@@ -146,7 +152,7 @@ export function getExcludedSelineTools(): readonly string[] {
  * Check if a specific tool would be enabled given the current settings.
  * Useful for UI to show tool availability before agent creation.
  */
-export function isToolAvailableForSeline(toolId: string, settings: AppSettings): boolean {
-  const result = resolveSelineTemplateTools(settings);
+export function isToolAvailableForSelene(toolId: string, settings: AppSettings): boolean {
+  const result = resolveSeleneTemplateTools(settings);
   return result.enabledTools.includes(toolId);
 }

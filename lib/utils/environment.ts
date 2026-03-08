@@ -11,13 +11,13 @@
  * Check if running in an Electron production build
  *
  * Electron production builds have specific markers:
- * - SELINE_PRODUCTION_BUILD=1
+ * - SELENE_PRODUCTION_BUILD=1
  * - process.resourcesPath exists (Electron-specific)
  * - ELECTRON_RESOURCES_PATH is set
  */
 export function isElectronProduction(): boolean {
   return (
-    (process.env.SELINE_PRODUCTION_BUILD === "1" ||
+    (process.env.SELENE_PRODUCTION_BUILD === "1" ||
       !!(process as any).resourcesPath ||
       !!process.env.ELECTRON_RESOURCES_PATH) &&
     process.env.ELECTRON_IS_DEV !== "1" &&

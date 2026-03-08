@@ -146,6 +146,26 @@ export const TOOL_ICON_MAP: Record<string, ToolIconConfig> = {
   // Browser
   chromiumWorkspace: { icon: Globe, weight: "duotone" },
 
+  // Claude Code native tools
+  Edit: { icon: PencilSimple, weight: "bold" },
+  Bash: { icon: Terminal, weight: "fill" },
+  Read: { icon: FileText, weight: "regular" },
+  Write: { icon: FloppyDisk, weight: "bold" },
+  Glob: { icon: FileMagnifyingGlass, weight: "regular" },
+  Grep: { icon: MagnifyingGlass, weight: "bold" },
+  Agent: { icon: Robot, weight: "duotone" },
+  WebFetch: { icon: Globe, weight: "regular" },
+  WebSearch: { icon: Globe, weight: "duotone" },
+  NotebookEdit: { icon: Notebook, weight: "bold" },
+  TodoWrite: { icon: ListBullets, weight: "regular" },
+  EnterPlanMode: { icon: Notebook, weight: "duotone" },
+  ExitPlanMode: { icon: Notebook, weight: "bold" },
+  EnterWorktree: { icon: GitDiff, weight: "duotone" },
+  AskUserQuestion: { icon: ChatCircleDots, weight: "regular" },
+  Skill: { icon: Code, weight: "regular" },
+  TaskOutput: { icon: ListBullets, weight: "regular" },
+  TaskStop: { icon: Cube, weight: "bold" },
+
   // MCP & Integrations
   mcpTool: { icon: Plug, weight: "regular" },
   

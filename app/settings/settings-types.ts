@@ -148,7 +148,7 @@ export interface FormState {
   comfyuiCustomBaseUrl: string;
   // 3D Avatar settings
   avatar3dEnabled: boolean;
-  // Emotion Detection (Seline Fun)
+  // Emotion Detection (Selene Fun)
   emotionDetectionEnabled: boolean;
   // EverMemOS shared memory settings
   everMemOSEnabled: boolean;
@@ -274,7 +274,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   sttProvider: "local",
   sttLocalModel: DEFAULT_WHISPER_MODEL,
   voicePostProcessing: true,
-  voiceAgentName: "Seline",
+  voiceAgentName: "Selene",
   voiceAudioCues: true,
   voiceAutoLearn: true,
   voiceActivationMode: "tap",
@@ -384,7 +384,7 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     sttProvider: data.sttProvider ?? "local",
     sttLocalModel: data.sttLocalModel ?? DEFAULT_WHISPER_MODEL,
     voicePostProcessing: data.voicePostProcessing ?? true,
-    voiceAgentName: data.voiceAgentName ?? "Seline",
+    voiceAgentName: data.voiceAgentName ?? "Selene",
     voiceAudioCues: data.voiceAudioCues ?? true,
     voiceAutoLearn: data.voiceAutoLearn ?? true,
     voiceActivationMode: data.voiceActivationMode ?? "tap",

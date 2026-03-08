@@ -1,7 +1,7 @@
 /**
  * SDK Hook Adapter
  *
- * Bridges Seline's subprocess-based plugin hooks into Claude Agent SDK-native
+ * Bridges Selene's subprocess-based plugin hooks into Claude Agent SDK-native
  * TypeScript callbacks. The SDK expects `Partial<Record<HookEvent, HookCallbackMatcher[]>>`
  * where each callback is an async function — this adapter wraps the existing
  * `dispatchHook()` pipeline (which spawns subprocesses with JSON stdin/stdout)
@@ -20,12 +20,12 @@ import { runPreToolUseHooks, runPostToolUseHooks, runStopHooks } from "./hook-in
 import { getRegisteredHooks } from "./hooks-engine";
 
 /**
- * Build SDK-compatible hook callbacks from Seline's registered plugin hooks.
+ * Build SDK-compatible hook callbacks from Selene's registered plugin hooks.
  *
  * Only creates hook entries for events that actually have registered handlers,
  * so the SDK doesn't invoke empty callbacks on every tool call.
  */
-export function buildSdkHooksFromSeline(
+export function buildSdkHooksFromSelene(
   sessionId: string,
   allowedPluginNames: Set<string>,
   pluginRoots: Map<string, string>,
@@ -51,7 +51,7 @@ export function buildSdkHooksFromSeline(
           hookSpecificOutput: {
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
-            permissionDecisionReason: result.blockReason ?? "Blocked by Seline plugin hook",
+            permissionDecisionReason: result.blockReason ?? "Blocked by Selene plugin hook",
           },
         };
       }
@@ -90,7 +90,7 @@ export function buildSdkHooksFromSeline(
 }
 
 /**
- * Merge two SDK hook maps. Seline hooks run first, then any explicitly
+ * Merge two SDK hook maps. Selene hooks run first, then any explicitly
  * provided SDK hooks. Returns undefined if both inputs are empty/undefined.
  */
 export function mergeHooks(

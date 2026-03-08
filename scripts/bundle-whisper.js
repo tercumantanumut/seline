@@ -207,7 +207,7 @@ function findWhisperCli() {
 async function tryAutoDownloadWhisperForWindows() {
     const assetUrl = process.env.WHISPER_CPP_WIN_ASSET_URL
         || 'https://github.com/ggml-org/whisper.cpp/releases/latest/download/whisper-bin-x64.zip';
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seline-whispercpp-'));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selene-whispercpp-'));
     const zipPath = path.join(tempDir, 'whisper-bin-x64.zip');
     const extractDir = path.join(tempDir, 'extracted');
 

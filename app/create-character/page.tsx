@@ -1,7 +1,7 @@
 import { TerminalWizard } from "@/components/character-creation/terminal-wizard";
 
 export const metadata = {
-  title: "Create Agent | Seline",
+  title: "Create Agent | Selene",
   description: "Configure a custom AI agent with our cinematic terminal experience",
 };
 

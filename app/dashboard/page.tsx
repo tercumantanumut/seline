@@ -7,6 +7,9 @@ import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { GradientBackground } from "@/components/ui/noisy-gradient-backgrounds";
+import type { GradientColor } from "@/components/ui/noisy-gradient-backgrounds";
+import { getAgentAccentColor } from "@/lib/personalization/accent-colors";
 import {
   Loader2,
   RefreshCw,
@@ -201,7 +204,26 @@ function AgentRow({
   chatsLabel: string;
 }) {
   const pct = maxCount > 0 ? (agent.sessionCount / maxCount) * 100 : 0;
-  const initials = agent.name.slice(0, 2).toUpperCase();
+
+  const accentColor = useMemo(
+    () => getAgentAccentColor(agent.id),
+    [agent.id]
+  );
+
+  const gradientColors = useMemo((): GradientColor[] => {
+    const hex = accentColor.hex;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const dr = Math.max(0, Math.round(r * 0.3));
+    const dg = Math.max(0, Math.round(g * 0.3));
+    const db = Math.max(0, Math.round(b * 0.3));
+    return [
+      { color: `rgba(${dr},${dg},${db},1)`, stop: "0%" },
+      { color: `rgba(${r},${g},${b},1)`, stop: "60%" },
+      { color: `rgba(${Math.min(255, r + 30)},${Math.min(255, g + 30)},${Math.min(255, b + 30)},1)`, stop: "100%" },
+    ];
+  }, [accentColor.hex]);
 
   return (
     <div
@@ -213,8 +235,17 @@ function AgentRow({
     >
       <Avatar className="h-7 w-7 shrink-0">
         {agent.avatarUrl ? <AvatarImage src={agent.avatarUrl} alt={agent.name} /> : null}
-        <AvatarFallback className="bg-terminal-green/10 text-xs font-mono text-terminal-green">
-          {initials}
+        <AvatarFallback className="relative overflow-hidden">
+          <GradientBackground
+            colors={gradientColors}
+            gradientOrigin="bottom-middle"
+            gradientSize="150% 150%"
+            noiseIntensity={0.9}
+            noisePatternAlpha={45}
+            noisePatternSize={60}
+            noisePatternRefreshInterval={7}
+            className="rounded-full"
+          />
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
@@ -254,8 +285,8 @@ export default function DashboardPage() {
 
   // Update browser tab title
   useEffect(() => {
-    document.title = `${t("title")} — Seline`;
-    return () => { document.title = "Seline"; };
+    document.title = `${t("title")} — Selene`;
+    return () => { document.title = "Selene"; };
   }, [t]);
 
   const loadChatStats = async () => {

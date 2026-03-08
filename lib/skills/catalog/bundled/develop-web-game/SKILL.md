@@ -11,8 +11,8 @@ Build games in small steps and validate every change. Treat each iteration as: i
 ## Skill paths (set once)
 
 ```bash
-export WEB_GAME_CLIENT="${SELINE_SKILL_ROOT}/scripts/web_game_playwright_client.js"
-export WEB_GAME_ACTIONS="${SELINE_SKILL_ROOT}/references/action_payloads.json"
+export WEB_GAME_CLIENT="${SELENE_SKILL_ROOT}/scripts/web_game_playwright_client.js"
+export WEB_GAME_ACTIONS="${SELENE_SKILL_ROOT}/references/action_payloads.json"
 ```
 
 
@@ -140,8 +140,8 @@ At the end of your work, leave TODOs and suggestions for the next agent in `prog
 
 ## Scripts
 
-- `$WEB_GAME_CLIENT` (installed default: `${SELINE_SKILL_ROOT}/scripts/web_game_playwright_client.js`) — Playwright-based action loop with virtual-time stepping, screenshot capture, and console error buffering. You must pass an action burst via `--actions-file`, `--actions-json`, or `--click`.
+- `$WEB_GAME_CLIENT` (installed default: `${SELENE_SKILL_ROOT}/scripts/web_game_playwright_client.js`) — Playwright-based action loop with virtual-time stepping, screenshot capture, and console error buffering. You must pass an action burst via `--actions-file`, `--actions-json`, or `--click`.
 
 ## References
 
-- `$WEB_GAME_ACTIONS` (installed default: `${SELINE_SKILL_ROOT}/references/action_payloads.json`) — example action payloads (keyboard + mouse, per-frame capture). Use these to build your burst.
+- `$WEB_GAME_ACTIONS` (installed default: `${SELENE_SKILL_ROOT}/references/action_payloads.json`) — example action payloads (keyboard + mouse, per-frame capture). Use these to build your burst.

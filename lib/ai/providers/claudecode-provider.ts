@@ -23,14 +23,15 @@ import {
 import { readClaudeAgentSdkAuthStatus, getSdkExecutableConfig } from "@/lib/auth/claude-agent-sdk-auth";
 import {
   mcpContextStore,
-  type SelineMcpContext,
+  type SeleneMcpContext,
 } from "./mcp-context-store";
-import { createSelineSdkMcpServer } from "./seline-sdk-mcp-server";
-import { buildSdkHooksFromSeline, mergeHooks } from "@/lib/plugins/sdk-hook-adapter";
+import { createSeleneSdkMcpServer } from "./selene-sdk-mcp-server";
+import { buildSdkHooksFromSelene, mergeHooks } from "@/lib/plugins/sdk-hook-adapter";
 import {
   registerInteractiveWait,
   storeUserAnswer,
   popUserAnswer,
+  type InteractiveWaitResult,
 } from "@/lib/interactive-tool-bridge";
 import {
   drainLivePromptQueue,
@@ -173,7 +174,7 @@ export type ClaudeAgentSdkQueryOptions = {
    */
   cwd?: string;
   /**
-   * Per-request Seline platform context used to build an in-process MCP server
+   * Per-request Selene platform context used to build an in-process MCP server
    * that exposes ToolRegistry tools and per-agent MCP tools to the SDK agent.
    *
    * When provided here (for `queryWithSdkOptions` callers) or propagated via
@@ -181,7 +182,7 @@ export type ClaudeAgentSdkQueryOptions = {
    * agent can call vectorSearch, memorize, runSkill, scheduleTask, and any
    * MCP server tools configured for the active agent.
    */
-  mcpContext?: SelineMcpContext;
+  mcpContext?: SeleneMcpContext;
 };
 
 function sanitizeLoneSurrogates(input: string): { value: string; changed: boolean } {
@@ -338,7 +339,26 @@ function buildPlanApprovalPrompt(plan: string): Record<string, unknown> {
   };
 }
 
-function buildPlanApprovalResult(answers: Record<string, string>): Record<string, unknown> {
+export function buildPlanApprovalResult(
+  waitResult: InteractiveWaitResult,
+  plan: string,
+): Record<string, unknown> {
+  const normalizedPlan = plan.trim().length > 0 ? plan : null;
+
+  if (waitResult.kind === "interrupted") {
+    return {
+      status: "interrupted",
+      action: "Interrupted",
+      approved: false,
+      interrupted: true,
+      reason: waitResult.reason,
+      plan: normalizedPlan,
+      isAgent: false,
+      awaitingLeaderApproval: true,
+    };
+  }
+
+  const answers = waitResult.answers;
   const action = answers.action === "Approve & Continue" ? "Approve & Continue" : "Reject / Edit";
   const approved = action === "Approve & Continue";
   const message = answers.message?.trim();
@@ -347,7 +367,43 @@ function buildPlanApprovalResult(answers: Record<string, string>): Record<string
     status: approved ? "success" : "cancelled",
     action,
     approved,
+    plan: normalizedPlan,
+    isAgent: false,
+    awaitingLeaderApproval: !approved,
     ...(message ? { message } : {}),
+  };
+}
+
+function buildPlanApprovalHookOutput(result: Record<string, unknown>): {
+  hookEventName: "PreToolUse";
+  permissionDecision: "allow" | "deny";
+  permissionDecisionReason?: string;
+  additionalContext?: string;
+} {
+  const status = typeof result.status === "string" ? result.status : "error";
+  const approved = result.approved === true;
+  const userFeedback = typeof result.message === "string" ? result.message : "";
+
+  if (approved) {
+    return {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      additionalContext: "The user approved the plan. Proceed with implementation.",
+    };
+  }
+
+  if (status === "cancelled") {
+    return {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      additionalContext: `The user REJECTED this plan.${userFeedback ? ` Their feedback: "${userFeedback}".` : ""} Re-enter plan mode using EnterPlanMode and revise the plan based on their feedback.`,
+    };
+  }
+
+  return {
+    hookEventName: "PreToolUse",
+    permissionDecision: "deny",
+    permissionDecisionReason: "Plan approval was interrupted before the user responded.",
   };
 }
 
@@ -812,12 +868,12 @@ function createStreamingClaudeCodeResponse(options: {
 
       try {
         const sdk = options.sdkOptions;
-        const mcpCtx: SelineMcpContext | undefined =
+        const mcpCtx: SeleneMcpContext | undefined =
           sdk?.mcpContext ?? mcpContextStore.getStore();
         const sdkToolResultBridge = mcpCtx?.sdkToolResultBridge;
 
-        const selineMcpServers = mcpCtx
-          ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
+        const seleneMcpServers = mcpCtx
+          ? { "selene-platform": createSeleneSdkMcpServer(mcpCtx) }
           : undefined;
 
         const candidateCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
@@ -826,72 +882,58 @@ function createStreamingClaudeCodeResponse(options: {
           console.warn(`[ClaudeCode] cwd "${candidateCwd}" does not exist, falling back to process.cwd()`);
         }
 
-        // Bridge Seline plugin cache paths → SDK plugin configs
-        const selinePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
+        // Bridge Selene plugin cache paths → SDK plugin configs
+        const selenePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
           .map((p) => ({ type: "local" as const, path: p }));
-        const mergedPlugins = selinePluginConfigs.length > 0 || sdk?.plugins
-          ? [...selinePluginConfigs, ...(sdk?.plugins ?? [])]
+        const mergedPlugins = selenePluginConfigs.length > 0 || sdk?.plugins
+          ? [...selenePluginConfigs, ...(sdk?.plugins ?? [])]
           : undefined;
 
-        // Bridge Seline hooks → SDK hook callbacks
-        const selineHooks = mcpCtx?.hookContext
-          ? buildSdkHooksFromSeline(
+        // Bridge Selene hooks → SDK hook callbacks
+        const seleneHooks = mcpCtx?.hookContext
+          ? buildSdkHooksFromSelene(
               mcpCtx.sessionId,
               mcpCtx.hookContext.allowedPluginNames,
               mcpCtx.hookContext.pluginRoots,
             )
           : undefined;
-        const mergedHookMap = mergeHooks(selineHooks, sdk?.hooks);
+        const mergedHookMap = mergeHooks(seleneHooks, sdk?.hooks);
 
         // ── Interactive tool gate: pause SDK for AskUserQuestion / ExitPlanMode ──
         // The async PreToolUse hook blocks the SDK from auto-executing
         // interactive tools until the real user answers via the
         // /api/chat/tool-result endpoint.
         const interactiveSessionId = mcpCtx?.sessionId ?? "";
-        const interactiveToolHook: HookCallback = async (input, toolUseId) => {
+        const interactiveToolHook: HookCallback = async (input, toolUseId, hookOptions) => {
           const toolName = (input as Record<string, unknown>).tool_name as string;
 
           // ── ExitPlanMode: plan approval gate ──
           if (toolName === "ExitPlanMode") {
             if (!toolUseId || !interactiveSessionId) return {};
 
-            const approvalPrompt = buildPlanApprovalPrompt(readPlanModeFile(resolvedCwd));
+            const plan = readPlanModeFile(resolvedCwd);
+            const approvalPrompt = buildPlanApprovalPrompt(plan);
 
             console.debug(
               `[ClaudeCode] Interactive tool gate: blocking ExitPlanMode (${toolUseId}) until user approves plan`,
             );
 
-            const answers = await registerInteractiveWait(
+            const waitResult = await registerInteractiveWait(
               interactiveSessionId,
               toolUseId,
               approvalPrompt,
+              { abortSignal: hookOptions.signal },
             );
 
-            const result = buildPlanApprovalResult(answers);
+            const result = buildPlanApprovalResult(waitResult, plan);
             sdkToolResultBridge?.publish(toolUseId, result, toolName);
 
-            const approved = result.approved === true;
-            const userFeedback =
-              typeof result.message === "string" && result.message.length > 0
-                ? result.message
-                : "";
-
             console.debug(
-              `[ClaudeCode] Interactive tool gate: user responded to ExitPlanMode (${toolUseId}) — approved=${approved}`,
+              `[ClaudeCode] Interactive tool gate: user responded to ExitPlanMode (${toolUseId}) — status=${String(result.status)}`,
             );
 
-            // Always return "allow" so the SDK processes the tool and Claude
-            // sees the user's decision. Using "deny" causes the SDK to emit a
-            // generic "Blocked by hook" message and Claude never receives the
-            // user's feedback.
             return {
-              hookSpecificOutput: {
-                hookEventName: "PreToolUse" as const,
-                permissionDecision: "allow" as const,
-                additionalContext: approved
-                  ? "The user approved the plan. Proceed with implementation."
-                  : `The user REJECTED this plan.${userFeedback ? ` Their feedback: "${userFeedback}".` : ""} Re-enter plan mode using EnterPlanMode and revise the plan based on their feedback.`,
-              },
+              hookSpecificOutput: buildPlanApprovalHookOutput(result),
             };
           }
 
@@ -910,11 +952,24 @@ function createStreamingClaudeCodeResponse(options: {
           );
 
           // Block until user answers via the API endpoint
-          const answers = await registerInteractiveWait(
+          const waitResult = await registerInteractiveWait(
             interactiveSessionId,
             toolUseId,
             toolInput,
+            { abortSignal: hookOptions.signal },
           );
+
+          if (waitResult.kind !== "submitted") {
+            return {
+              hookSpecificOutput: {
+                hookEventName: "PreToolUse" as const,
+                permissionDecision: "deny" as const,
+                permissionDecisionReason: "Interactive question was interrupted before the user responded.",
+              },
+            };
+          }
+
+          const answers = waitResult.answers;
 
           // Store answers so we can override the SDK's auto-answer later
           storeUserAnswer(interactiveSessionId, toolUseId, answers);
@@ -977,7 +1032,7 @@ function createStreamingClaudeCodeResponse(options: {
             allowDangerouslySkipPermissions: true,
             env: sdkEnv,
             ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
-            ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
+            ...(seleneMcpServers ? { mcpServers: seleneMcpServers } : {}),
             ...(sdk?.agents ? { agents: sdk.agents } : {}),
             ...(sdk?.allowedTools ? { allowedTools: sdk.allowedTools } : {}),
             ...(sdk?.disallowedTools ? { disallowedTools: sdk.disallowedTools } : {}),
@@ -1577,15 +1632,15 @@ async function runClaudeAgentQuery(options: {
 
   const sdk = options.sdkOptions;
 
-  // Resolve per-request Seline MCP context: explicit sdkOptions take precedence,
+  // Resolve per-request Selene MCP context: explicit sdkOptions take precedence,
   // then fall back to AsyncLocalStorage (set by the chat route before streamText).
-  const mcpCtx: SelineMcpContext | undefined =
+  const mcpCtx: SeleneMcpContext | undefined =
     sdk?.mcpContext ?? mcpContextStore.getStore();
 
-  // Build an in-process MCP server that exposes Seline platform tools to the
+  // Build an in-process MCP server that exposes Selene platform tools to the
   // SDK agent when context is available.
-  const selineMcpServers = mcpCtx
-    ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
+  const seleneMcpServers = mcpCtx
+    ? { "selene-platform": createSeleneSdkMcpServer(mcpCtx) }
     : undefined;
 
   // Resolve working directory: explicit SDK option > MCP context > process.cwd()
@@ -1595,22 +1650,22 @@ async function runClaudeAgentQuery(options: {
     console.warn(`[ClaudeCode] cwd "${candidateCwd}" does not exist, falling back to process.cwd()`);
   }
 
-  // Bridge Seline plugin cache paths → SDK plugin configs
-  const selinePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
+  // Bridge Selene plugin cache paths → SDK plugin configs
+  const selenePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
     .map((p) => ({ type: "local" as const, path: p }));
-  const mergedPlugins = selinePluginConfigs.length > 0 || sdk?.plugins
-    ? [...selinePluginConfigs, ...(sdk?.plugins ?? [])]
+  const mergedPlugins = selenePluginConfigs.length > 0 || sdk?.plugins
+    ? [...selenePluginConfigs, ...(sdk?.plugins ?? [])]
     : undefined;
 
-  // Bridge Seline hooks → SDK hook callbacks
-  const selineHooks = mcpCtx?.hookContext
-    ? buildSdkHooksFromSeline(
+  // Bridge Selene hooks → SDK hook callbacks
+  const seleneHooks = mcpCtx?.hookContext
+    ? buildSdkHooksFromSelene(
         mcpCtx.sessionId,
         mcpCtx.hookContext.allowedPluginNames,
         mcpCtx.hookContext.pluginRoots,
       )
     : undefined;
-  const mergedHookMap = mergeHooks(selineHooks, sdk?.hooks);
+  const mergedHookMap = mergeHooks(seleneHooks, sdk?.hooks);
 
   const { executable: sdkExecutable, env: sdkEnv } = getSdkExecutableConfig();
 
@@ -1633,8 +1688,8 @@ async function runClaudeAgentQuery(options: {
       allowDangerouslySkipPermissions: true,
       env: sdkEnv,
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
-      // Seline platform tools exposed via in-process MCP server
-      ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
+      // Selene platform tools exposed via in-process MCP server
+      ...(seleneMcpServers ? { mcpServers: seleneMcpServers } : {}),
       // SDK-native passthrough options
       ...(sdk?.agents ? { agents: sdk.agents } : {}),
       ...(sdk?.allowedTools ? { allowedTools: sdk.allowedTools } : {}),

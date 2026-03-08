@@ -95,11 +95,11 @@ export interface ToolsBuildResult {
   hasFailureHooks: boolean;
   discoveredTools: Set<string>;
   initialActiveTools: Set<string>;
-  /** MCP server names enabled for the current agent (forwarded to SelineMcpContext) */
+  /** MCP server names enabled for the current agent (forwarded to SeleneMcpContext) */
   enabledMcpServers?: string[];
-  /** Specific MCP tool IDs enabled for the current agent (forwarded to SelineMcpContext) */
+  /** Specific MCP tool IDs enabled for the current agent (forwarded to SeleneMcpContext) */
   enabledMcpTools?: string[];
-  /** MCP tool IDs that are alwaysLoad (forwarded to SelineMcpContext for deferred gating) */
+  /** MCP tool IDs that are alwaysLoad (forwarded to SeleneMcpContext for deferred gating) */
   alwaysLoadMcpToolIds: string[];
 }
 
@@ -403,8 +403,8 @@ export async function buildToolsForRequest(
 
   // ── Claude Agent SDK passthrough tools ─────────────────────────────────────
   // When using the claudecode provider, the SDK agent streams back tool_use
-  // blocks for its built-in tools (Bash, Read, Write, etc.) and Seline MCP
-  // tools (prefixed as mcp__seline-platform__<name>). The Vercel AI SDK
+  // blocks for its built-in tools (Bash, Read, Write, etc.) and Selene MCP
+  // tools (prefixed as mcp__selene-platform__<name>). The Vercel AI SDK
   // validates tool names against the tools map and rejects unknown ones.
   // These passthrough tools have an immediate no-op execute so the tool
   // lifecycle completes (UI shows "completed"). Loop prevention is handled
@@ -512,10 +512,10 @@ export async function buildToolsForRequest(
       }
     }
 
-    // (b) Seline platform MCP tools — the SDK prefixes them as
-    // mcp__seline-platform__<toolName>. Register prefixed variants so
+    // (b) Selene platform MCP tools — the SDK prefixes them as
+    // mcp__selene-platform__<toolName>. Register prefixed variants so
     // the Vercel AI SDK accepts tool_use blocks from the SDK agent.
-    const MCP_SERVER_NAME = "seline-platform";
+    const MCP_SERVER_NAME = "selene-platform";
     const existingToolNames = Object.keys(allToolsWithMCP);
     for (const name of existingToolNames) {
       const prefixed = `mcp__${MCP_SERVER_NAME}__${name}`;

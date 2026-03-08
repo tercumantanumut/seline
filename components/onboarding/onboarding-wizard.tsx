@@ -15,7 +15,7 @@ import {
 import { Sparkles, Key, Layers } from "lucide-react";
 
 import type { LLMProvider } from "./steps/provider-step";
-import type { SelinePath, PathConfigState } from "./steps/path-selector";
+import type { SelenePath, PathConfigState } from "./steps/path-selector";
 
 type OnboardingStep = "welcome" | "provider" | "auth" | "features";
 
@@ -70,7 +70,7 @@ export function OnboardingWizard() {
         setCurrentStep(step);
     }, []);
 
-    const handleComplete = async (pathData?: { path: SelinePath | null; config: PathConfigState }) => {
+    const handleComplete = async (pathData?: { path: SelenePath | null; config: PathConfigState }) => {
         try {
             const result = await resilientPost("/api/onboarding", {
                 llmProvider: state.llmProvider,

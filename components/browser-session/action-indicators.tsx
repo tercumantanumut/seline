@@ -45,7 +45,7 @@ let keyframesInjected = false;
 function ensureKeyframes() {
   if (keyframesInjected || typeof document === "undefined") return;
   const style = document.createElement("style");
-  style.setAttribute("data-seline-action-indicators", "");
+  style.setAttribute("data-selene-action-indicators", "");
   style.textContent = KEYFRAMES;
   document.head.appendChild(style);
   keyframesInjected = true;

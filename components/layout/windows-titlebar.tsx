@@ -29,7 +29,11 @@ export function WindowsTitleBar({ className }: WindowsTitleBarProps) {
       )}
     >
       <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted">
-        <span className="text-terminal-green">{t("brandShort")}</span>
+        <img
+          src="/icon.png"
+          alt="Selene"
+          className="h-4 w-4 object-contain rounded-[22%]"
+        />
         <span className="hidden sm:inline">{t("brand")}</span>
       </div>
       <div className="flex items-center gap-1 webkit-app-region-no-drag">

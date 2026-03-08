@@ -100,8 +100,8 @@ export type ActionEventListener = (event: ActionEvent) => void;
 
 // ─── Global singleton state ───────────────────────────────────────────────────
 
-const GLOBAL_KEY = "__seline_browser_history__" as const;
-const LISTENERS_KEY = "__seline_action_event_listeners__" as const;
+const GLOBAL_KEY = "__selene_browser_history__" as const;
+const LISTENERS_KEY = "__selene_action_event_listeners__" as const;
 
 function getHistoryStore(): Map<string, SessionHistory> {
   const g = globalThis as unknown as Record<string, Map<string, SessionHistory>>;

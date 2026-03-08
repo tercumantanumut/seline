@@ -426,7 +426,7 @@ describe("spawnWithFileCapture", () => {
     it("cleans up temp files after execution", async () => {
         // fs/promises is not mocked, so readdir works fine here.
         const { readdir } = await import("fs/promises");
-        const beforeFiles = (await readdir(tmpdir())).filter(f => f.startsWith("seline-exec-"));
+        const beforeFiles = (await readdir(tmpdir())).filter(f => f.startsWith("selene-exec-"));
 
         await spawnWithFileCapture(
             "node", ["-e", "console.log('cleanup-test')"],
@@ -436,8 +436,8 @@ describe("spawnWithFileCapture", () => {
         // Allow async cleanup to settle
         await new Promise(r => setTimeout(r, 200));
 
-        const afterFiles = (await readdir(tmpdir())).filter(f => f.startsWith("seline-exec-"));
-        // No new seline-exec- dirs should remain
+        const afterFiles = (await readdir(tmpdir())).filter(f => f.startsWith("selene-exec-"));
+        // No new selene-exec- dirs should remain
         expect(afterFiles.length).toBeLessThanOrEqual(beforeFiles.length);
     });
 });

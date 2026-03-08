@@ -1,6 +1,6 @@
 # Task Completion Notifier Plugin
 
-Get instant desktop notifications when your Seline agent tasks complete, fail, or are aborted. Never miss a finished task again!
+Get instant desktop notifications when your Selene agent tasks complete, fail, or are aborted. Never miss a finished task again!
 
 ## Features
 
@@ -14,7 +14,7 @@ Get instant desktop notifications when your Seline agent tasks complete, fail, o
 
 ### Option 1: Drag & Drop (Easiest)
 1. Download this plugin folder
-2. Drag and drop it into your Seline app
+2. Drag and drop it into your Selene app
 3. Enable it in the plugin manager
 4. Done! Notifications will start working immediately
 
@@ -61,11 +61,11 @@ To customize the notifications, edit `hooks/notify-on-stop.sh`:
 Available sounds: `Glass`, `Alarm`, `Pop`, `Submarine`, `Ping`, `Tink`, `Morse`, `Sosumi`, `Blow`, `Purr`
 
 ```bash
-send_macos_notification "Seline" "Task completed" "Submarine"
+send_macos_notification "Selene" "Task completed" "Submarine"
 ```
 
 ### Change notification titles
-Replace `"Seline"` with your preferred title:
+Replace `"Selene"` with your preferred title:
 
 ```bash
 send_macos_notification "Claude Code" "Task completed" "Glass"
@@ -76,7 +76,7 @@ Comment out the notification call in the relevant case:
 
 ```bash
 "completed")
-  # send_macos_notification "Seline" "✅ Task completed successfully" "Glass"
+  # send_macos_notification "Selene" "✅ Task completed successfully" "Glass"
   ;;
 ```
 
@@ -153,4 +153,4 @@ For issues or feature requests, open an issue on the GitHub repository.
 
 ---
 
-**Made with ❤️ for Seline**
+**Made with ❤️ for Selene**

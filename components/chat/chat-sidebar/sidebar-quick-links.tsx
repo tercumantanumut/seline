@@ -17,7 +17,7 @@ interface SidebarQuickLinksProps {
 
 function storeReturnUrl() {
   if (typeof window !== "undefined") {
-    sessionStorage.setItem("seline-return-url", window.location.href);
+    sessionStorage.setItem("selene-return-url", window.location.href);
   }
 }
 

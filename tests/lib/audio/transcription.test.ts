@@ -174,7 +174,7 @@ describe("Audio Transcription", () => {
 
     it("finds model via platform-specific userData fallback (electron:dev)", () => {
       // Simulates electron:dev where LOCAL_DATA_PATH is NOT set
-      // but the model was downloaded to ~/Library/Application Support/seline/models/whisper/
+      // but the model was downloaded to ~/Library/Application Support/selene/models/whisper/
       delete process.env.LOCAL_DATA_PATH;
       delete process.env.ELECTRON_USER_DATA_PATH;
       settingsMock.state.settings = {

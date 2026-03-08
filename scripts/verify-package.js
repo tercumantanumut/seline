@@ -24,15 +24,15 @@ const distDir = path.join(process.cwd(), 'dist-electron');
 let appResourcesPath;
 
 if (platform === 'darwin' || platform === 'mac') {
-  // macOS: Seline.app/Contents/Resources
+  // macOS: Selene.app/Contents/Resources
   const macDir = path.join(distDir, 'mac');
-  const appPath = path.join(macDir, 'Seline.app', 'Contents', 'Resources');
+  const appPath = path.join(macDir, 'Selene.app', 'Contents', 'Resources');
   if (fs.existsSync(appPath)) {
     appResourcesPath = appPath;
   } else {
     // Try mac-arm64 or mac-x64
-    const macArm = path.join(distDir, 'mac-arm64', 'Seline.app', 'Contents', 'Resources');
-    const macX64 = path.join(distDir, 'mac-x64', 'Seline.app', 'Contents', 'Resources');
+    const macArm = path.join(distDir, 'mac-arm64', 'Selene.app', 'Contents', 'Resources');
+    const macX64 = path.join(distDir, 'mac-x64', 'Selene.app', 'Contents', 'Resources');
     if (fs.existsSync(macArm)) appResourcesPath = macArm;
     else if (fs.existsSync(macX64)) appResourcesPath = macX64;
   }
@@ -61,7 +61,7 @@ let hasWarnings = false;
 console.log('1️⃣  Checking for bundled source code...');
 
 const forbiddenPaths = [
-  'standalone/seline-source',
+  'standalone/selene-source',
   'standalone/app',
   'standalone/components',
   'standalone/hooks',

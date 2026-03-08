@@ -1,8 +1,8 @@
 {
-  "name": "seline",
-  "version": "0.2.6",
-  "description": "Seline - Your agents, your rules",
-  "author": "Seline",
+  "name": "selene",
+  "version": "0.3.0",
+  "description": "Selene - Your agents, your rules",
+  "author": "Selene",
   "private": true,
   "main": "electron-dist/main.js",
   "overrides": {
@@ -198,7 +198,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.27",
-    "baseline-browser-mapping": "^2.9.19",
+    "baselene-browser-mapping": "^2.9.19",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.9",

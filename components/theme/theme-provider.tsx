@@ -8,10 +8,10 @@ import { DEFAULT_THEME_PRESET, type ThemePresetId } from "@/lib/personalization/
 export type ThemePreference = "light" | "dark" | "system";
 type ResolvedTheme = "light" | "dark";
 
-const THEME_STORAGE_KEY = "seline-theme";
-const PRESET_STORAGE_KEY = "seline-theme-preset";
-const HOMEPAGE_BG_STORAGE_KEY = "seline-homepage-bg";
-const CHAT_BG_STORAGE_KEY = "seline-chat-bg";
+const THEME_STORAGE_KEY = "selene-theme";
+const PRESET_STORAGE_KEY = "selene-theme-preset";
+const HOMEPAGE_BG_STORAGE_KEY = "selene-homepage-bg";
+const CHAT_BG_STORAGE_KEY = "selene-chat-bg";
 
 type ThemeContextValue = {
   theme: ThemePreference;

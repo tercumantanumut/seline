@@ -35,10 +35,10 @@ export interface SdkToolResultBridge {
 }
 
 /**
- * Per-request context used to build the Seline platform MCP server that
+ * Per-request context used to build the Selene platform MCP server that
  * exposes ToolRegistry tools and per-agent MCP tools to the Claude Agent SDK.
  */
-export interface SelineMcpContext {
+export interface SeleneMcpContext {
   /** Authenticated user ID */
   userId: string;
   /** Current chat session ID */
@@ -55,9 +55,9 @@ export interface SelineMcpContext {
   enabledTools?: string[];
   /** Agent working directory (primary sync folder path) */
   cwd?: string;
-  /** Filesystem paths to cached Seline plugins (for SDK plugin loading) */
+  /** Filesystem paths to cached Selene plugins (for SDK plugin loading) */
   pluginPaths?: string[];
-  /** Hook execution context for bridging Seline hooks into SDK callbacks */
+  /** Hook execution context for bridging Selene hooks into SDK callbacks */
   hookContext?: {
     allowedPluginNames: Set<string>;
     pluginRoots: Map<string, string>;
@@ -101,7 +101,7 @@ export interface SelineMcpContext {
 
   /**
    * Callback fired when an SDK MCP tool produces rich output (image URL, video URL, etc.).
-   * Route.ts wires this into the Seline streaming state so image/video chips
+   * Route.ts wires this into the Selene streaming state so image/video chips
    * appear in the UI even when using the Agent SDK provider.
    */
   onRichOutput?: (toolCallId: string, toolName: string, output: unknown) => void;
@@ -119,4 +119,4 @@ export interface SelineMcpContext {
   onQueueMessages?: (entries: LivePromptEntry[]) => Promise<void>;
 }
 
-export const mcpContextStore = new AsyncLocalStorage<SelineMcpContext>();
+export const mcpContextStore = new AsyncLocalStorage<SeleneMcpContext>();

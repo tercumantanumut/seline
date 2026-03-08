@@ -36,11 +36,11 @@ export const GlobalBackButton: FC<GlobalBackButtonProps> = ({
     // Prefer navigating back to a stored return URL (when we intentionally want
     // to avoid a popstate restore and force a clean navigation back).
     if (typeof window !== "undefined") {
-      const returnUrl = sessionStorage.getItem("seline-return-url");
+      const returnUrl = sessionStorage.getItem("selene-return-url");
 
       if (returnUrl) {
         // Clear first to avoid loops if navigation throws.
-        sessionStorage.removeItem("seline-return-url");
+        sessionStorage.removeItem("selene-return-url");
 
         try {
           const url = new URL(returnUrl);

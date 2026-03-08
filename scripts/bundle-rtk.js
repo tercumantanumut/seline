@@ -164,7 +164,7 @@ async function main() {
     process.exit(0);
   }
 
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "seline-rtk-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "selene-rtk-"));
   const archivePath = path.join(tmpDir, target.assetName);
   const extractDir = path.join(tmpDir, "extract");
   const assetUrl = `https://github.com/rtk-ai/rtk/releases/latest/download/${target.assetName}`;

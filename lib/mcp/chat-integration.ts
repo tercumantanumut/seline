@@ -24,13 +24,13 @@ export interface MCPToolLoadResult {
     deferredToolIds: string[];
     /**
      * MCP server names enabled for this agent (from character metadata).
-     * Forwarded to SelineMcpContext so the SDK MCP server can scope
+     * Forwarded to SeleneMcpContext so the SDK MCP server can scope
      * MCPClientManager.getAllTools() to only this agent's servers.
      */
     enabledMcpServers?: string[];
     /**
      * Specific MCP tool IDs (format: "serverName:toolName") enabled for this agent.
-     * Forwarded to SelineMcpContext for per-tool isolation in the SDK bridge.
+     * Forwarded to SeleneMcpContext for per-tool isolation in the SDK bridge.
      */
     enabledMcpTools?: string[];
 }

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "../hooks/use-reduced-motion";
 import { ComputerGraphic } from "../computer-graphic";
 import { TypewriterText } from "@/components/ui/typewriter-text";
 import { TerminalPrompt } from "@/components/ui/terminal-prompt";
 import { useTranslations } from "next-intl";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
-import { AlertTriangleIcon, LockIcon } from "lucide-react";
+import { AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon, LockIcon } from "lucide-react";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import { DEFAULT_ENABLED_TOOLS } from "@/lib/characters/templates/resolve-tools";
 import {
@@ -75,8 +76,11 @@ export function CapabilitiesPage({
   const [availableTools, setAvailableTools] = useState<ToolCapability[]>(CHARACTER_TOOL_CATALOG);
   const [resolutionWarnings, setResolutionWarnings] = useState<ToolResolutionWarning[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [escapeFlash, setEscapeFlash] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
+  const initialToolsRef = useRef(new Set(initialEnabledTools));
 
   useEffect(() => {
     const baseTools = CHARACTER_TOOL_CATALOG.map((tool) => ({
@@ -202,15 +206,15 @@ export function CapabilitiesPage({
     checkDependencies();
   }, [agentId]);
 
-  // Fetch tool resolution warnings for Seline template
+  // Fetch tool resolution warnings for Selene template
   useEffect(() => {
-    if (templateId !== "seline-default") return;
+    if (templateId !== "selene-default") return;
 
     const fetchResolution = async () => {
       try {
         const { data, error } = await resilientFetch<{
           warnings?: ToolResolutionWarning[];
-        }>("/api/tools/resolve?templateId=seline-default");
+        }>("/api/tools/resolve?templateId=selene-default");
         if (!error && data?.warnings && data.warnings.length > 0) {
           setResolutionWarnings(data.warnings);
         }
@@ -222,13 +226,35 @@ export function CapabilitiesPage({
     fetchResolution();
   }, [templateId]);
 
+  // Compute dirty state: tools have been changed from initial
+  const isDirty = useMemo(() => {
+    const initial = initialToolsRef.current;
+    if (enabledTools.size !== initial.size) return true;
+    for (const id of enabledTools) {
+      if (!initial.has(id)) return true;
+    }
+    return false;
+  }, [enabledTools]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onBack();
+      if (e.key === "Escape") {
+        if (isDirty) {
+          // Don't navigate back — flash a warning and blur active element
+          e.preventDefault();
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          setEscapeFlash(true);
+          setTimeout(() => setEscapeFlash(false), 1500);
+          return;
+        }
+        onBack();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onBack]);
+  }, [onBack, isDirty]);
 
   // Helper to check if tool dependencies are met
   const areDependenciesMet = (tool: ToolCapability): boolean => {
@@ -258,6 +284,36 @@ export function CapabilitiesPage({
       return next;
     });
   };
+
+  const toggleCategoryCollapse = useCallback((category: string) => {
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleCategorySelectAll = useCallback((category: string, tools: ToolCapability[]) => {
+    const toggleableTools = tools.filter((tool) => areDependenciesMet(tool));
+    if (toggleableTools.length === 0) return;
+    const allEnabled = toggleableTools.every((tool) => enabledTools.has(tool.id));
+    setEnabledTools((prev) => {
+      const next = new Set(prev);
+      if (allEnabled) {
+        // Deselect all in this category
+        for (const tool of toggleableTools) next.delete(tool.id);
+      } else {
+        // Select all in this category
+        for (const tool of toggleableTools) next.add(tool.id);
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabledTools, dependencyStatus]);
 
   const handleSubmit = () => {
     onSubmit(Array.from(enabledTools));
@@ -307,7 +363,7 @@ export function CapabilitiesPage({
           </div>
         </div>
 
-        {/* Onboarding: Tool resolution warnings for Seline template */}
+        {/* Onboarding: Tool resolution warnings for Selene template */}
         {showForm && resolutionWarnings.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 5 }}
@@ -354,38 +410,96 @@ export function CapabilitiesPage({
             transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
             className="flex min-h-0 flex-1 flex-col rounded-lg border border-terminal-border bg-terminal-bg/30"
           >
-            <div className="flex-1 min-h-0 overflow-y-auto p-5 pr-3">
-              <div className="space-y-6">
-                {Object.entries(toolsByCategory).map(([category, tools]) => (
-                  <div key={category} className="space-y-3">
-                    <h3 className="text-sm font-mono font-semibold text-terminal-amber">
-                      {CATEGORY_KEYS[category]
-                        ? t(`categories.${CATEGORY_KEYS[category]}`)
-                        : category.replace(/-/g, " ")}
-                    </h3>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {tools.map((tool) => {
-                        const isMet = areDependenciesMet(tool);
-                        const warning = getDependencyWarning(tool);
-                        const displayName = tool.displayName || (t.has(`tools.${tool.id}`) ? t(`tools.${tool.id}`) : tool.id);
-                        const description = tool.description || (t.has(`tools.${tool.id}Desc`) ? t(`tools.${tool.id}Desc`) : "");
+            {/* Summary count */}
+            <div className="flex items-center justify-between border-b border-terminal-border/50 px-5 py-3">
+              <span className="font-mono text-sm text-terminal-dark/70">
+                {enabledTools.size} of {availableTools.length} tools enabled
+              </span>
+              {escapeFlash && (
+                <span className="font-mono text-xs text-terminal-amber animate-pulse">
+                  Unsaved changes — press Back to discard
+                </span>
+              )}
+            </div>
 
-                        return (
-                          <ToolToggle
-                            key={tool.id}
-                            tool={tool}
-                            displayName={displayName}
-                            description={description}
-                            enabled={enabledTools.has(tool.id)}
-                            disabled={!isMet}
-                            warning={warning}
-                            onToggle={() => toggleTool(tool.id)}
-                          />
-                        );
-                      })}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 pr-3">
+              <div className="space-y-4">
+                {Object.entries(toolsByCategory).map(([category, tools]) => {
+                  const isCollapsed = collapsedCategories.has(category);
+                  const toggleableTools = tools.filter((tool) => areDependenciesMet(tool));
+                  const enabledInCategory = tools.filter((tool) => enabledTools.has(tool.id)).length;
+                  const allToggleableEnabled = toggleableTools.length > 0 && toggleableTools.every((tool) => enabledTools.has(tool.id));
+                  const someToggleableEnabled = toggleableTools.some((tool) => enabledTools.has(tool.id));
+                  const categoryLabel = CATEGORY_KEYS[category]
+                    ? t(`categories.${CATEGORY_KEYS[category]}`)
+                    : category.charAt(0).toUpperCase() + category.slice(1).replace(/-/g, " ");
+                  const selectAllChecked: boolean | "mixed" = allToggleableEnabled
+                    ? true
+                    : someToggleableEnabled
+                      ? "mixed"
+                      : false;
+
+                  return (
+                    <div key={category}>
+                      {/* Category header */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleCategoryCollapse(category)}
+                          className="flex items-center gap-1.5 text-sm font-mono font-semibold text-terminal-amber hover:text-terminal-amber/80 transition-colors"
+                          aria-expanded={!isCollapsed}
+                          aria-controls={!isCollapsed ? `category-${category}` : undefined}
+                        >
+                          {isCollapsed ? (
+                            <ChevronRightIcon className="w-4 h-4" />
+                          ) : (
+                            <ChevronDownIcon className="w-4 h-4" />
+                          )}
+                          {categoryLabel}
+                        </button>
+                        <span className="font-mono text-xs text-terminal-dark/50">
+                          {enabledInCategory} of {tools.length}
+                        </span>
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selectAllChecked === "mixed" ? "mixed" : selectAllChecked}
+                          aria-label={`${allToggleableEnabled ? "Deselect" : "Select"} all ${categoryLabel} tools`}
+                          onClick={() => toggleCategorySelectAll(category, tools)}
+                          disabled={toggleableTools.length === 0}
+                          className="ml-auto font-mono text-xs text-terminal-green hover:text-terminal-green/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {allToggleableEnabled ? "Deselect all" : "Select all"}
+                        </button>
+                      </div>
+
+                      {/* Tools grid — collapsible */}
+                      {!isCollapsed && (
+                        <div id={`category-${category}`} className="grid gap-2 sm:grid-cols-2">
+                          {tools.map((tool) => {
+                            const isMet = areDependenciesMet(tool);
+                            const warning = getDependencyWarning(tool);
+                            const displayName = tool.displayName || (t.has(`tools.${tool.id}`) ? t(`tools.${tool.id}`) : tool.id);
+                            const description = tool.description || (t.has(`tools.${tool.id}Desc`) ? t(`tools.${tool.id}Desc`) : "");
+
+                            return (
+                              <ToolToggle
+                                key={tool.id}
+                                tool={tool}
+                                displayName={displayName}
+                                description={description}
+                                enabled={enabledTools.has(tool.id)}
+                                disabled={!isMet}
+                                warning={warning}
+                                onToggle={() => toggleTool(tool.id)}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -433,6 +547,9 @@ function ToolToggle({
     <button
       onClick={onToggle}
       disabled={disabled}
+      role="checkbox"
+      aria-checked={enabled}
+      aria-label={displayName}
       className={`w-full flex items-center gap-3 p-3 rounded border transition-colors text-left ${disabled
         ? "bg-terminal-bg/10 border-terminal-border/30 opacity-60 cursor-not-allowed"
         : enabled

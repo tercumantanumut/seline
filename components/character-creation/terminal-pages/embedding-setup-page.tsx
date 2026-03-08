@@ -54,7 +54,7 @@ export function EmbeddingSetupPage({
     const [selectedModel, setSelectedModel] = useState(OPENROUTER_MODELS[0].id);
     const [hasOpenRouterKey, setHasOpenRouterKey] = useState<boolean | null>(null);
     const [apiKey, setApiKey] = useState("");
-    const [showForm, setShowForm] = useState(false);
+    const [editingApiKey, setEditingApiKey] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
     const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
@@ -202,7 +202,6 @@ export function EmbeddingSetupPage({
                                     speed={prefersReducedMotion ? 0 : 25}
                                     onComplete={() => {
                                         hasAnimated.current = true;
-                                        setShowForm(true);
                                     }}
                                     showCursor={false}
                                 />
@@ -213,28 +212,37 @@ export function EmbeddingSetupPage({
                     </div>
                 </div>
 
+                {/* Explanation */}
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: prefersReducedMotion ? 0 : 0.4, delay: prefersReducedMotion ? 0 : 0.2 }}
+                    className="font-mono text-sm text-terminal-dark/60 -mt-2"
+                >
+                    Embeddings convert your documents into searchable vectors. This lets your agent find relevant information from uploaded files and synced folders.
+                </motion.p>
+
                 {/* Provider Selection */}
-                {showForm && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-                        className="flex min-h-0 flex-1 flex-col rounded-lg border border-terminal-border bg-terminal-bg/30"
-                    >
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: prefersReducedMotion ? 0 : 0.4, delay: prefersReducedMotion ? 0 : 0.3 }}
+                    className="flex min-h-0 flex-1 flex-col rounded-lg border border-terminal-border bg-terminal-bg/30"
+                >
                         <div className="flex-1 min-h-0 overflow-y-auto p-5">
                             {/* Provider Toggle */}
                             <div className="flex gap-4 mb-6">
                                 <ProviderCard
                                     icon={<CloudIcon className="w-5 h-5" />}
                                     title={t("providers.openrouter.title")}
-                                    description={t("providers.openrouter.description")}
+                                    description="Cloud-powered, high quality. Requires API key."
                                     selected={provider === "openrouter"}
                                     onClick={() => handleProviderChange("openrouter")}
                                 />
                                 <ProviderCard
                                     icon={<HardDriveIcon className="w-5 h-5" />}
                                     title={t("providers.local.title")}
-                                    description={t("providers.local.description")}
+                                    description="Free, private, runs on your device. No API key needed."
                                     selected={provider === "local"}
                                     onClick={() => handleProviderChange("local")}
                                 />
@@ -252,20 +260,36 @@ export function EmbeddingSetupPage({
                                     <label className="block text-sm font-mono text-terminal-dark mb-2">
                                         {t("apiKeyLabel")}
                                     </label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="password"
-                                            value={apiKey}
-                                            onChange={(e) => setApiKey(e.target.value)}
-                                            placeholder={hasOpenRouterKey ? "••••••••••••••••" : "sk-or-..."}
-                                            className="flex-1 rounded border border-terminal-border bg-terminal-cream px-3 py-2 font-mono text-sm focus:border-terminal-amber focus:outline-none"
-                                        />
-                                    </div>
-                                    {!hasOpenRouterKey && !apiKey && (
-                                        <p className="mt-1 text-xs font-mono text-terminal-amber flex items-center gap-1">
-                                            <AlertCircleIcon className="w-3 h-3" />
-                                            {t("apiKeyRequired")}
-                                        </p>
+                                    {hasOpenRouterKey && !editingApiKey ? (
+                                        <div className="flex items-center gap-2 rounded border border-terminal-green/40 bg-terminal-green/5 px-3 py-2">
+                                            <CheckCircleIcon className="w-4 h-4 text-terminal-green" />
+                                            <span className="font-mono text-sm text-terminal-green">API key configured</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingApiKey(true)}
+                                                className="ml-auto text-xs font-mono text-terminal-dark/50 hover:text-terminal-dark transition-colors"
+                                            >
+                                                Change
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="password"
+                                                    value={apiKey}
+                                                    onChange={(e) => setApiKey(e.target.value)}
+                                                    placeholder="sk-or-..."
+                                                    className="flex-1 rounded border border-terminal-border bg-terminal-cream px-3 py-2 font-mono text-sm focus:border-terminal-amber focus:outline-none"
+                                                />
+                                            </div>
+                                            {!hasOpenRouterKey && !apiKey && (
+                                                <p className="mt-1 text-xs font-mono text-terminal-amber flex items-center gap-1">
+                                                    <AlertCircleIcon className="w-3 h-3" />
+                                                    {t("apiKeyRequired")}
+                                                </p>
+                                            )}
+                                        </>
                                     )}
                                 </motion.div>
                             )}
@@ -331,7 +355,6 @@ export function EmbeddingSetupPage({
                             </div>
                         </div>
                     </motion.div>
-                )}
             </div>
         </div >
     );

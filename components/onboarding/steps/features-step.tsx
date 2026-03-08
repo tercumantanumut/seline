@@ -27,10 +27,10 @@ import {
     DEFAULT_PATH_CONFIG,
     PATH_HIGHLIGHT_MAP,
 } from "./path-selector";
-import type { SelinePath, PathConfigState } from "./path-selector";
+import type { SelenePath, PathConfigState } from "./path-selector";
 
 interface FeaturesStepProps {
-    onContinue: (pathData: { path: SelinePath | null; config: PathConfigState }) => void;
+    onContinue: (pathData: { path: SelenePath | null; config: PathConfigState }) => void;
     onBack: () => void;
 }
 
@@ -196,7 +196,7 @@ function FeatureChip({ feature, t }: { feature: Feature; t: ReturnType<typeof us
 
 export function FeaturesStep({ onContinue, onBack }: FeaturesStepProps) {
     const t = useTranslations("onboarding.features");
-    const [selectedPath, setSelectedPath] = useState<SelinePath | null>(null);
+    const [selectedPath, setSelectedPath] = useState<SelenePath | null>(null);
     const [pathConfig, setPathConfig] = useState<PathConfigState>(DEFAULT_PATH_CONFIG);
 
     return (

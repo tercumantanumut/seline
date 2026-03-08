@@ -9,7 +9,7 @@
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Plug, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, Plug, ChevronDown, ChevronRight, AlertCircle, Minus } from "lucide-react";
 import Link from "next/link";
 import type { MCPTool } from "@/lib/mcp/types";
 import { useTranslations } from "next-intl";
@@ -81,6 +81,7 @@ export function MCPToolsPage({
         new Set(enabledMcpTools)
     );
     const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
+    const [connectionError, setConnectionError] = useState<string | null>(null);
 
     // NEW: Track per-tool preferences
     const [toolPreferences, setToolPreferences] = useState<Record<string, MCPToolPreference>>(() => {
@@ -139,6 +140,8 @@ export function MCPToolsPage({
 
     const loadData = async (autoConnectIfNeeded = true) => {
         try {
+            setConnectionError(null);
+
             // Load config and status
             const { data: configData } = await resilientFetch<{
                 config?: { mcpServers?: Record<string, { enabled?: boolean }> };
@@ -178,12 +181,20 @@ export function MCPToolsPage({
                 const { error: connectError } = await resilientPost("/api/mcp/connect", {});
                 if (connectError) {
                     console.error("[MCPToolsPage] Auto-connect failed:", connectError);
+                    setConnectionError(String(connectError));
                 }
                 setIsConnecting(false);
                 if (!connectError) {
                     // Reload data after connection (without auto-connect to prevent loop)
                     return loadData(false);
                 }
+            }
+
+            // Check for server-level connection errors from status
+            const failedServers = (configData?.status || []).filter(s => !s.connected && s.lastError);
+            if (failedServers.length > 0) {
+                const errorMessages = failedServers.map(s => `${s.serverName}: ${s.lastError}`).join("; ");
+                setConnectionError(errorMessages);
             }
 
             // Initialize preferences for all discovered tools if not already set
@@ -214,6 +225,7 @@ export function MCPToolsPage({
             }
         } catch (error) {
             console.error("Failed to load MCP data:", error);
+            setConnectionError(error instanceof Error ? error.message : "Failed to load MCP data");
         } finally {
             setIsLoading(false);
         }
@@ -221,9 +233,11 @@ export function MCPToolsPage({
 
     const connectServers = async () => {
         setIsConnecting(true);
+        setConnectionError(null);
         const { error } = await resilientPost("/api/mcp/connect", {});
         if (error) {
             console.error("Failed to connect to MCP servers:", error);
+            setConnectionError(String(error));
         } else {
             await loadData();
         }
@@ -398,6 +412,24 @@ export function MCPToolsPage({
                 {/* Content Area - Scrollable */}
                 <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-terminal-border bg-terminal-bg/30">
                     <div className="flex-1 min-h-0 overflow-y-auto p-5 pr-3">
+                        {/* Connection error banner */}
+                        {connectionError && (
+                            <div className="rounded-lg border border-red-300 bg-red-50 p-3 mb-4 flex items-start gap-2">
+                                <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                    <p className="font-mono text-sm text-red-700">
+                                        {t("connectionError")}: {connectionError}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setConnectionError(null)}
+                                    className="text-red-400 hover:text-red-600 text-sm font-mono shrink-0"
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        )}
+
                         {/* Connect button if servers aren't connected */}
                         {hasConfiguredServers && serverNames.length === 0 && (
                             <div className="rounded-lg border border-terminal-border bg-terminal-cream/50 p-4 mb-4">
@@ -432,6 +464,7 @@ export function MCPToolsPage({
                                         selectedTools.has(`${serverName}:${t.name}`)
                                     ).length;
                                     const serverStatus = status.find(s => s.serverName === serverName);
+                                    const isIndeterminate = enabledToolCount > 0 && enabledToolCount < serverTools.length;
 
                                     return (
                                         <div key={serverName} className="rounded-lg border border-terminal-border bg-terminal-cream/50 overflow-hidden">
@@ -439,6 +472,15 @@ export function MCPToolsPage({
                                             <div
                                                 className="flex items-center justify-between p-3 cursor-pointer hover:bg-terminal-cream"
                                                 onClick={() => toggleServerExpanded(serverName)}
+                                                tabIndex={0}
+                                                role="button"
+                                                aria-expanded={isExpanded}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" || e.key === " ") {
+                                                        e.preventDefault();
+                                                        toggleServerExpanded(serverName);
+                                                    }
+                                                }}
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {isExpanded ? (
@@ -446,17 +488,30 @@ export function MCPToolsPage({
                                                     ) : (
                                                         <ChevronRight className="h-4 w-4 text-terminal-muted" />
                                                     )}
-                                                    <Checkbox
-                                                        checked={isServerEnabled}
-                                                        onCheckedChange={() => toggleServer(serverName)}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="border-terminal-border"
-                                                    />
+                                                    {isIndeterminate ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); toggleServer(serverName); }}
+                                                            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-terminal-green bg-terminal-green text-white"
+                                                            aria-label={`Toggle all tools for ${serverName}`}
+                                                        >
+                                                            <Minus className="h-3 w-3" />
+                                                        </button>
+                                                    ) : (
+                                                        <Checkbox
+                                                            checked={isServerEnabled}
+                                                            onCheckedChange={() => toggleServer(serverName)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="border-terminal-border"
+                                                        />
+                                                    )}
                                                     <div className="flex items-center gap-2">
                                                         <Plug className="h-4 w-4 text-purple-500" />
                                                         <span className="font-mono font-semibold text-terminal-dark">{serverName}</span>
                                                         {serverStatus?.connected && (
                                                             <span className="text-xs text-terminal-green">● {t("connected")}</span>
+                                                        )}
+                                                        {serverStatus && !serverStatus.connected && serverStatus.lastError && (
+                                                            <span className="text-xs text-red-500" title={serverStatus.lastError}>● {t("disconnected")}</span>
                                                         )}
                                                     </div>
                                                 </div>
@@ -536,7 +591,7 @@ export function MCPToolsPage({
                                 onClick={onBack}
                                 className="order-2 text-sm font-mono text-terminal-dark/60 transition-colors hover:text-terminal-dark sm:order-1"
                             >
-                                ← Back
+                                &larr; {t("back")}
                             </button>
                         )}
                         <button

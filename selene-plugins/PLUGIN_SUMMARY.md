@@ -2,7 +2,7 @@
 
 ## 📦 What Was Created
 
-A production-ready **Claude Code plugin** that sends desktop notifications when Seline agent tasks complete. The plugin follows Anthropic's official plugin structure and is ready to drag-and-drop into Seline.
+A production-ready **Claude Code plugin** that sends desktop notifications when Selene agent tasks complete. The plugin follows Anthropic's official plugin structure and is ready to drag-and-drop into Selene.
 
 ### Plugin Folder Structure
 
@@ -89,7 +89,7 @@ Structure:
 ```
 
 Key points:
-- `$CLAUDE_PLUGIN_ROOT` is automatically substituted by Seline
+- `$CLAUDE_PLUGIN_ROOT` is automatically substituted by Selene
 - `timeout`: 10 seconds (max time for notification to send)
 - `statusMessage`: Shows while hook is executing
 
@@ -152,7 +152,7 @@ Expected: All 4 tests pass ✅
 
 ### Method 1: Drag & Drop (Easiest)
 1. Download `task-completion-notifier` folder
-2. Drag into Seline app
+2. Drag into Selene app
 3. Enable in plugin manager
 4. Done!
 
@@ -217,7 +217,7 @@ Edit `hooks/notify-on-stop.sh` to:
 Available: Glass, Alarm, Pop, Submarine, Ping, Tink, Morse, Sosumi, Blow, Purr
 
 ```bash
-send_macos_notification "Seline" "✅ Task completed" "Submarine"
+send_macos_notification "Selene" "✅ Task completed" "Submarine"
 ```
 
 ### Change notification title
@@ -228,7 +228,7 @@ send_macos_notification "Claude Code" "✅ Task completed" "Glass"
 ### Disable for specific conditions
 ```bash
 "completed")
-  # send_macos_notification "Seline" "✅ Task completed successfully" "Glass"
+  # send_macos_notification "Selene" "✅ Task completed successfully" "Glass"
   ;;
 ```
 
@@ -245,7 +245,7 @@ This plugin demonstrates Anthropic's plugin standard:
 
 ## 🔍 Validation
 
-The plugin is validated against Seline's plugin schemas:
+The plugin is validated against Selene's plugin schemas:
 - ✅ `pluginManifestSchema`: Validates plugin.json
 - ✅ `pluginHooksConfigSchema`: Validates hooks.json
 - ✅ `hookEntrySchema`: Validates hook entries
@@ -259,14 +259,14 @@ The plugin is validated against Seline's plugin schemas:
    cp -r task-completion-notifier ~/.claude/plugins/
    ```
 
-2. **Enable it in Seline**
-   - Open Seline
+2. **Enable it in Selene**
+   - Open Selene
    - Go to Plugins
    - Find "task-completion-notifier"
    - Toggle to enable
 
 3. **Test it**
-   - Run a task in Seline
+   - Run a task in Selene
    - Wait for it to complete
    - You should see a notification!
 
@@ -291,7 +291,7 @@ The plugin is validated against Seline's plugin schemas:
 | **Hook Events** | Stop |
 | **Platforms** | macOS, Linux, Windows |
 | **License** | MIT |
-| **Author** | Seline Developer |
+| **Author** | Selene Developer |
 
 ## ✅ Checklist
 
@@ -312,4 +312,4 @@ The plugin is validated against Seline's plugin schemas:
 
 **Status**: ✅ Ready for drag-and-drop installation  
 **Created**: 2026-02-21  
-**Made with ❤️ for Seline**
+**Made with ❤️ for Selene**

@@ -1013,7 +1013,7 @@ export const Composer: FC<{
         className={cn(
           "relative flex w-full flex-col rounded-lg shadow-md transition-shadow focus-within:shadow-lg transform-gpu",
           isDeepResearchMode
-            ? "bg-purple-50/80 focus-within:bg-purple-50 border border-purple-200"
+            ? "bg-purple-50/80 focus-within:bg-purple-50 border border-purple-200 dark:bg-purple-950/50 dark:focus-within:bg-purple-950/60 dark:border-purple-800"
             : hasWallpaper ? "bg-terminal-cream/50 backdrop-blur-sm focus-within:bg-terminal-cream/60" : "bg-terminal-cream/80 focus-within:bg-terminal-cream"
         )}
         onFocus={handleFocus}
@@ -1031,7 +1031,7 @@ export const Composer: FC<{
         )}
 
         {isDeepResearchMode && (
-          <div className="flex items-center gap-2 px-4 pt-2 text-xs font-mono text-purple-600">
+          <div className="flex items-center gap-2 px-4 pt-2 text-xs font-mono text-purple-600 dark:text-purple-400">
             <FlaskConicalIcon className="size-3" />
             {t("deepResearch.modeLabel")}
           </div>

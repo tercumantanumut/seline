@@ -6,7 +6,7 @@ import { ComputerGraphic } from "../computer-graphic";
 import { TerminalPrompt, TerminalBlock } from "@/components/ui/terminal-prompt";
 import { useReducedMotion } from "../hooks/use-reduced-motion";
 import { ToolBadge } from "@/components/ui/tool-badge";
-import { Wrench, FileText, Sparkles, CheckCircle2 } from "lucide-react";
+import { Wrench, FileText, CheckCircle2, Loader2, Plug } from "lucide-react";
 import type { AgentIdentity } from "./identity-page";
 import type { UploadedDocument } from "./knowledge-base-page";
 import { useTranslations } from "next-intl";
@@ -40,6 +40,8 @@ interface PreviewPageProps {
   onConfirm: () => void;
   onBack: () => void;
   isSubmitting?: boolean;
+  enabledMcpServers?: string[];
+  enabledMcpTools?: string[];
 }
 
 export function PreviewPage({
@@ -49,6 +51,8 @@ export function PreviewPage({
   onConfirm,
   onBack,
   isSubmitting = false,
+  enabledMcpServers = [],
+  enabledMcpTools = [],
 }: PreviewPageProps) {
   const t = useTranslations("characterCreation.preview");
   const tTools = useTranslations("characterCreation.capabilities.tools");
@@ -60,6 +64,14 @@ export function PreviewPage({
         onBack();
       }
       if (e.key === "Enter" && !isSubmitting) {
+        // Don't fire creation when user is typing in an input field
+        if (
+          e.target instanceof HTMLInputElement ||
+          e.target instanceof HTMLTextAreaElement ||
+          e.target instanceof HTMLSelectElement
+        ) {
+          return;
+        }
         onConfirm();
       }
     };
@@ -170,6 +182,35 @@ export function PreviewPage({
                 </div>
               </TerminalBlock>
 
+              {/* MCP Tools */}
+              {enabledMcpServers.length > 0 && (
+                <TerminalBlock title={t("mcpTools")}>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-purple-600 font-semibold">
+                      <Plug className="w-4 h-4" />
+                      {t("mcpServersCount", { count: enabledMcpServers.length })}
+                    </div>
+                    <div className="space-y-1">
+                      {enabledMcpServers.map((serverName) => {
+                        const serverToolCount = enabledMcpTools.filter(
+                          (tool) => tool.startsWith(`${serverName}:`)
+                        ).length;
+                        return (
+                          <div key={serverName} className="text-terminal-text/70 pl-6 flex items-center justify-between">
+                            <span className="truncate">&#8226; {serverName}</span>
+                            {serverToolCount > 0 && (
+                              <span className="text-terminal-text/50 text-xs shrink-0 ml-2">
+                                {t("mcpToolCount", { count: serverToolCount })}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </TerminalBlock>
+              )}
+
               {/* Summary */}
               <TerminalBlock title={t("configSummary")}>
                 <div className="space-y-2 text-sm text-terminal-text/90">
@@ -181,6 +222,12 @@ export function PreviewPage({
                     <FileText className="w-4 h-4 text-terminal-muted/80" />
                     {t("documentsCount", { count: documents.length })}
                   </div>
+                  {enabledMcpServers.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Plug className="w-4 h-4 text-terminal-muted/80" />
+                      {t("mcpSummary", { servers: enabledMcpServers.length, tools: enabledMcpTools.length })}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-terminal-green mt-2">
                     <CheckCircle2 className="w-4 h-4" />
                     {t("readyToDeploy")}
@@ -202,14 +249,15 @@ export function PreviewPage({
               disabled={isSubmitting}
               className="order-2 text-sm font-mono text-terminal-muted hover:text-terminal-dark transition-colors disabled:opacity-50 sm:order-1"
             >
-              ← {t("back")}
+              &larr; {t("back")}
             </button>
 
             <button
               onClick={onConfirm}
               disabled={isSubmitting}
-              className="order-1 w-full px-6 py-2 bg-terminal-green text-terminal-dark font-mono text-sm font-bold rounded hover:bg-terminal-green/90 transition-colors disabled:opacity-50 sm:order-2 sm:w-auto"
+              className="order-1 w-full px-6 py-2 bg-terminal-green text-terminal-dark font-mono text-sm font-bold rounded hover:bg-terminal-green/90 transition-colors disabled:opacity-50 sm:order-2 sm:w-auto flex items-center justify-center gap-2"
             >
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {isSubmitting ? t("creating") : t("createAgent")}
             </button>
           </motion.div>

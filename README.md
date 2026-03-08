@@ -1,4 +1,4 @@
-# Seline
+# Selene
 
 <div align="center">
 
@@ -9,37 +9,70 @@
 </div>
 
 <div align="center">
-  <img src="assets/demo.gif" alt="Seline Demo" width="800"/>
+  <img src="assets/demo.gif" alt="Selene Demo" width="800"/>
 </div>
 
 <br/>
 
-Seline is a desktop app that runs AI agents on your machine. Connect them to your WhatsApp, Telegram, Slack, or Discord. Write code, generate images, build personal assistants. All from one place. Your data stays on your device.
+Selene is a desktop app that runs AI agents on your machine. Connect them to your WhatsApp, Telegram, Slack, or Discord. Write code, generate images, build personal assistants. All from one place. Your data stays on your device.
+
+<div align="center">
+<img src="public/icons/brands/selene.png" alt="Selene" height="40">
+<br/>
+<sub>Integrates with</sub>
+<br/><br/>
+<a href="#providers"><img src="public/icons/brands/anthropic.svg" alt="Anthropic" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/openai.svg" alt="OpenAI" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/ollama.svg" alt="Ollama" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/openrouter.svg" alt="OpenRouter" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/google.svg" alt="Google" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/minimax.svg" alt="Minimax" height="14"></a>&nbsp;&nbsp;
+<a href="#providers"><img src="public/icons/brands/kimi.svg" alt="Kimi" height="14"></a>&nbsp;&nbsp;
+<a href="#channels"><img src="public/icons/brands/slack.svg" alt="Slack" height="14"></a>&nbsp;&nbsp;
+<a href="#channels"><img src="public/icons/brands/telegram.svg" alt="Telegram" height="14"></a>&nbsp;&nbsp;
+<a href="#channels"><img src="public/icons/brands/discord.svg" alt="Discord" height="14"></a>&nbsp;&nbsp;
+<a href="#channels"><img src="public/icons/brands/whatsapp.svg" alt="WhatsApp" height="14"></a>&nbsp;&nbsp;
+<a href="#voice--avatar"><img src="public/icons/brands/elevenlabs.svg" alt="ElevenLabs" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/comfyui.svg" alt="ComfyUI" height="14"></a>&nbsp;&nbsp;
+<a href="#modes"><img src="public/icons/brands/chromium.svg" alt="Chromium" height="14"></a>&nbsp;&nbsp;
+<a href="#extend-it"><img src="public/icons/brands/mcp.svg" alt="MCP" height="14"></a>&nbsp;&nbsp;
+<a href="#modes"><img src="public/icons/brands/puppeteer.svg" alt="Playwright" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/duckduckgo.svg" alt="DuckDuckGo" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/firecrawl.svg" alt="Firecrawl" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/lancedb.png" alt="LanceDB" height="14"></a>&nbsp;&nbsp;
+<a href="#voice--avatar"><img src="public/icons/brands/microsoft.svg" alt="Microsoft" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/remotion.svg" alt="Remotion" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/tavily.svg" alt="Tavily" height="14"></a>&nbsp;&nbsp;
+<a href="#creative-tools"><img src="public/icons/brands/onnx.svg" alt="ONNX Runtime" height="14"></a>&nbsp;&nbsp;
+<a href="#for-developers"><img src="public/icons/brands/github.svg" alt="GitHub" height="14"></a>
+</div>
+
+<br/>
 
 ## Agent-First, Not Button-First
 
-Most AI apps work like this: you click a button, the AI responds. Seline flips that.
+Most AI apps work like this: you click a button, the AI responds. Selene flips that.
 
-In Seline, your agent can do everything you can do, and the app follows along. When you ask your agent to "create a PR for this feature," it creates a workspace, copies the branch, writes the code, pushes, and opens the pull request. The UI automatically switches to show the git workspace as the agent works. You watch it happen, or step in whenever you want.
+In Selene, your agent can do everything you can do, and the app follows along. When you ask your agent to "create a PR for this feature," it creates a workspace, copies the branch, writes the code, pushes, and opens the pull request. The UI automatically switches to show the git workspace as the agent works. You watch it happen, or step in whenever you want.
 
 Every action the agent takes has a manual button too. You can create worktrees, stage files, push branches, and open PRs yourself. Same UI, same result. The difference is you don't *have* to. The app is built so the agent can operate it end-to-end, and you choose how much you want to steer.
 
-This is how Seline develops itself. The app has been building its own codebase for weeks, running multi-hour sessions, managing parallel workspaces, creating its own PRs. 99% of the code you're reading was written by Seline agents.
+This is how Selene develops itself. The app has been building its own codebase for weeks, running multi-hour sessions, managing parallel workspaces, creating its own PRs. 99% of the code you're reading was written by Selene agents.
 
 ## Why We Built It
 
 AI agents are powerful but expensive. Most of that cost is context. Every turn, the model re-reads your files, conversation history, and tool definitions all over again.
 
-Seline uses **two agents instead of one.** Your main agent handles the conversation. A smaller utility agent works in the background: it searches your files, finds what's relevant, and hands it over. The main agent never digs through thousands of files. It asks, gets the answer, and moves on.
+Selene uses **two agents instead of one.** Your main agent handles the conversation. A smaller utility agent works in the background: it searches your files, finds what's relevant, and hands it over. The main agent never digs through thousands of files. It asks, gets the answer, and moves on.
 
 What this means for you:
-- **Drop in any folder** and Seline indexes it. Codebases, research papers, documents. Ask a question and get answers from your actual files, in seconds.
-- **Your prompts get better automatically.** Before your message reaches the model, Seline adds the relevant context: code snippets, file references, your preferences. You type a simple question, the model sees the full picture.
+- **Drop in any folder** and Selene indexes it. Codebases, research papers, documents. Ask a question and get answers from your actual files, in seconds.
+- **Your prompts get better automatically.** Before your message reaches the model, Selene adds the relevant context: code snippets, file references, your preferences. You type a simple question, the model sees the full picture.
 - **Lower costs.** Tools load only when needed. The utility agent runs on a cheaper model. Your main agent's context stays clean.
 
 ## Modes
 
-### Seline Dev
+### Selene Dev
 
 Everything you need to write and ship code, built into one place.
 
@@ -48,16 +81,16 @@ Everything you need to write and ship code, built into one place.
 - **Output protection.** When a build log or test output runs long, a bundled Rust tool trims it before it reaches the model. No more blown context from a noisy terminal.
 - **Automatic checks.** Set up type-checking or linting to run after every code edit. Customize what happens before and after any agent action through hooks.
 
-### Seline Fun
+### Selene Fun
 
 Personal AI companions with personality.
 
 - **3D avatar.** Your agent gets a face. It lip-syncs when it speaks, and its expressions react to the conversation when emotion detection is on.
 - **Voice cloning.** Make your agent sound how you want.
 - **Scheduled assistants.** Create a tutor that sends quizzes to your Telegram every morning. Or a daily briefing that summarizes your tasks. Set the schedule, pick the channel, and it just runs.
-- **Agents that learn.** Seline watches your conversations and suggests things to remember. You approve or reject from the memory page. Over time, the agent just *knows* your preferences.
+- **Agents that learn.** Selene watches your conversations and suggests things to remember. You approve or reject from the memory page. Over time, the agent just *knows* your preferences.
 
-### Seline Work *(coming soon)*
+### Selene Work *(coming soon)*
 
 Team agents for company workflows.
 
@@ -98,7 +131,7 @@ Pair channels with the scheduler: set a task to run daily at 9am and have result
 
 Your agents get better over time.
 
-After conversations, Seline suggests memories like "user prefers TypeScript strict mode" or "always use pnpm." These show up on the memory page where you approve, edit, or remove them. Approved memories carry into every future conversation.
+After conversations, Selene suggests memories like "user prefers TypeScript strict mode" or "always use pnpm." These show up on the memory page where you approve, edit, or remove them. Approved memories carry into every future conversation.
 
 You can also just tell your agent: "remember that we deploy to Vercel," and it saves immediately.
 
@@ -140,14 +173,14 @@ Use any combination, or go fully local with no API keys.
 | **Minimax** | 3 variants |
 | **Antigravity** | Free tier via Google OAuth |
 
-Every part of Seline (chat, embeddings, voice, images) lets you choose between local and cloud. Run everything offline or use APIs. Mix and match.
+Every part of Selene (chat, embeddings, voice, images) lets you choose between local and cloud. Run everything offline or use APIs. Mix and match.
 
 ## Download
 
 **macOS.** Signed DMG, drag to Applications.
 **Windows.** Signed installer or portable build.
 
-One download, no prerequisites. Seline bundles everything: runtime, local model support, browser engine, platform tools. The app is larger than usual because it ships what other tools make you install separately.
+One download, no prerequisites. Selene bundles everything: runtime, local model support, browser engine, platform tools. The app is larger than usual because it ships what other tools make you install separately.
 
 ## For Developers
 

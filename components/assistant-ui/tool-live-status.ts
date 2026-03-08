@@ -91,6 +91,96 @@ export function summarizeToolValue(value: unknown, maxLength: number = 120): str
   return summarizeString(String(value), maxLength);
 }
 
+/**
+ * Extract a clean pill summary for known provider tool shapes (Claude Code, etc.).
+ * Returns undefined if the tool isn't recognized, so callers can fall back
+ * to the generic `summarizeToolInput`.
+ */
+export function summarizeToolInputByName(toolName: string, value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return summarizeToolInput(value);
+
+  const args = value as Record<string, unknown>;
+
+  switch (toolName) {
+    case "Edit": {
+      const fp = typeof args.file_path === "string" ? args.file_path : undefined;
+      return fp ? fp.split("/").pop() || fp : summarizeToolInput(value);
+    }
+    case "Bash": {
+      if (typeof args.description === "string" && args.description.trim()) {
+        return summarizeString(args.description.trim(), 96);
+      }
+      if (typeof args.command === "string") {
+        return summarizeString(args.command, 96);
+      }
+      return summarizeToolInput(value);
+    }
+    case "Read": {
+      const fp = typeof args.file_path === "string" ? args.file_path : undefined;
+      if (!fp) return summarizeToolInput(value);
+      const name = fp.split("/").pop() || fp;
+      if (typeof args.offset === "number" || typeof args.limit === "number") {
+        return `${name} (L${args.offset ?? 1}${args.limit ? `–${(args.offset as number ?? 1) + (args.limit as number)}` : ""})`;
+      }
+      return name;
+    }
+    case "Write": {
+      const fp = typeof args.file_path === "string" ? args.file_path : undefined;
+      return fp ? fp.split("/").pop() || fp : summarizeToolInput(value);
+    }
+    case "Glob": {
+      return typeof args.pattern === "string" ? args.pattern : summarizeToolInput(value);
+    }
+    case "Grep": {
+      const pattern = typeof args.pattern === "string" ? args.pattern : undefined;
+      if (!pattern) return summarizeToolInput(value);
+      const path = typeof args.path === "string" ? args.path.split("/").pop() : undefined;
+      return path ? `${pattern} in ${path}` : pattern;
+    }
+    case "Agent": {
+      if (typeof args.description === "string" && args.description.trim()) {
+        return summarizeString(args.description.trim(), 96);
+      }
+      return summarizeToolInput(value);
+    }
+    case "WebFetch": {
+      if (typeof args.url === "string") {
+        try { return new URL(args.url).hostname; } catch { /* ignore */ }
+        return summarizeString(args.url, 96);
+      }
+      return summarizeToolInput(value);
+    }
+    case "WebSearch": {
+      return typeof args.query === "string" ? summarizeString(args.query, 96) : summarizeToolInput(value);
+    }
+    case "NotebookEdit": {
+      const fp = typeof args.notebook_path === "string" ? args.notebook_path : undefined;
+      return fp ? fp.split("/").pop() || fp : summarizeToolInput(value);
+    }
+    case "TodoWrite": {
+      return "Task list update";
+    }
+    case "EnterPlanMode": {
+      return "Planning mode";
+    }
+    case "ExitPlanMode": {
+      return "Plan approval";
+    }
+    case "EnterWorktree": {
+      const name = typeof args.name === "string" ? args.name : undefined;
+      return name ? `Worktree: ${name}` : "Create worktree";
+    }
+    case "AskUserQuestion": {
+      return "Asking question";
+    }
+    case "Skill": {
+      return typeof args.skill === "string" ? args.skill : summarizeToolInput(value);
+    }
+    default:
+      return summarizeToolInput(value);
+  }
+}
+
 export function summarizeToolInput(value: unknown): string | undefined {
   return summarizeToolValue(value, 96);
 }

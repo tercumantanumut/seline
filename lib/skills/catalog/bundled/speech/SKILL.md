@@ -1,6 +1,6 @@
 ---
 name: "speech"
-description: "Use when the user asks for text-to-speech narration or voiceover, accessibility reads, audio prompts, or batch speech generation via the OpenAI Audio API; run the bundled CLI (`${SELINE_SKILL_ROOT}/scripts/text_to_speech.py`) with built-in voices and require `OPENAI_API_KEY` for live calls. Custom voice creation is out of scope."
+description: "Use when the user asks for text-to-speech narration or voiceover, accessibility reads, audio prompts, or batch speech generation via the OpenAI Audio API; run the bundled CLI (`${SELENE_SKILL_ROOT}/scripts/text_to_speech.py`) with built-in voices and require `OPENAI_API_KEY` for live calls. Custom voice creation is out of scope."
 ---
 
 
@@ -21,7 +21,7 @@ Generate spoken audio for the current project (narration, product demo voiceover
 2. Collect inputs up front: exact text (verbatim), desired voice, delivery style, format, and any constraints.
 3. If batch: write a temporary JSONL under tmp/ (one job per line), run once, then delete the JSONL.
 4. Augment instructions into a short labeled spec without rewriting the input text.
-5. Run the bundled CLI (`${SELINE_SKILL_ROOT}/scripts/text_to_speech.py`) with sensible defaults (see ${SELINE_SKILL_ROOT}/references/cli.md).
+5. Run the bundled CLI (`${SELENE_SKILL_ROOT}/scripts/text_to_speech.py`) with sensible defaults (see ${SELENE_SKILL_ROOT}/references/cli.md).
 6. For important clips, validate: intelligibility, pacing, pronunciation, and adherence to constraints.
 7. Iterate with a single targeted change (voice, speed, or instructions), then re-check.
 8. Save/return final outputs and note the final text + instructions + flags used.
@@ -64,8 +64,8 @@ If installation isn't possible in this environment, tell the user which dependen
 - Require `OPENAI_API_KEY` before any live API call.
 - Provide a clear disclosure to end users that the voice is AI-generated.
 - Use the OpenAI Python SDK (`openai` package) for all API calls; do not use raw HTTP.
-- Prefer the bundled CLI (`${SELINE_SKILL_ROOT}/scripts/text_to_speech.py`) over writing new one-off scripts.
-- Never modify `${SELINE_SKILL_ROOT}/scripts/text_to_speech.py`. If something is missing, ask the user before doing anything else.
+- Prefer the bundled CLI (`${SELENE_SKILL_ROOT}/scripts/text_to_speech.py`) over writing new one-off scripts.
+- Never modify `${SELENE_SKILL_ROOT}/scripts/text_to_speech.py`. If something is missing, ask the user before doing anything else.
 
 ## Instruction augmentation
 Reformat user direction into a short, labeled spec. Only make implicit details explicit; do not invent new requirements.
@@ -116,29 +116,29 @@ Emphasis: Stress "demo" and "show".
 - For edits/iterations, repeat invariants (e.g., "keep pacing steady") to reduce drift.
 - Iterate with single-change follow-ups.
 
-More principles: `${SELINE_SKILL_ROOT}/references/prompting.md`. Copy/paste specs: `${SELINE_SKILL_ROOT}/references/sample-prompts.md`.
+More principles: `${SELENE_SKILL_ROOT}/references/prompting.md`. Copy/paste specs: `${SELENE_SKILL_ROOT}/references/sample-prompts.md`.
 
 ## Guidance by use case
 Use these modules when the request is for a specific delivery style. They provide targeted defaults and templates.
-- Narration / explainer: `${SELINE_SKILL_ROOT}/references/narration.md`
-- Product demo / voiceover: `${SELINE_SKILL_ROOT}/references/voiceover.md`
-- IVR / phone prompts: `${SELINE_SKILL_ROOT}/references/ivr.md`
-- Accessibility reads: `${SELINE_SKILL_ROOT}/references/accessibility.md`
+- Narration / explainer: `${SELENE_SKILL_ROOT}/references/narration.md`
+- Product demo / voiceover: `${SELENE_SKILL_ROOT}/references/voiceover.md`
+- IVR / phone prompts: `${SELENE_SKILL_ROOT}/references/ivr.md`
+- Accessibility reads: `${SELENE_SKILL_ROOT}/references/accessibility.md`
 
 ## CLI + environment notes
-- CLI commands + examples: `${SELINE_SKILL_ROOT}/references/cli.md`
-- API parameter quick reference: `${SELINE_SKILL_ROOT}/references/audio-api.md`
-- Instruction patterns + examples: `${SELINE_SKILL_ROOT}/references/voice-directions.md`
-- If network approvals / sandbox settings are getting in the way: `${SELINE_SKILL_ROOT}/references/codex-network.md`
+- CLI commands + examples: `${SELENE_SKILL_ROOT}/references/cli.md`
+- API parameter quick reference: `${SELENE_SKILL_ROOT}/references/audio-api.md`
+- Instruction patterns + examples: `${SELENE_SKILL_ROOT}/references/voice-directions.md`
+- If network approvals / sandbox settings are getting in the way: `${SELENE_SKILL_ROOT}/references/codex-network.md`
 
 ## Reference map
-- **`${SELINE_SKILL_ROOT}/references/cli.md`**: how to run speech generation/batches via `${SELINE_SKILL_ROOT}/scripts/text_to_speech.py` (commands, flags, recipes).
-- **`${SELINE_SKILL_ROOT}/references/audio-api.md`**: API parameters, limits, voice list.
-- **`${SELINE_SKILL_ROOT}/references/voice-directions.md`**: instruction patterns and examples.
-- **`${SELINE_SKILL_ROOT}/references/prompting.md`**: instruction best practices (structure, constraints, iteration patterns).
-- **`${SELINE_SKILL_ROOT}/references/sample-prompts.md`**: copy/paste instruction recipes (examples only; no extra theory).
-- **`${SELINE_SKILL_ROOT}/references/narration.md`**: templates + defaults for narration and explainers.
-- **`${SELINE_SKILL_ROOT}/references/voiceover.md`**: templates + defaults for product demo voiceovers.
-- **`${SELINE_SKILL_ROOT}/references/ivr.md`**: templates + defaults for IVR/phone prompts.
-- **`${SELINE_SKILL_ROOT}/references/accessibility.md`**: templates + defaults for accessibility reads.
-- **`${SELINE_SKILL_ROOT}/references/codex-network.md`**: environment/sandbox/network-approval troubleshooting.
+- **`${SELENE_SKILL_ROOT}/references/cli.md`**: how to run speech generation/batches via `${SELENE_SKILL_ROOT}/scripts/text_to_speech.py` (commands, flags, recipes).
+- **`${SELENE_SKILL_ROOT}/references/audio-api.md`**: API parameters, limits, voice list.
+- **`${SELENE_SKILL_ROOT}/references/voice-directions.md`**: instruction patterns and examples.
+- **`${SELENE_SKILL_ROOT}/references/prompting.md`**: instruction best practices (structure, constraints, iteration patterns).
+- **`${SELENE_SKILL_ROOT}/references/sample-prompts.md`**: copy/paste instruction recipes (examples only; no extra theory).
+- **`${SELENE_SKILL_ROOT}/references/narration.md`**: templates + defaults for narration and explainers.
+- **`${SELENE_SKILL_ROOT}/references/voiceover.md`**: templates + defaults for product demo voiceovers.
+- **`${SELENE_SKILL_ROOT}/references/ivr.md`**: templates + defaults for IVR/phone prompts.
+- **`${SELENE_SKILL_ROOT}/references/accessibility.md`**: templates + defaults for accessibility reads.
+- **`${SELENE_SKILL_ROOT}/references/codex-network.md`**: environment/sandbox/network-approval troubleshooting.

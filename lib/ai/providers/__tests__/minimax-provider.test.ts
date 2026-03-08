@@ -115,7 +115,7 @@ describe("minimax-client", () => {
       const callArgs = mockCreateOpenAICompatible.mock.calls[0][0];
       expect(callArgs.headers).toEqual({
         "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "Seline Agent",
+        "X-Title": "Selene Agent",
       });
     });
 

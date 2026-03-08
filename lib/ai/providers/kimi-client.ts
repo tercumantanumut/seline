@@ -67,7 +67,7 @@ export function getKimiClient(): ReturnType<typeof createOpenAICompatible> {
       apiKey: apiKey || "",
       headers: {
         "HTTP-Referer": getAppUrl(),
-        "X-Title": "Seline Agent",
+        "X-Title": "Selene Agent",
       },
       fetch: kimiCustomFetch,
     });

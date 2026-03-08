@@ -35,19 +35,29 @@ export function KnowledgeBasePage({
   const t = useTranslations("characterCreation.knowledgeBase");
   const [documents, setDocuments] = useState<UploadedDocument[]>(initialDocuments);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; filename: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const confirmDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Cleanup delete confirmation timer on unmount
+  useEffect(() => {
+    return () => {
+      if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onBack();
+      if (e.key === "Escape" && !uploading) onBack();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onBack]);
+  }, [onBack, uploading]);
 
   // Fetch existing documents on mount
   useEffect(() => {
@@ -66,7 +76,13 @@ export function KnowledgeBasePage({
     setError(null);
     setUploading(true);
 
-    for (const file of Array.from(files)) {
+    const fileArray = Array.from(files);
+    const total = fileArray.length;
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      setUploadProgress({ current: i + 1, total, filename: file.name });
+
       const formData = new FormData();
       formData.append("file", file);
       formData.append("title", file.name);
@@ -82,6 +98,7 @@ export function KnowledgeBasePage({
       setDocuments((prev) => [...prev, data.document]);
     }
     setUploading(false);
+    setUploadProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [agentId]);
 
@@ -154,8 +171,16 @@ export function KnowledgeBasePage({
             <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
               {/* Upload Area */}
               <div
+                role="button"
+                tabIndex={0}
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-terminal-border/50 rounded-lg p-8 text-center cursor-pointer hover:border-terminal-amber transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                className="border-2 border-dashed border-terminal-border/50 rounded-lg p-8 text-center cursor-pointer hover:border-terminal-amber focus:border-terminal-amber focus:outline-none focus:ring-1 focus:ring-terminal-amber transition-colors"
               >
                 <input
                   ref={fileInputRef}
@@ -166,12 +191,16 @@ export function KnowledgeBasePage({
                   className="hidden"
                 />
                 <div className="font-mono text-terminal-dark/70">
-                  {uploading ? (
+                  {uploading && uploadProgress ? (
+                    <span className="text-terminal-amber">
+                      {uploadProgress.total > 1
+                        ? `${t("uploading")} ${uploadProgress.current}/${uploadProgress.total}: ${uploadProgress.filename}`
+                        : `${t("uploading")} ${uploadProgress.filename}`}
+                    </span>
+                  ) : uploading ? (
                     <span className="text-terminal-amber">{t("uploading")}</span>
                   ) : (
-                    <>
-                      <span className="text-terminal-amber">{t("clickToUpload")}</span> {t("orDragFiles")}
-                    </>
+                    <span className="text-terminal-amber">{t("clickToUpload")}</span>
                   )}
                 </div>
                 <div className="text-xs font-mono text-terminal-dark/50 mt-2">
@@ -201,10 +230,24 @@ export function KnowledgeBasePage({
                         </div>
                       </div>
                       <button
-                        onClick={() => handleDelete(doc.id)}
-                        className="ml-2 text-red-500/70 hover:text-red-500 text-sm font-mono"
+                        onClick={() => {
+                          if (confirmingDeleteId === doc.id) {
+                            if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+                            setConfirmingDeleteId(null);
+                            handleDelete(doc.id);
+                          } else {
+                            setConfirmingDeleteId(doc.id);
+                            if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+                            confirmDeleteTimerRef.current = setTimeout(() => setConfirmingDeleteId(null), 3000);
+                          }
+                        }}
+                        className={`ml-2 text-sm font-mono transition-colors ${
+                          confirmingDeleteId === doc.id
+                            ? "text-red-600 font-semibold"
+                            : "text-red-500/70 hover:text-red-500"
+                        }`}
                       >
-                        ✕
+                        {confirmingDeleteId === doc.id ? t("confirmDelete") : "✕"}
                       </button>
                     </div>
                   ))}

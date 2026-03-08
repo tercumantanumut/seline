@@ -138,8 +138,17 @@ export function AgentCardInWorkflow({
             {imageUrl ? (
               <Avatar className="h-14 w-14">
                 <AvatarImage src={imageUrl} alt={character.name} />
-                <AvatarFallback className="font-mono text-sm font-semibold text-white" style={{ backgroundColor: accentColor.hex }}>
-                  {initials}
+                <AvatarFallback className="relative overflow-hidden">
+                  <GradientBackground
+                    colors={avatarGradientColors}
+                    gradientOrigin="bottom-middle"
+                    gradientSize="150% 150%"
+                    noiseIntensity={0.9}
+                    noisePatternAlpha={45}
+                    noisePatternSize={60}
+                    noisePatternRefreshInterval={7}
+                    className="rounded-full"
+                  />
                 </AvatarFallback>
               </Avatar>
             ) : (

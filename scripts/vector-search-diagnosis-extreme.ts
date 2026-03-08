@@ -202,23 +202,23 @@ interface ParameterConfig {
 }
 
 const PARAMETER_CONFIGS: ParameterConfig[] = [
-    // === BASELINE CONFIGS ===
+    // === BASELENE CONFIGS ===
     {
-        name: "v1-baseline-strict",
+        name: "v1-baselene-strict",
         description: "V1 with strict threshold",
         config: { enableHybridSearch: false, searchMode: "semantic" },
         minScore: 0.5,
         topK: 10,
     },
     {
-        name: "v1-baseline-normal",
+        name: "v1-baselene-normal",
         description: "V1 with normal threshold",
         config: { enableHybridSearch: false, searchMode: "semantic" },
         minScore: 0.3,
         topK: 15,
     },
     {
-        name: "v1-baseline-loose",
+        name: "v1-baselene-loose",
         description: "V1 with loose threshold",
         config: { enableHybridSearch: false, searchMode: "semantic" },
         minScore: 0.1,

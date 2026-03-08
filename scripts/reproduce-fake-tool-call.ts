@@ -2,7 +2,7 @@
 /**
  * Fake Tool Call Issue Reproduction Script - SLOW MODE
  * 
- * This script connects to the live Seline dev server and drives a conversation
+ * This script connects to the live Selene dev server and drives a conversation
  * with Kimi 2.5 to reproduce the issue where the model outputs fake tool call
  * JSON as plain text instead of using structured tool calls.
  * 
@@ -72,7 +72,7 @@ const CONFIG = {
 // Test prompts designed to trigger heavy tool usage and create realistic work scenarios
 // SLOW MODE: More complex prompts that take longer to process, increasing interrupt opportunities
 const TEST_PROMPTS = [
-  // Phase 1: Normal operation - establish baseline (turns 1-4)
+  // Phase 1: Normal operation - establish baselene (turns 1-4)
   "Hello! I need to understand this codebase. Please search for TypeScript files that handle API routes and give me a comprehensive overview of the routing architecture.",
   "Great overview! Now read the main chat API route file and explain the key functions and how they handle streaming.",
   "Perfect. Now search for any database schema files related to messages and sessions, and summarize the data model.",

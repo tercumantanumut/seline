@@ -14,7 +14,7 @@ import { useTranslations } from "next-intl";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceDashboard } from "@/components/workspace/workspace-dashboard";
 import { WorkspaceOnboarding } from "@/components/workspace/workspace-onboarding";
-import { CreateAgentModal } from "@/components/character-creation/create-agent-modal";
+
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
 import { useShallow } from "zustand/react/shallow";
@@ -55,7 +55,7 @@ export function CharacterPicker() {
   const { homepageBackground } = useTheme();
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [vectorDBEnabled, setVectorDBEnabled] = useState(false);
   const [devWorkspaceEnabled, setDevWorkspaceEnabled] = useState(false);
@@ -423,7 +423,7 @@ export function CharacterPicker() {
             <div className="h-[2px] w-full bg-gradient-to-r from-terminal-green/40 to-transparent" />
             <button
               type="button"
-              onClick={() => setCreateModalOpen(true)}
+              onClick={() => router.push("/create-character")}
               aria-label={t("create")}
               className="flex flex-1 w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-lg p-4 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green"
             >
@@ -488,7 +488,7 @@ export function CharacterPicker() {
               {t("emptyDescription")}
             </p>
             <AnimatedButton
-              onClick={() => setCreateModalOpen(true)}
+              onClick={() => router.push("/create-character")}
               className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono"
             >
               <Plus className="w-4 h-4" />
@@ -496,12 +496,6 @@ export function CharacterPicker() {
             </AnimatedButton>
           </AnimatedContainer>
         )}
-
-        <CreateAgentModal
-          open={createModalOpen}
-          onOpenChange={setCreateModalOpen}
-          onCreated={() => { void loadCharacters(); }}
-        />
 
         <WorkflowCreatorDialog
           open={wfManager.workflowCreatorOpen}

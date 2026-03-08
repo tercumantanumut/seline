@@ -170,8 +170,8 @@ async function transcribeWithParakeet(
 
   const ext = getExtensionForMimeType(mimeType);
   const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const tmpIn = join(tmpdir(), `seline-parakeet-in-${id}.${ext}`);
-  const tmpWav = join(tmpdir(), `seline-parakeet-conv-${id}.wav`);
+  const tmpIn = join(tmpdir(), `selene-parakeet-in-${id}.${ext}`);
+  const tmpWav = join(tmpdir(), `selene-parakeet-conv-${id}.wav`);
 
   try {
     writeFileSync(tmpIn, audio);
@@ -510,9 +510,9 @@ async function transcribeWithWhisperCpp(
 
   const ext = getExtensionForMimeType(mimeType);
   const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const tmpIn = join(tmpdir(), `seline-stt-in-${id}.${ext}`);
-  const tmpWav = join(tmpdir(), `seline-stt-conv-${id}.wav`);
-  const tmpOut = join(tmpdir(), `seline-stt-out-${id}`);
+  const tmpIn = join(tmpdir(), `selene-stt-in-${id}.${ext}`);
+  const tmpWav = join(tmpdir(), `selene-stt-conv-${id}.wav`);
+  const tmpOut = join(tmpdir(), `selene-stt-out-${id}`);
 
   try {
     writeFileSync(tmpIn, audio);
@@ -998,7 +998,7 @@ function resolveWhisperModelPath(modelId: string): string | null {
 function getElectronUserDataModelsDir(): string | null {
   const p = platform();
   const home = homedir();
-  const appName = "seline";
+  const appName = "selene";
 
   if (p === "darwin") {
     return join(home, "Library", "Application Support", appName, "models", "whisper");

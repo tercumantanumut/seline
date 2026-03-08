@@ -51,7 +51,7 @@ function findFfmpeg(): string | null {
 
 /** Find a downloaded whisper model */
 function findModel(): string | null {
-  const appName = "seline";
+  const appName = "selene";
   const os = platform();
 
   // Build search paths (same logic as transcription.ts)
@@ -172,7 +172,7 @@ describe("Whisper.cpp E2E Transcription", () => {
     whisperCli = cli;
     ffmpeg = ff;
     modelPath = model;
-    tmpDir = join(tmpdir(), `seline-whisper-e2e-${Date.now()}`);
+    tmpDir = join(tmpdir(), `selene-whisper-e2e-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
 
     console.log(`[E2E] whisper-cli: ${whisperCli}`);

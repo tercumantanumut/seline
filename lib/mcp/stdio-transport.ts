@@ -254,7 +254,7 @@ function ensureNodeShimDir(): string | null {
         return null;
     }
 
-    const shimDir = path.join(baseDir, ".seline-node", "bin");
+    const shimDir = path.join(baseDir, ".selene-node", "bin");
     const shimPath = path.join(shimDir, process.platform === "win32" ? "node.cmd" : "node");
 
     try {
@@ -442,7 +442,7 @@ function isProductionBuild(): boolean {
     const isElectronDev = process.env.ELECTRON_IS_DEV === "1" || process.env.NODE_ENV === "development";
 
     // Check for explicit production marker (set by Electron main process)
-    const hasProductionMarker = process.env.SELINE_PRODUCTION_BUILD === "1";
+    const hasProductionMarker = process.env.SELENE_PRODUCTION_BUILD === "1";
 
     // Check for resourcesPath (direct Electron) or ELECTRON_RESOURCES_PATH (Next.js server)
     const hasResourcesPath = !!(process as NodeJS.Process & { resourcesPath?: string }).resourcesPath

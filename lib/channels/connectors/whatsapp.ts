@@ -66,7 +66,7 @@ export class WhatsAppConnector implements ChannelConnector {
       printQRInTerminal: false,
       version,
       logger,
-      browser: ["Seline", "Desktop", "1.0.0"],
+      browser: ["Selene", "Desktop", "1.0.0"],
       syncFullHistory: false,
       markOnlineOnConnect: false,
     });

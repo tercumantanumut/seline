@@ -136,7 +136,7 @@ export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
             if (!step?.text || !step?.status) return null;
             const cfg = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.pending;
             return (
-              <div key={step.id ?? `step-${idx}`} className="flex items-baseline gap-2">
+              <div key={step.id ?? `step-${idx}`} className="flex items-baselene gap-2">
                 <span className={cn("font-mono text-xs shrink-0", cfg.color)}>{cfg.glyph}</span>
                 <span className={cn("font-mono text-sm", cfg.textClass)}>{step.text}</span>
               </div>

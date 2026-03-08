@@ -4,7 +4,7 @@ import { normalizeSdkPassthroughOutput } from "@/app/api/chat/sdk-passthrough-no
 describe("normalizeSdkPassthroughOutput", () => {
   it("normalizes calculator discovery string outputs into canonical success objects", () => {
     const output = normalizeSdkPassthroughOutput(
-      "mcp__seline-platform__calculator",
+      "mcp__selene-platform__calculator",
       'Tool "calculator" requires discovery first. Call searchTools("calculator") to activate it, then retry.',
       { expression: "14 + 5" }
     );
@@ -30,7 +30,7 @@ describe("normalizeSdkPassthroughOutput", () => {
     };
 
     const output = normalizeSdkPassthroughOutput(
-      "mcp__seline-platform__calculator",
+      "mcp__selene-platform__calculator",
       wrapped,
       { expression: "14 + 5" }
     );
@@ -58,7 +58,7 @@ describe("normalizeSdkPassthroughOutput", () => {
     };
 
     const output = normalizeSdkPassthroughOutput(
-      "mcp__seline-platform__searchTools",
+      "mcp__selene-platform__searchTools",
       wrapped,
       { query: "calculator" }
     );

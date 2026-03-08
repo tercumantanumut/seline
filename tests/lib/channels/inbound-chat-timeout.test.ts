@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/local-auth", () => ({
-  SESSION_COOKIE_NAME: "seline_session",
+  SESSION_COOKIE_NAME: "selene_session",
 }));
 
 const mocks = vi.hoisted(() => {
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => {
   return {
     state,
     loadSettings: vi.fn(() => ({ localUserEmail: "local@example.com" })),
-    getCharacter: vi.fn(async () => ({ id: "char-1", name: "Seline" })),
+    getCharacter: vi.fn(async () => ({ id: "char-1", name: "Selene" })),
     getOrCreateLocalUser: vi.fn(async () => ({ id: "user-1" })),
     getChannelConnection: vi.fn(async () => ({
       id: "conn-1",
