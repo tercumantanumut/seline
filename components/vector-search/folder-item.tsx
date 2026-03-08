@@ -32,7 +32,7 @@ interface FolderItemProps {
   onCancelSync: (id: string) => void;
   onRemove: (id: string) => void;
   onSetPrimary: (id: string) => void;
-  onToggleAutoUpdates: (folder: SyncFolder) => void;
+  onPauseResume: (folder: SyncFolder) => void;
   onApplySimpleDefaults: (folder: SyncFolder) => void;
 }
 
@@ -59,7 +59,7 @@ export function FolderItem({
   onCancelSync,
   onRemove,
   onSetPrimary,
-  onToggleAutoUpdates,
+  onPauseResume,
   onApplySimpleDefaults,
 }: FolderItemProps) {
   const t = useTranslations("folderSync");
@@ -205,11 +205,11 @@ export function FolderItem({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onToggleAutoUpdates(folder)}
+            onClick={() => onPauseResume(folder)}
             disabled={updatingFolderId === folder.id}
             className="h-8 px-2 font-mono text-[10px] whitespace-nowrap"
           >
-            {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : (syncMode === "manual" ? t("resumeUpdatesShort") : t("pauseUpdatesShort"))}
+            {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : (folder.status === "paused" ? t("resumeUpdatesShort") : t("pauseUpdatesShort"))}
           </Button>
           {!isSimpleDefaults && (
             <Button

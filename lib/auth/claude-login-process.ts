@@ -1,7 +1,6 @@
 import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import { isElectronProduction } from "@/lib/utils/environment";
-import { spawnSafe, type SpawnedProcessLike } from "@/lib/spawn-fifo";
 
 // Resolved lazily so process.cwd() is evaluated at runtime, not build time.
 // In production Electron builds, node_modules live under resourcesPath/standalone/.
@@ -121,7 +120,7 @@ export function getNodeBinary(): string {
 const URL_PATTERN = /https?:\/\/[^\s"')]+/i;
 
 interface LoginProcessState {
-  process: ChildProcess | SpawnedProcessLike;
+  process: ChildProcess;
   url: string | null;
   outputLines: string[];
   resolved: boolean;
@@ -196,18 +195,11 @@ async function startClaudeLoginProcessOnce(
     spawnEnv.ELECTRON_RUN_AS_NODE = "1";
   }
 
-  const proc = isElectronProduction()
-    ? spawnSafe(nodeBinary, [getCliPath(), "login"], {
-        cwd: process.cwd(),
-        env: spawnEnv,
-      })
-    : spawn(nodeBinary, [getCliPath(), "login"], {
-        stdio: ["pipe", "pipe", "pipe"],
-        env: spawnEnv,
-      });
-
   const state: LoginProcessState = {
-    process: proc,
+    process: spawn(nodeBinary, [getCliPath(), "login"], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: spawnEnv,
+    }),
     url: null,
     outputLines: [],
     resolved: false,
@@ -216,10 +208,9 @@ async function startClaudeLoginProcessOnce(
   setActive(state);
 
   // Handle spawn errors to prevent unhandled crashes
-  state.process.once("error", (err: unknown) => {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[claude-login] spawn error:", msg);
-    state.outputLines.push(`spawn error: ${msg}`);
+  state.process.once("error", (err) => {
+    console.error("[claude-login] spawn error:", err.message);
+    state.outputLines.push(`spawn error: ${err.message}`);
     state.resolved = true;
   });
 
@@ -235,12 +226,8 @@ async function startClaudeLoginProcessOnce(
     }
   }
 
-  // SpawnedProcessLike always has stdout; ChildProcess may have it as null
-  if (state.process.stdout) state.process.stdout.on("data", onData);
-  // stderr only exists on ChildProcess (FIFO spawn redirects stderr to /dev/null)
-  if ("stderr" in state.process && (state.process as ChildProcess).stderr) {
-    (state.process as ChildProcess).stderr!.on("data", onData);
-  }
+  state.process.stdout?.on("data", onData);
+  state.process.stderr?.on("data", onData);
 
   // Wait until URL appears or timeout
   const deadline = Date.now() + urlTimeoutMs;
@@ -282,9 +269,9 @@ export async function submitClaudeLoginCode(
       }
     });
 
-    proc.once("error", (err: unknown) => {
+    proc.once("error", (err) => {
       clearTimeout(timer);
-      resolve({ success: false, error: err instanceof Error ? err.message : String(err) });
+      resolve({ success: false, error: err.message });
     });
 
     try {

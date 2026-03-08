@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FolderIcon, Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost, resilientDelete } from "@/lib/utils/resilient-fetch";
 import type {
@@ -409,10 +410,27 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     });
   };
 
-  const handleToggleAutoUpdates = async (folder: SyncFolder) => {
-    const currentSyncMode = folder.syncMode ?? "auto";
-    const nextSyncMode: SyncMode = currentSyncMode === "manual" ? "triggered" : "manual";
-    await handleUpdateFolder(folder.id, { syncMode: nextSyncMode });
+  const handlePauseResume = async (folder: SyncFolder) => {
+    const isPaused = folder.status === "paused";
+    const action = isPaused ? "resume" : "pause";
+    setUpdatingFolderId(folder.id);
+    try {
+      const { error } = await resilientPost<{ error?: string }>("/api/vector-sync", {
+        action,
+        folderId: folder.id,
+      });
+      if (error) throw new Error(error);
+      toast.success(isPaused ? t("resumedToast") : t("pausedToast"), {
+        description: folder.displayName || folder.folderPath.split(/[/\\]/).pop(),
+      });
+      await loadFolders();
+    } catch (err) {
+      toast.error(isPaused ? t("errorResume") : t("errorPause"), {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setUpdatingFolderId(null);
+    }
   };
 
   if (loading) {
@@ -484,7 +502,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
               onCancelSync={handleCancelSync}
               onRemove={handleRemoveFolder}
               onSetPrimary={handleSetPrimary}
-              onToggleAutoUpdates={handleToggleAutoUpdates}
+              onPauseResume={handlePauseResume}
               onApplySimpleDefaults={handleApplySimpleDefaults}
             />
           ))}

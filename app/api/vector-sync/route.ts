@@ -10,6 +10,8 @@ import {
   setPrimaryFolder,
   cancelSyncById,
   updateSyncFolderSettings,
+  pauseSyncFolder,
+  resumeSyncFolder,
 } from "@/lib/vectordb/sync-service";
 import { getSetting } from "@/lib/settings/settings-manager";
 import { DEFAULT_IGNORE_PATTERNS } from "@/lib/vectordb/ignore-patterns";
@@ -264,6 +266,32 @@ export async function POST(request: NextRequest) {
 
       const cancelled = await cancelSyncById(folderId);
       return NextResponse.json({ success: true, cancelled });
+    }
+
+    if (action === "pause") {
+      const { folderId } = body;
+      if (!folderId) {
+        return NextResponse.json(
+          { error: "folderId is required for pause" },
+          { status: 400 }
+        );
+      }
+
+      await pauseSyncFolder(folderId);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "resume") {
+      const { folderId } = body;
+      if (!folderId) {
+        return NextResponse.json(
+          { error: "folderId is required for resume" },
+          { status: 400 }
+        );
+      }
+
+      await resumeSyncFolder(folderId);
+      return NextResponse.json({ success: true });
     }
 
     if (action === "set-primary") {

@@ -104,11 +104,11 @@ const MINIMAX_MODEL_ID_SET = new Set(MINIMAX_MODEL_IDS.map((m) => m.toLowerCase(
 
 // Default models for each provider
 export const DEFAULT_MODELS: Record<LLMProvider, string> = {
-  anthropic: "claude-sonnet-4-5-20250929",
+  anthropic: "claude-sonnet-4-6",
   openrouter: "openrouter/auto",
   antigravity: "claude-sonnet-4-6", // Free via Antigravity
   codex: "gpt-5.4",
-  claudecode: "claude-sonnet-4-5-20250929", // Via Claude Pro/MAX OAuth
+  claudecode: "claude-sonnet-4-6", // Via Claude Pro/MAX OAuth
   kimi: "kimi-k2.5", // Moonshot Kimi K2.5 with 256K context
   minimax: "MiniMax-M2.1", // MiniMax flagship with 80K context
   ollama: "llama3.1:8b",
@@ -119,7 +119,7 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-haiku-4-5-20251001",
   openrouter: "google/gemini-2.5-flash",
   antigravity: "gemini-3-flash", // Free via Antigravity
-  codex: "gpt-5.1-codex-mini",
+  codex: "gpt-5.4-low",
   claudecode: "claude-haiku-4-5-20251001", // Via Claude Pro/MAX OAuth
   kimi: "kimi-k2-turbo-preview", // Fast Kimi model for utility tasks
   minimax: "MiniMax-M2.1-lightning", // Fast MiniMax model for utility tasks

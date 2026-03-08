@@ -126,6 +126,7 @@ export async function PUT(request: NextRequest) {
       elevenLabsVoiceId: body.elevenLabsVoiceId !== undefined ? body.elevenLabsVoiceId : currentSettings.elevenLabsVoiceId,
       openaiTtsVoice: body.openaiTtsVoice !== undefined ? body.openaiTtsVoice : currentSettings.openaiTtsVoice,
       openaiTtsModel: body.openaiTtsModel !== undefined ? body.openaiTtsModel : currentSettings.openaiTtsModel,
+      edgeTtsVoice: body.edgeTtsVoice !== undefined ? body.edgeTtsVoice : currentSettings.edgeTtsVoice,
       ttsSummarizeThreshold: body.ttsSummarizeThreshold !== undefined ? body.ttsSummarizeThreshold : currentSettings.ttsSummarizeThreshold,
       // Voice & Audio - STT
       sttEnabled: body.sttEnabled !== undefined ? body.sttEnabled : currentSettings.sttEnabled,

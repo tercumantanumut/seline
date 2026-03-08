@@ -87,7 +87,7 @@ export async function GET() {
         activeSyncs.push(statusFolder);
       } else if (folder.status === "pending") {
         pendingSyncs.push(statusFolder);
-      } else if (folder.status === "error") {
+      } else if (folder.status === "error" || (folder.status === "paused" && folder.lastError)) {
         recentErrors.push(statusFolder);
       }
     }
@@ -111,4 +111,3 @@ export async function GET() {
     );
   }
 }
-

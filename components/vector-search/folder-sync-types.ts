@@ -62,6 +62,8 @@ export const RECOMMENDED_EXCLUDES = [
   "__pycache__",
   ".venv",
   "venv",
+  "env",
+  "site-packages",
   "coverage",
   ".local-data",
   "dist-electron",
@@ -78,12 +80,18 @@ export const RECOMMENDED_EXCLUDES = [
   "*.tsbuildinfo",
   "*.log",
   "*.lock",
+  "*.pyc",
   "**/node_modules/**",
   "**/.git/**",
   "**/.next/**",
   "**/dist/**",
   "**/build/**",
   "**/coverage/**",
+  "**/.venv/**",
+  "**/venv/**",
+  "**/env/**",
+  "**/__pycache__/**",
+  "**/site-packages/**",
   "**/.local-data/**",
   "**/dist-electron/**",
   "**/comfyui_backend/**",
@@ -111,4 +119,4 @@ export const DEFAULT_EXTENSIONS = [
 ].join(",");
 
 export const DEFAULT_EXCLUDE_PATTERNS =
-  "node_modules,.git,dist,build,.next,__pycache__,.venv,venv,package-lock.json,pnpm-lock.yaml,yarn.lock";
+  "node_modules,.git,dist,build,.next,__pycache__,.venv,venv,env,site-packages,*.pyc,package-lock.json,pnpm-lock.yaml,yarn.lock";

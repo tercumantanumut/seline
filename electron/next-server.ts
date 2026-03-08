@@ -8,7 +8,7 @@ import { debugLog, debugError } from "./debug-logger";
 // ---------------------------------------------------------------------------
 
 export const PROD_SERVER_PORT = 3456;
-const WATCHER_RESOURCE_ERROR_REGEX = /(EMFILE|ENOSPC|too many open files|System limit for number of file watchers reached)/i;
+const WATCHER_RESOURCE_ERROR_REGEX = /(EMFILE|ENOSPC|EBADF|EAGAIN|too many open files|System limit for number of file watchers reached)/i;
 const MAX_SERVER_RESTARTS = 3;
 const RESTART_RESET_INTERVAL = 5 * 60 * 1000;
 
@@ -236,7 +236,11 @@ export async function startNextServer(opts: StartNextServerOptions): Promise<voi
       debugError("[Next.js stderr]", output);
 
       if (WATCHER_RESOURCE_ERROR_REGEX.test(output)) {
-        debugError("[Next.js] Watcher resource exhaustion detected in embedded server process. Consider increasing ulimit (e.g. ulimit -n 65536) or excluding large directories from watch scope.");
+        debugError(
+          "[Next.js] Watcher resource exhaustion detected in embedded server process. " +
+          "Electron utilityProcess on macOS becomes fragile under FD pressure; exclude large sync subtrees " +
+          "(.venv, __pycache__, site-packages, node_modules, image/font assets) or sync a smaller folder."
+        );
       }
     });
 

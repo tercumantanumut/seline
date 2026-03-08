@@ -17,6 +17,9 @@ import { resolveChunkingOverrides, resolveFolderSyncBehavior, shouldRunForTrigge
 import type { TaskEvent } from "@/lib/background-tasks/types";
 import {
   getMaxConcurrency,
+  getOpenFileDescriptorCount,
+  getWatcherFdBudget,
+  getWatcherFdWarnThreshold,
   parseJsonArray,
   normalizeExtensions,
   isProjectRootDirectory,
@@ -98,6 +101,17 @@ interface WatcherConfig {
 const emfileRetryCounts = new Map<string, number>();
 const MAX_EMFILE_RETRIES = 3;
 const EMFILE_BACKOFF_MS = [3000, 10000, 30000]; // Exponential backoff
+
+async function pauseFolderWithError(folderId: string, lastError: string): Promise<void> {
+  await db
+    .update(agentSyncFolders)
+    .set({
+      status: "paused",
+      lastError,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(agentSyncFolders.id, folderId));
+}
 
 /**
  * Safely close a watcher, even when file descriptors are exhausted.
@@ -234,6 +248,29 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
       `This may cause high file descriptor usage and performance issues. ` +
       `Consider syncing specific subdirectories instead.`
     );
+  }
+
+  const fdBudget = getWatcherFdBudget();
+  const fdWarnThreshold = getWatcherFdWarnThreshold(fdBudget);
+  const openFdCount = await getOpenFileDescriptorCount();
+  if (typeof openFdCount === "number") {
+    if (openFdCount >= fdBudget) {
+      const lastError =
+        `Paused: this sync would exceed the watcher file descriptor budget (${openFdCount}/${fdBudget} open). ` +
+        `Exclude virtualenvs, caches, node_modules, and large asset folders, or sync a smaller subfolder.`;
+      console.error(`[FileWatcher] ${lastError} Folder: ${folderPath}`);
+      watchingPaths.delete(resolvedPath);
+      await pauseFolderWithError(folderId, lastError);
+      return;
+    }
+
+    if (openFdCount >= fdWarnThreshold && configForcePolling !== true) {
+      configForcePolling = true;
+      console.warn(
+        `[FileWatcher] High file descriptor pressure detected (${openFdCount}/${fdBudget} open) for ${folderPath}. ` +
+        `Starting watcher in polling mode to reduce FD usage.`
+      );
+    }
   }
 
   // Initialize queue for this folder
@@ -428,14 +465,18 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     );
   };
 
-  const aggressiveIgnore = createAggressiveIgnore(excludePatterns);
+  const mergedExcludePatterns = Array.from(
+    new Set([...DEFAULT_IGNORE_PATTERNS, ...excludePatterns])
+  );
+  const aggressiveIgnore = createAggressiveIgnore(mergedExcludePatterns, folderPath, includeExtensions);
 
   // For large codebases (project root), folders with many files, or folders that
   // previously hit EMFILE, use polling mode to prevent file descriptor exhaustion.
-  // Exception: macOS (darwin) uses FSEvents naturally which doesn't consume FDs
-  // per file, so we can use native watching safely even for large roots.
-  // Exception: Windows (win32) uses ReadDirectoryChangesW which handles recursion natively without FDs per file.
-  const isProjectRoot = process.platform !== 'darwin' && process.platform !== 'win32' && await isProjectRootDirectory(folderPath);
+  // macOS is explicitly included here because Electron utilityProcess has lower
+  // tolerance for FD pressure and chokidar can still burn through descriptors.
+  // Windows keeps the native watcher path because ReadDirectoryChangesW handles
+  // recursion without the same FD explosion pattern.
+  const isProjectRoot = process.platform !== "win32" && await isProjectRootDirectory(folderPath);
   const forcedPolling = pollingModeWatchers.has(folderId);
   const usePolling = isProjectRoot || forcedPolling || configForcePolling === true;
 
@@ -446,9 +487,6 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     );
   }
 
-  const mergedExcludePatterns = Array.from(
-    new Set([...DEFAULT_IGNORE_PATTERNS, ...excludePatterns])
-  );
   const shouldIgnore = createIgnoreMatcher(mergedExcludePatterns, folderPath);
 
   const watcher = chokidar.watch(folderPath, {
@@ -570,15 +608,11 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
           }
 
           // Mark folder as paused in the database
-          await db
-            .update(agentSyncFolders)
-            .set({
-              status: "paused",
-              lastError: `Paused: repeated permission errors watching ${folderPath}. ` +
-                `This directory likely contains paths the app cannot access. Pick a more specific folder.`,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(agentSyncFolders.id, folderId));
+          await pauseFolderWithError(
+            folderId,
+            `Paused: repeated permission errors watching ${folderPath}. ` +
+              `This directory likely contains paths the app cannot access. Pick a more specific folder.`
+          );
         }
         // Silently drop subsequent errors until we hit the threshold
         return;
@@ -608,16 +642,11 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
           emfileRetryCounts.delete(folderId);
 
           // Mark folder as paused so the UI shows the issue clearly
-          await db
-            .update(agentSyncFolders)
-            .set({
-              status: "paused",
-              lastError: `File descriptor limit reached after ${MAX_EMFILE_RETRIES} retries. ` +
-                `This folder has too many files for real-time watching. ` +
-                `Synced data is preserved. Try syncing a more specific subfolder.`,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(agentSyncFolders.id, folderId));
+          await pauseFolderWithError(
+            folderId,
+            `Paused: file descriptor limit reached after ${MAX_EMFILE_RETRIES} retries while watching ${folderPath}. ` +
+              `Exclude virtualenvs, caches, and large asset folders, or sync a smaller subfolder.`
+          );
           return;
         }
 
@@ -650,7 +679,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
   // Update folder status
   await db
     .update(agentSyncFolders)
-    .set({ status: "synced" })
+    .set({ status: "synced", lastError: null })
     .where(eq(agentSyncFolders.id, folderId));
 }
 
