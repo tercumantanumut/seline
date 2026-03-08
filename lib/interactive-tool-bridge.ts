@@ -17,8 +17,21 @@ import { EventEmitter } from "events";
 // Types
 // ---------------------------------------------------------------------------
 
+export interface InteractiveWaitSubmitted {
+  kind: "submitted";
+  answers: Record<string, string>;
+}
+
+export interface InteractiveWaitInterrupted {
+  kind: "interrupted";
+  reason: "aborted" | "stale";
+}
+
+export type InteractiveWaitResult = InteractiveWaitSubmitted | InteractiveWaitInterrupted;
+
 interface PendingInteractiveWait {
-  resolve: (answers: Record<string, string>) => void;
+  resolve: (result: InteractiveWaitResult) => void;
+  promise: Promise<InteractiveWaitResult>;
   questions: unknown;
   createdAt: number;
   abortCleanup?: () => void;
@@ -64,44 +77,61 @@ export function registerInteractiveWait(
   toolUseId: string,
   questions: unknown,
   options?: { abortSignal?: AbortSignal },
-): Promise<Record<string, string>> {
+): Promise<InteractiveWaitResult> {
   const key = makeKey(sessionId, toolUseId);
-  // Clean up stale entries opportunistically
+
+  // Clean up stale entries opportunistically.
   cleanupStaleEntries();
-  // Resolve any existing wait for this key to prevent a hung promise
+
+  // Duplicate registrations for the same tool call should share the same wait.
+  // Resolving the previous waiter as an empty answer made ExitPlanMode look like
+  // an explicit rejection, which caused the SDK to re-enter plan mode.
   const existing = pendingWaits.get(key);
   if (existing) {
-    pendingWaits.delete(key);
-    existing.abortCleanup?.();
-    existing.resolve({});
+    return existing.promise;
   }
-  return new Promise<Record<string, string>>((resolve) => {
-    const abortSignal = options?.abortSignal;
-    const onAbort = () => {
-      const entry = pendingWaits.get(key);
-      if (!entry) return;
-      pendingWaits.delete(key);
-      entry.abortCleanup?.();
-      entry.resolve({});
-      interactiveBridgeEvents.emit("resolved", { sessionId, toolUseId });
-    };
 
-    const abortCleanup = abortSignal
-      ? () => abortSignal.removeEventListener("abort", onAbort)
-      : undefined;
+  const abortSignal = options?.abortSignal;
+  let settled = false;
+  let abortCleanup: (() => void) | undefined;
+  let resolvePromise!: (result: InteractiveWaitResult) => void;
 
-    if (abortSignal?.aborted) {
-      resolve({});
-      return;
-    }
-
-    if (abortSignal) {
-      abortSignal.addEventListener("abort", onAbort, { once: true });
-    }
-
-    pendingWaits.set(key, { resolve, questions, createdAt: Date.now(), abortCleanup });
-    interactiveBridgeEvents.emit("pending", { sessionId, toolUseId, questions });
+  const promise = new Promise<InteractiveWaitResult>((resolve) => {
+    resolvePromise = resolve;
   });
+
+  const finish = (result: InteractiveWaitResult) => {
+    if (settled) return;
+    settled = true;
+    pendingWaits.delete(key);
+    abortCleanup?.();
+    resolvePromise(result);
+    interactiveBridgeEvents.emit("resolved", { sessionId, toolUseId });
+  };
+
+  if (abortSignal?.aborted) {
+    finish({ kind: "interrupted", reason: "aborted" });
+    return promise;
+  }
+
+  if (abortSignal) {
+    const onAbort = () => {
+      finish({ kind: "interrupted", reason: "aborted" });
+    };
+    abortSignal.addEventListener("abort", onAbort, { once: true });
+    abortCleanup = () => abortSignal.removeEventListener("abort", onAbort);
+  }
+
+  pendingWaits.set(key, {
+    resolve: finish,
+    promise,
+    questions,
+    createdAt: Date.now(),
+    abortCleanup,
+  });
+  interactiveBridgeEvents.emit("pending", { sessionId, toolUseId, questions });
+
+  return promise;
 }
 
 /**
@@ -117,10 +147,7 @@ export function resolveInteractiveWait(
   const key = makeKey(sessionId, toolUseId);
   const entry = pendingWaits.get(key);
   if (!entry) return false;
-  pendingWaits.delete(key);
-  entry.abortCleanup?.();
-  entry.resolve(answers);
-  interactiveBridgeEvents.emit("resolved", { sessionId, toolUseId });
+  entry.resolve({ kind: "submitted", answers });
   return true;
 }
 
@@ -173,9 +200,7 @@ export function cleanupStaleEntries(): void {
   for (const [key, entry] of pendingWaits) {
     if (now - entry.createdAt > STALE_THRESHOLD_MS) {
       pendingWaits.delete(key);
-      entry.abortCleanup?.();
-      // Resolve with empty answers so the hook unblocks
-      entry.resolve({});
+      entry.resolve({ kind: "interrupted", reason: "stale" });
     }
   }
   for (const [key] of userAnswers) {

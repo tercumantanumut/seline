@@ -31,6 +31,7 @@ import {
   registerInteractiveWait,
   storeUserAnswer,
   popUserAnswer,
+  type InteractiveWaitResult,
 } from "@/lib/interactive-tool-bridge";
 import {
   drainLivePromptQueue,
@@ -338,7 +339,26 @@ function buildPlanApprovalPrompt(plan: string): Record<string, unknown> {
   };
 }
 
-function buildPlanApprovalResult(answers: Record<string, string>): Record<string, unknown> {
+export function buildPlanApprovalResult(
+  waitResult: InteractiveWaitResult,
+  plan: string,
+): Record<string, unknown> {
+  const normalizedPlan = plan.trim().length > 0 ? plan : null;
+
+  if (waitResult.kind === "interrupted") {
+    return {
+      status: "interrupted",
+      action: "Interrupted",
+      approved: false,
+      interrupted: true,
+      reason: waitResult.reason,
+      plan: normalizedPlan,
+      isAgent: false,
+      awaitingLeaderApproval: true,
+    };
+  }
+
+  const answers = waitResult.answers;
   const action = answers.action === "Approve & Continue" ? "Approve & Continue" : "Reject / Edit";
   const approved = action === "Approve & Continue";
   const message = answers.message?.trim();
@@ -347,7 +367,43 @@ function buildPlanApprovalResult(answers: Record<string, string>): Record<string
     status: approved ? "success" : "cancelled",
     action,
     approved,
+    plan: normalizedPlan,
+    isAgent: false,
+    awaitingLeaderApproval: !approved,
     ...(message ? { message } : {}),
+  };
+}
+
+function buildPlanApprovalHookOutput(result: Record<string, unknown>): {
+  hookEventName: "PreToolUse";
+  permissionDecision: "allow" | "deny";
+  permissionDecisionReason?: string;
+  additionalContext?: string;
+} {
+  const status = typeof result.status === "string" ? result.status : "error";
+  const approved = result.approved === true;
+  const userFeedback = typeof result.message === "string" ? result.message : "";
+
+  if (approved) {
+    return {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      additionalContext: "The user approved the plan. Proceed with implementation.",
+    };
+  }
+
+  if (status === "cancelled") {
+    return {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      additionalContext: `The user REJECTED this plan.${userFeedback ? ` Their feedback: "${userFeedback}".` : ""} Re-enter plan mode using EnterPlanMode and revise the plan based on their feedback.`,
+    };
+  }
+
+  return {
+    hookEventName: "PreToolUse",
+    permissionDecision: "deny",
+    permissionDecisionReason: "Plan approval was interrupted before the user responded.",
   };
 }
 
@@ -848,50 +904,36 @@ function createStreamingClaudeCodeResponse(options: {
         // interactive tools until the real user answers via the
         // /api/chat/tool-result endpoint.
         const interactiveSessionId = mcpCtx?.sessionId ?? "";
-        const interactiveToolHook: HookCallback = async (input, toolUseId) => {
+        const interactiveToolHook: HookCallback = async (input, toolUseId, hookOptions) => {
           const toolName = (input as Record<string, unknown>).tool_name as string;
 
           // ── ExitPlanMode: plan approval gate ──
           if (toolName === "ExitPlanMode") {
             if (!toolUseId || !interactiveSessionId) return {};
 
-            const approvalPrompt = buildPlanApprovalPrompt(readPlanModeFile(resolvedCwd));
+            const plan = readPlanModeFile(resolvedCwd);
+            const approvalPrompt = buildPlanApprovalPrompt(plan);
 
             console.debug(
               `[ClaudeCode] Interactive tool gate: blocking ExitPlanMode (${toolUseId}) until user approves plan`,
             );
 
-            const answers = await registerInteractiveWait(
+            const waitResult = await registerInteractiveWait(
               interactiveSessionId,
               toolUseId,
               approvalPrompt,
+              { abortSignal: hookOptions.signal },
             );
 
-            const result = buildPlanApprovalResult(answers);
+            const result = buildPlanApprovalResult(waitResult, plan);
             sdkToolResultBridge?.publish(toolUseId, result, toolName);
 
-            const approved = result.approved === true;
-            const userFeedback =
-              typeof result.message === "string" && result.message.length > 0
-                ? result.message
-                : "";
-
             console.debug(
-              `[ClaudeCode] Interactive tool gate: user responded to ExitPlanMode (${toolUseId}) — approved=${approved}`,
+              `[ClaudeCode] Interactive tool gate: user responded to ExitPlanMode (${toolUseId}) — status=${String(result.status)}`,
             );
 
-            // Always return "allow" so the SDK processes the tool and Claude
-            // sees the user's decision. Using "deny" causes the SDK to emit a
-            // generic "Blocked by hook" message and Claude never receives the
-            // user's feedback.
             return {
-              hookSpecificOutput: {
-                hookEventName: "PreToolUse" as const,
-                permissionDecision: "allow" as const,
-                additionalContext: approved
-                  ? "The user approved the plan. Proceed with implementation."
-                  : `The user REJECTED this plan.${userFeedback ? ` Their feedback: "${userFeedback}".` : ""} Re-enter plan mode using EnterPlanMode and revise the plan based on their feedback.`,
-              },
+              hookSpecificOutput: buildPlanApprovalHookOutput(result),
             };
           }
 
@@ -910,11 +952,24 @@ function createStreamingClaudeCodeResponse(options: {
           );
 
           // Block until user answers via the API endpoint
-          const answers = await registerInteractiveWait(
+          const waitResult = await registerInteractiveWait(
             interactiveSessionId,
             toolUseId,
             toolInput,
+            { abortSignal: hookOptions.signal },
           );
+
+          if (waitResult.kind !== "submitted") {
+            return {
+              hookSpecificOutput: {
+                hookEventName: "PreToolUse" as const,
+                permissionDecision: "deny" as const,
+                permissionDecisionReason: "Interactive question was interrupted before the user responded.",
+              },
+            };
+          }
+
+          const answers = waitResult.answers;
 
           // Store answers so we can override the SDK's auto-answer later
           storeUserAnswer(interactiveSessionId, toolUseId, answers);

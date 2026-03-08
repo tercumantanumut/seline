@@ -1,13 +1,6 @@
 import { resolve } from "path";
 import type { AgentTemplate } from "./types";
 import { SELINE_DEFAULT_TEMPLATE } from "./seline-default";
-import { SOCIAL_MEDIA_MANAGER_TEMPLATE } from "./social-media-manager";
-import { MEETING_NOTES_ASSISTANT_TEMPLATE } from "./meeting-notes-assistant";
-import { DATA_ANALYST_TEMPLATE } from "./data-analyst";
-import { CUSTOMER_SUPPORT_AGENT_TEMPLATE } from "./customer-support-agent";
-import { PERSONAL_FINANCE_TRACKER_TEMPLATE } from "./personal-finance-tracker";
-import { LEARNING_COACH_TEMPLATE } from "./learning-coach";
-import { PROJECT_MANAGER_TEMPLATE } from "./project-manager";
 import { SYSTEM_AGENT_TEMPLATES } from "./system-agents";
 import { resolveSelineTemplateTools, type ToolResolutionResult } from "./resolve-tools";
 import {
@@ -31,13 +24,6 @@ import {
 
 const TEMPLATES: Map<string, AgentTemplate> = new Map([
   [SELINE_DEFAULT_TEMPLATE.id, SELINE_DEFAULT_TEMPLATE],
-  [SOCIAL_MEDIA_MANAGER_TEMPLATE.id, SOCIAL_MEDIA_MANAGER_TEMPLATE],
-  [MEETING_NOTES_ASSISTANT_TEMPLATE.id, MEETING_NOTES_ASSISTANT_TEMPLATE],
-  [DATA_ANALYST_TEMPLATE.id, DATA_ANALYST_TEMPLATE],
-  [CUSTOMER_SUPPORT_AGENT_TEMPLATE.id, CUSTOMER_SUPPORT_AGENT_TEMPLATE],
-  [PERSONAL_FINANCE_TRACKER_TEMPLATE.id, PERSONAL_FINANCE_TRACKER_TEMPLATE],
-  [LEARNING_COACH_TEMPLATE.id, LEARNING_COACH_TEMPLATE],
-  [PROJECT_MANAGER_TEMPLATE.id, PROJECT_MANAGER_TEMPLATE],
 ]);
 
 export function getAllTemplates(): AgentTemplate[] {

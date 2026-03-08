@@ -517,9 +517,9 @@
       "addToWorkflowNoAvailable": "Bu ajan için uygun iş akışı yok",
       "addToWorkflowCta": "İş Akışına Ekle",
       "addToWorkflowAdding": "Ekleniyor...",
-      "restoreSystemSpecialists": "Sistem Uzmanlarını Geri Yükle",
-      "restoreSuccess": "Sistem uzmanları geri yüklendi",
-      "restoreFailed": "Sistem uzmanları geri yüklenemedi"
+      "restoreSystemSpecialists": "Sistem Ajanlarını Geri Yükle",
+      "restoreSuccess": "Sistem ajanları geri yüklendi",
+      "restoreFailed": "Sistem ajanları geri yüklenemedi"
     },
     "activeSession": {
       "label": "Aktif",

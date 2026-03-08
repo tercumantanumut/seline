@@ -163,13 +163,6 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
     criticalThreshold: 0.92,
     hardLimit: 0.97,
   },
-  "gpt-5.4-pro": {
-    maxTokens: 1000000,
-    supportsStreaming: true,
-    warningThreshold: 0.80,
-    criticalThreshold: 0.92,
-    hardLimit: 0.97,
-  },
   // Codex (GPT-5 legacy models — 400K context)
   "gpt-5.3-codex": {
     maxTokens: 400000,

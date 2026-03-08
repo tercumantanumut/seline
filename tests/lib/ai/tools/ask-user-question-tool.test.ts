@@ -46,7 +46,10 @@ describe("askUserQuestion tool", () => {
 
   it("registers interactive wait and returns user answers", async () => {
     interactiveBridgeMocks.registerInteractiveWait.mockResolvedValue({
-      "Which style do you prefer?": "Modern",
+      kind: "submitted",
+      answers: {
+        "Which style do you prefer?": "Modern",
+      },
     });
 
     const tool = createAskUserQuestionTool({ sessionId: "sess-1" });
@@ -103,8 +106,11 @@ describe("askUserQuestion tool", () => {
     expect(result).toEqual({ answers: {}, timedOut: true });
   });
 
-  it("returns timeout shape when interactive wait rejects", async () => {
-    interactiveBridgeMocks.registerInteractiveWait.mockRejectedValue(new Error("bridge failed"));
+  it("returns timeout shape when interactive wait is interrupted", async () => {
+    interactiveBridgeMocks.registerInteractiveWait.mockResolvedValue({
+      kind: "interrupted",
+      reason: "aborted",
+    });
 
     const tool = createAskUserQuestionTool({ sessionId: "sess-1" });
 

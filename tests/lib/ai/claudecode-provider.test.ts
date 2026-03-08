@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from "vitest";
 import {
+  buildPlanApprovalResult,
   normalizeAnthropicToolUseInputs,
   normalizeClaudeSdkToolName,
   sanitizeJsonStringValues,
@@ -42,6 +43,10 @@ vi.mock("@/lib/ai/retry/stream-recovery", () => ({
   getBackoffDelayMs: vi.fn(() => 0),
   shouldRetry: vi.fn(() => false),
   sleepWithAbort: vi.fn(async () => {}),
+}));
+
+vi.mock("@/lib/ai/providers/seline-sdk-mcp-server", () => ({
+  createSelineSdkMcpServer: vi.fn(() => ({})),
 }));
 
 // ---------------------------------------------------------------------------
@@ -366,6 +371,52 @@ describe("queryWithSdkOptions — text extraction", () => {
     const text = await queryWithSdkOptions({ prompt: "hi" });
     expect(text).toBe("Root answer");
     expect(text).not.toContain("nested");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// queryWithSdkOptions — authentication errors
+// ---------------------------------------------------------------------------
+
+describe("buildPlanApprovalResult", () => {
+  it("marks approved plans as success and preserves the plan text", () => {
+    const result = buildPlanApprovalResult(
+      {
+        kind: "submitted",
+        answers: { action: "Approve & Continue" },
+      },
+      "Implement the fix",
+    );
+
+    expect(result).toEqual({
+      status: "success",
+      action: "Approve & Continue",
+      approved: true,
+      plan: "Implement the fix",
+      isAgent: false,
+      awaitingLeaderApproval: false,
+    });
+  });
+
+  it("marks interrupted approvals without turning them into synthetic rejection feedback", () => {
+    const result = buildPlanApprovalResult(
+      {
+        kind: "interrupted",
+        reason: "aborted",
+      },
+      "Implement the fix",
+    );
+
+    expect(result).toEqual({
+      status: "interrupted",
+      action: "Interrupted",
+      approved: false,
+      interrupted: true,
+      reason: "aborted",
+      plan: "Implement the fix",
+      isAgent: false,
+      awaitingLeaderApproval: true,
+    });
   });
 });
 

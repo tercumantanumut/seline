@@ -31,8 +31,6 @@ function getReasoningConfig(
 
   const isGpt54 =
     normalizedName.includes("gpt-5.4") || normalizedName.includes("gpt 5.4");
-  const isGpt54Pro =
-    normalizedName.includes("gpt-5.4-pro") || normalizedName.includes("gpt 5.4 pro");
   const isGpt52Codex =
     normalizedName.includes("gpt-5.2-codex") || normalizedName.includes("gpt 5.2 codex");
   const isGpt53Codex =
@@ -62,9 +60,7 @@ function getReasoningConfig(
   const supportsXhigh = isGpt54 || isGpt53General || isGpt53Codex || isGpt52General || isGpt52Codex || isCodexMax;
   const supportsNone = isGpt54 || isGpt53General || isGpt52General || isGpt51General;
 
-  const defaultEffort: ReasoningEffort = isGpt54Pro
-    ? "high"
-    : isGpt54
+  const defaultEffort: ReasoningEffort = isGpt54
       ? "medium"
     : isCodexMini
       ? "medium"
@@ -127,6 +123,17 @@ function resolveInclude(body: Record<string, any>): string[] {
   return include;
 }
 
+const UNEXPECTED_CHANGE_RE = /While you are working.*?STOP IMMEDIATELY.*?proceed\./s;
+const PATCHED_RULE = 'File changed between reads? Check your recent tool calls first—only halt if unexplained.';
+
+function patchCodexInstructions(raw: string): string {
+  const patched = raw.replace(UNEXPECTED_CHANGE_RE, PATCHED_RULE);
+  if (patched === raw && !raw.includes(PATCHED_RULE) && raw.length > 500) {
+    return raw + '\n\n' + PATCHED_RULE + '\n';
+  }
+  return patched;
+}
+
 export async function transformCodexRequest(
   body: Record<string, any>,
   codexInstructions: string,
@@ -138,7 +145,7 @@ export async function transformCodexRequest(
   body.store = false;
   body.stream = true;
   if (codexInstructions) {
-    body.instructions = codexInstructions;
+    body.instructions = patchCodexInstructions(codexInstructions);
   }
 
   if (Array.isArray(body.input)) {

@@ -135,12 +135,12 @@ async function executeAskUserQuestion(
     args.questions,
   );
 
-  const resolvedAnswers = await withTimeout(waitPromise, WAIT_TIMEOUT_MS);
-  if (!resolvedAnswers) {
+  const waitResult = await withTimeout(waitPromise, WAIT_TIMEOUT_MS);
+  if (!waitResult || waitResult.kind !== "submitted") {
     return TIMEOUT_RESULT;
   }
 
-  return { answers: resolvedAnswers };
+  return { answers: waitResult.answers };
 }
 
 export function createAskUserQuestionTool(options: AskUserQuestionToolOptions) {
