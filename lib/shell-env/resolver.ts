@@ -90,7 +90,7 @@ function resolveShellEnvironmentOnce(): Record<string, string> {
     // Fallback: capture env to a temp file (avoids pipes entirely).
     // Works in Electron's utilityProcess where spawn with pipes fails.
     try {
-        const tmpFile = join(tmpdir(), `seline-env-${process.pid}-${Date.now()}.tmp`);
+        const tmpFile = join(tmpdir(), `selene-env-${process.pid}-${Date.now()}.tmp`);
         for (const shellPath of getCandidateShells()) {
             try {
                 execSync(`${shellPath} -ilc 'env -0 > "${tmpFile}"'`, {

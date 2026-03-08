@@ -52,7 +52,7 @@ describe("thread message activity helpers", () => {
       },
     ];
 
-    const baseline = getVisibleActivitySignature(parts, {});
+    const baselene = getVisibleActivitySignature(parts, {});
     const withProgress = getVisibleActivitySignature(parts, {
       "tool-1": {
         toolCallId: "tool-1",
@@ -65,7 +65,7 @@ describe("thread message activity helpers", () => {
       },
     });
 
-    expect(withProgress).not.toBe(baseline);
+    expect(withProgress).not.toBe(baselene);
     expect(withProgress).toContain("Scanning src");
   });
 

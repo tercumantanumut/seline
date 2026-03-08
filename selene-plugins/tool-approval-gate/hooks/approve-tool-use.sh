@@ -69,16 +69,16 @@ if ! command -v osascript >/dev/null 2>&1; then
   exit 0
 fi
 
-export SELINE_TOOL_NAME="$TOOL_NAME"
-export SELINE_TOOL_INPUT_PREVIEW="$TOOL_INPUT_PREVIEW"
+export SELENE_TOOL_NAME="$TOOL_NAME"
+export SELENE_TOOL_INPUT_PREVIEW="$TOOL_INPUT_PREVIEW"
 
 DIALOG_RESULT=$(osascript <<'OSA' 2>/dev/null || true
-set toolName to do shell script "printf %s \"$SELINE_TOOL_NAME\""
-set inputPreview to do shell script "printf %s \"$SELINE_TOOL_INPUT_PREVIEW\""
+set toolName to do shell script "printf %s \"$SELENE_TOOL_NAME\""
+set inputPreview to do shell script "printf %s \"$SELENE_TOOL_INPUT_PREVIEW\""
 set bodyText to "Tool: " & toolName & return & return & "Input: " & inputPreview & return & return & "Allow this tool call?"
 
 activate
-set dialogResult to display dialog bodyText with title "Seline Tool Approval" buttons {"Deny", "Allow"} default button "Allow" cancel button "Deny" giving up after 30
+set dialogResult to display dialog bodyText with title "Selene Tool Approval" buttons {"Deny", "Allow"} default button "Allow" cancel button "Deny" giving up after 30
 
 if gave up of dialogResult then
   return "deny"

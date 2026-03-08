@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Test script to validate the notify-on-stop hook
-# Run this to test the hook without needing to run the full Seline app
+# Run this to test the hook without needing to run the full Selene app
 #
 
 set -e
@@ -54,6 +54,6 @@ echo "========================================"
 echo "✅ All tests passed!"
 echo ""
 echo "Next steps:"
-echo "1. Install the plugin in Seline"
+echo "1. Install the plugin in Selene"
 echo "2. Run a task and wait for it to complete"
 echo "3. You should see a desktop notification"

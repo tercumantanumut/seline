@@ -43,7 +43,7 @@ export function isDangerousPath(folderPath: string): string | null {
 
   // --- Block app bundle resources (Electron production) ---
   // Prevent syncing/indexing paths inside the packaged app's Resources folder.
-  // This prevents agents from accessing Seline's own bundled code in production.
+  // This prevents agents from accessing Selene's own bundled code in production.
   const resourcesPath = process.env.ELECTRON_RESOURCES_PATH ||
                        (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
   if (resourcesPath) {

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
-  resolveSelineTemplateTools,
-  getExcludedSelineTools,
-  isToolAvailableForSeline,
+  resolveSeleneTemplateTools,
+  getExcludedSeleneTools,
+  isToolAvailableForSelene,
   DEFAULT_ENABLED_TOOLS,
   ALWAYS_ENABLED_TOOLS,
   UTILITY_TOOLS,
@@ -26,7 +26,7 @@ function buildSettings(overrides: Partial<AppSettings> = {}): AppSettings {
   } as AppSettings;
 }
 
-describe("resolveSelineTemplateTools", () => {
+describe("resolveSeleneTemplateTools", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -37,7 +37,7 @@ describe("resolveSelineTemplateTools", () => {
   describe("always-enabled core tools", () => {
     it("should always include docsSearch, localGrep, readFile, editFile, writeFile, executeCommand", () => {
       const settings = buildSettings(); // No API keys, no vector DB
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
 
       const coreTools = ["docsSearch", "localGrep", "readFile", "editFile", "writeFile", "executeCommand"];
       for (const tool of coreTools) {
@@ -63,10 +63,11 @@ describe("resolveSelineTemplateTools", () => {
   describe("always-enabled utility tools", () => {
     it("should always include all utility tools", () => {
       const settings = buildSettings();
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
 
       const utilityTools = [
         "calculator",
+        "compactSession",
         "memorize",
         "runSkill",
         "scheduleTask",
@@ -96,7 +97,7 @@ describe("resolveSelineTemplateTools", () => {
         tavilyApiKey: "tvly-test-key",
         firecrawlApiKey: "fc-test-key",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).not.toContain("describeImage");
     });
 
@@ -106,7 +107,7 @@ describe("resolveSelineTemplateTools", () => {
         tavilyApiKey: "tvly-test-key",
         firecrawlApiKey: "fc-test-key",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).not.toContain("patchFile");
     });
   });
@@ -117,20 +118,20 @@ describe("resolveSelineTemplateTools", () => {
   describe("vectorSearch", () => {
     it("should include vectorSearch when vectorDBEnabled is true", () => {
       const settings = buildSettings({ vectorDBEnabled: true });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).toContain("vectorSearch");
       expect(result.warnings.find((w) => w.toolId === "vectorSearch")).toBeUndefined();
     });
 
     it("should NOT include vectorSearch when vectorDBEnabled is false", () => {
       const settings = buildSettings({ vectorDBEnabled: false });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).not.toContain("vectorSearch");
     });
 
     it("should include a warning when vectorSearch is disabled", () => {
       const settings = buildSettings({ vectorDBEnabled: false });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       const warning = result.warnings.find((w) => w.toolId === "vectorSearch");
       expect(warning).toBeDefined();
       expect(warning!.settingsKeys).toContain("vectorDBEnabled");
@@ -140,7 +141,7 @@ describe("resolveSelineTemplateTools", () => {
     it("should NOT include vectorSearch when vectorDBEnabled is undefined", () => {
       const settings = buildSettings();
       delete (settings as Partial<AppSettings>).vectorDBEnabled;
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).not.toContain("vectorSearch");
     });
   });
@@ -151,7 +152,7 @@ describe("resolveSelineTemplateTools", () => {
   describe("webSearch", () => {
     it("should include webSearch when tavilyApiKey is set", () => {
       const settings = buildSettings({ tavilyApiKey: "tvly-abc123" });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).toContain("webSearch");
       expect(result.warnings.find((w) => w.toolId === "webSearch")).toBeUndefined();
     });
@@ -162,27 +163,65 @@ describe("resolveSelineTemplateTools", () => {
 
     it("should include webSearch even when tavilyApiKey is missing (DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: undefined });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).toContain("webSearch");
     });
 
     it("should include webSearch even when tavilyApiKey is empty string (DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: "" });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).toContain("webSearch");
     });
 
     it("should include webSearch even when tavilyApiKey is whitespace only (DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: "   " });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.enabledTools).toContain("webSearch");
     });
 
     it("should NOT emit a warning for webSearch (always enabled via DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: undefined });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       const warning = result.warnings.find((w) => w.toolId === "webSearch");
       expect(warning).toBeUndefined();
+    });
+  });
+
+  // =========================================================================
+  // Workspace — conditional on devWorkspaceEnabled
+  // =========================================================================
+  describe("workspace", () => {
+    it("should include workspace when devWorkspaceEnabled is true", () => {
+      const settings = buildSettings({ devWorkspaceEnabled: true });
+      const result = resolveSeleneTemplateTools(settings);
+      expect(result.enabledTools).toContain("workspace");
+    });
+
+    it("should NOT include workspace when devWorkspaceEnabled is false", () => {
+      const settings = buildSettings({ devWorkspaceEnabled: false });
+      const result = resolveSeleneTemplateTools(settings);
+      expect(result.enabledTools).not.toContain("workspace");
+    });
+
+    it("should NOT include workspace when devWorkspaceEnabled is undefined", () => {
+      const settings = buildSettings();
+      const result = resolveSeleneTemplateTools(settings);
+      expect(result.enabledTools).not.toContain("workspace");
+    });
+  });
+
+  // =========================================================================
+  // compactSession — always enabled as a utility tool
+  // =========================================================================
+  describe("compactSession", () => {
+    it("should always include compactSession", () => {
+      const settings = buildSettings();
+      const result = resolveSeleneTemplateTools(settings);
+      expect(result.enabledTools).toContain("compactSession");
+    });
+
+    it("should be in UTILITY_TOOLS constant", () => {
+      expect(UTILITY_TOOLS).toContain("compactSession");
     });
   });
 
@@ -196,7 +235,7 @@ describe("resolveSelineTemplateTools", () => {
         tavilyApiKey: "tvly-test-key",
         firecrawlApiKey: "fc-test-key",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
 
       expect(result.enabledTools).toContain("vectorSearch");
       expect(result.enabledTools).toContain("webSearch");
@@ -209,7 +248,7 @@ describe("resolveSelineTemplateTools", () => {
         tavilyApiKey: "tvly-test-key",
         firecrawlApiKey: "fc-test-key",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       expect(result.warnings).toHaveLength(0);
     });
   });
@@ -225,7 +264,7 @@ describe("resolveSelineTemplateTools", () => {
         firecrawlApiKey: undefined,
         webScraperProvider: "firecrawl",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
 
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings.map((w) => w.toolId).sort()).toEqual([
@@ -240,10 +279,10 @@ describe("resolveSelineTemplateTools", () => {
         firecrawlApiKey: undefined,
         webScraperProvider: "firecrawl",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
 
-      // 6 core + 9 utility + 1 always-on webSearch + 1 chromiumWorkspace = 17 tools minimum
-      expect(result.enabledTools.length).toBeGreaterThanOrEqual(17);
+      // 6 core + 10 utility + 1 always-on webSearch + 1 chromiumWorkspace = 18 tools minimum
+      expect(result.enabledTools.length).toBeGreaterThanOrEqual(18);
       expect(result.enabledTools).not.toContain("vectorSearch");
       expect(result.enabledTools).toContain("webSearch");
     });
@@ -253,29 +292,43 @@ describe("resolveSelineTemplateTools", () => {
   // Tool count verification
   // =========================================================================
   describe("tool count", () => {
-    it("should return exactly 18 tools when all prerequisites are met", () => {
+    it("should return exactly 19 tools when all prerequisites are met (no devWorkspace)", () => {
       const settings = buildSettings({
         vectorDBEnabled: true,
         tavilyApiKey: "tvly-test-key",
         firecrawlApiKey: "fc-test-key",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
 
-      // 6 core + 9 utility + 2 conditional + 1 always-on chromiumWorkspace = 18
-      expect(result.enabledTools).toHaveLength(18);
+      // 6 core + 10 utility + 1 vectorSearch + 1 webSearch + 1 chromiumWorkspace = 19
+      expect(result.enabledTools).toHaveLength(19);
     });
 
-    it("should return exactly 17 tools when no optional tools are available (webSearch always on)", () => {
+    it("should return exactly 20 tools when all prerequisites + devWorkspace are met", () => {
+      const settings = buildSettings({
+        vectorDBEnabled: true,
+        tavilyApiKey: "tvly-test-key",
+        firecrawlApiKey: "fc-test-key",
+        devWorkspaceEnabled: true,
+      });
+      const result = resolveSeleneTemplateTools(settings);
+
+      // 6 core + 10 utility + 1 vectorSearch + 1 webSearch + 1 chromiumWorkspace + 1 workspace = 20
+      expect(result.enabledTools).toHaveLength(20);
+      expect(result.enabledTools).toContain("workspace");
+    });
+
+    it("should return exactly 18 tools when no optional tools are available (webSearch always on)", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
         firecrawlApiKey: undefined,
         webScraperProvider: "firecrawl",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
 
-      // 6 core + 9 utility + 1 always-on webSearch + 1 chromiumWorkspace = 17
-      expect(result.enabledTools).toHaveLength(17);
+      // 6 core + 10 utility + 1 always-on webSearch + 1 chromiumWorkspace = 18
+      expect(result.enabledTools).toHaveLength(18);
     });
   });
 
@@ -289,7 +342,7 @@ describe("resolveSelineTemplateTools", () => {
         tavilyApiKey: "tvly-test-key",
         firecrawlApiKey: "fc-test-key",
       });
-      const result = resolveSelineTemplateTools(settings);
+      const result = resolveSeleneTemplateTools(settings);
       const unique = new Set(result.enabledTools);
       expect(unique.size).toBe(result.enabledTools.length);
     });
@@ -297,17 +350,17 @@ describe("resolveSelineTemplateTools", () => {
 });
 
 // ===========================================================================
-// getExcludedSelineTools
+// getExcludedSeleneTools
 // ===========================================================================
-describe("getExcludedSelineTools", () => {
+describe("getExcludedSeleneTools", () => {
   it("should return describeImage and patchFile", () => {
-    const excluded = getExcludedSelineTools();
+    const excluded = getExcludedSeleneTools();
     expect(excluded).toContain("describeImage");
     expect(excluded).toContain("patchFile");
   });
 
   it("should return exactly 2 excluded tools", () => {
-    const excluded = getExcludedSelineTools();
+    const excluded = getExcludedSeleneTools();
     expect(excluded).toHaveLength(2);
   });
 });
@@ -330,24 +383,24 @@ describe("DEFAULT_ENABLED_TOOLS", () => {
 });
 
 // ===========================================================================
-// isToolAvailableForSeline
+// isToolAvailableForSelene
 // ===========================================================================
-describe("isToolAvailableForSeline", () => {
+describe("isToolAvailableForSelene", () => {
   it("should return true for always-enabled tools", () => {
     const settings = buildSettings();
-    expect(isToolAvailableForSeline("readFile", settings)).toBe(true);
-    expect(isToolAvailableForSeline("editFile", settings)).toBe(true);
-    expect(isToolAvailableForSeline("calculator", settings)).toBe(true);
+    expect(isToolAvailableForSelene("readFile", settings)).toBe(true);
+    expect(isToolAvailableForSelene("editFile", settings)).toBe(true);
+    expect(isToolAvailableForSelene("calculator", settings)).toBe(true);
   });
 
   it("should return false for vectorSearch when vectorDB is disabled", () => {
     const settings = buildSettings({ vectorDBEnabled: false });
-    expect(isToolAvailableForSeline("vectorSearch", settings)).toBe(false);
+    expect(isToolAvailableForSelene("vectorSearch", settings)).toBe(false);
   });
 
   it("should return true for vectorSearch when vectorDB is enabled", () => {
     const settings = buildSettings({ vectorDBEnabled: true });
-    expect(isToolAvailableForSeline("vectorSearch", settings)).toBe(true);
+    expect(isToolAvailableForSelene("vectorSearch", settings)).toBe(true);
   });
 
   it("should return false for excluded tools", () => {
@@ -356,7 +409,7 @@ describe("isToolAvailableForSeline", () => {
       tavilyApiKey: "tvly-test",
       firecrawlApiKey: "fc-test",
     });
-    expect(isToolAvailableForSeline("describeImage", settings)).toBe(false);
-    expect(isToolAvailableForSeline("patchFile", settings)).toBe(false);
+    expect(isToolAvailableForSelene("describeImage", settings)).toBe(false);
+    expect(isToolAvailableForSelene("patchFile", settings)).toBe(false);
   });
 });

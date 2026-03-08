@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => {
     state,
     manager,
     loadSettings: vi.fn(() => ({ localUserEmail: "local@example.com" })),
-    getCharacter: vi.fn(async () => ({ id: "char-1", name: "Seline" })),
+    getCharacter: vi.fn(async () => ({ id: "char-1", name: "Selene" })),
     getOrCreateLocalUser: vi.fn(async () => ({ id: "user-1" })),
     getChannelConnection: vi.fn(async () => ({
       id: "conn-1",
@@ -63,7 +63,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/auth/local-auth", () => ({
-  SESSION_COOKIE_NAME: "seline_session",
+  SESSION_COOKIE_NAME: "selene_session",
 }));
 
 vi.mock("@/lib/settings/settings-manager", () => ({
@@ -171,7 +171,7 @@ describe("Channel /stop command", () => {
       peerId: "peer-1",
       threadId: null,
       messageId: "msg-stop-2",
-      text: "!stop@SelineBot",
+      text: "!stop@SeleneBot",
     });
 
     expect(mocks.abortChatRun).toHaveBeenCalledWith("run-1", "channel_stop_command");

@@ -111,7 +111,7 @@ export function buildWorkflowPromptContext(input: WorkflowPromptContextInput): s
       "- Integrate and summarize subagent outputs back to the user with clear decisions and next actions.",
       "",
       "## Compatibility Mapping",
-      "- runInBackground: start is background by default in Seline. For near-foreground behavior, call observe with waitSeconds (for example 30, 60, 600).",
+      "- runInBackground: start is background by default in Selene. For near-foreground behavior, call observe with waitSeconds (for example 30, 60, 600).",
       "- resume: map to continue using delegationId to preserve delegation context.",
       "- For long-running executeCommand jobs (for example npm install/build), prefer background: true and avoid tight status polling loops.",
       "- When waiting on background jobs, use paced observe/status checks (for example every 30-120s) or a sleep command (for example bash -lc 'sleep 45') between checks.",

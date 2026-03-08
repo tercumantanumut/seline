@@ -13,17 +13,17 @@ export async function POST(req: NextRequest) {
 
     let defaultAgent = await getUserDefaultCharacter(dbUser.id);
 
-    // If no default agent exists, recreate the Seline agent from template
+    // If no default agent exists, recreate the Selene agent from template
     if (!defaultAgent) {
-      const selineTemplate = getDefaultTemplate();
-      if (!selineTemplate) {
+      const seleneTemplate = getDefaultTemplate();
+      if (!seleneTemplate) {
         return NextResponse.json(
           { error: "No default template found" },
           { status: 500 }
         );
       }
 
-      const newAgentId = await createAgentFromTemplate(dbUser.id, selineTemplate);
+      const newAgentId = await createAgentFromTemplate(dbUser.id, seleneTemplate);
       if (!newAgentId) {
         return NextResponse.json(
           { error: "Failed to recreate default agent" },

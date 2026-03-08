@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Trigger an initial sync for every non-manual mode so the folder has a
-      // baseline index and (for triggered mode) an active watcher.
+      // baselene index and (for triggered mode) an active watcher.
       const shouldStartAutoSync = autoSync !== false && effectiveSyncMode !== "manual";
       if (shouldStartAutoSync) {
         const initialTrigger = effectiveSyncMode === "auto" ? "auto" : "manual";

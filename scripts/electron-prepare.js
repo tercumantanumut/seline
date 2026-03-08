@@ -199,7 +199,7 @@ const standaloneJunk = [
     'components',
     'hooks',
     'i18n',
-    'seline-source',
+    'selene-source',
 ];
 for (const name of standaloneJunk) {
     const target = path.join(standaloneDir, name);

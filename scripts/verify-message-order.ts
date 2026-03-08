@@ -14,10 +14,10 @@ import fs from "fs";
 // Find the database path
 function findDatabasePath(): string {
   const possiblePaths = [
-    path.join(process.cwd(), "data", "seline.db"),
-    path.join(process.cwd(), "seline.db"),
-    path.join(process.cwd(), "..", "data", "seline.db"),
-    path.join(process.cwd(), "..", "seline.db"),
+    path.join(process.cwd(), "data", "selene.db"),
+    path.join(process.cwd(), "selene.db"),
+    path.join(process.cwd(), "..", "data", "selene.db"),
+    path.join(process.cwd(), "..", "selene.db"),
   ];
 
   for (const dbPath of possiblePaths) {
@@ -26,7 +26,7 @@ function findDatabasePath(): string {
     }
   }
 
-  return path.join(process.cwd(), "data", "seline.db");
+  return path.join(process.cwd(), "data", "selene.db");
 }
 
 interface MessageRow {

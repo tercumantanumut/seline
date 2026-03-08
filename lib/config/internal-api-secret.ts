@@ -5,7 +5,7 @@ const INTERNAL_API_SECRET_ENV = "INTERNAL_API_SECRET";
 function canGenerateFallbackSecret(): boolean {
   // Desktop and dev runtimes are single-process/local contexts where a
   // process-local secret is sufficient and prevents startup hard-failures.
-  if (process.env.SELINE_PRODUCTION_BUILD === "1") return true;
+  if (process.env.SELENE_PRODUCTION_BUILD === "1") return true;
   if (process.env.ELECTRON_IS_DEV === "1") return true;
   if (process.env.NODE_ENV !== "production") return true;
   return false;

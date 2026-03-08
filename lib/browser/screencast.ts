@@ -41,7 +41,7 @@ interface ScreencastSession {
 
 // ─── Global state (survives HMR) ─────────────────────────────────────────────
 
-const GLOBAL_KEY = "__seline_screencast_manager__" as const;
+const GLOBAL_KEY = "__selene_screencast_manager__" as const;
 
 interface ScreencastState {
   sessions: Map<string, ScreencastSession>;

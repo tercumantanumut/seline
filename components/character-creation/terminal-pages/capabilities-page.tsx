@@ -206,15 +206,15 @@ export function CapabilitiesPage({
     checkDependencies();
   }, [agentId]);
 
-  // Fetch tool resolution warnings for Seline template
+  // Fetch tool resolution warnings for Selene template
   useEffect(() => {
-    if (templateId !== "seline-default") return;
+    if (templateId !== "selene-default") return;
 
     const fetchResolution = async () => {
       try {
         const { data, error } = await resilientFetch<{
           warnings?: ToolResolutionWarning[];
-        }>("/api/tools/resolve?templateId=seline-default");
+        }>("/api/tools/resolve?templateId=selene-default");
         if (!error && data?.warnings && data.warnings.length > 0) {
           setResolutionWarnings(data.warnings);
         }
@@ -363,7 +363,7 @@ export function CapabilitiesPage({
           </div>
         </div>
 
-        {/* Onboarding: Tool resolution warnings for Seline template */}
+        {/* Onboarding: Tool resolution warnings for Selene template */}
         {showForm && resolutionWarnings.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 5 }}

@@ -3,7 +3,7 @@
 ## 🚀 Installation (30 seconds)
 
 ### Drag & Drop (Easiest)
-1. Open Seline app
+1. Open Selene app
 2. Go to Plugins section
 3. Drag `task-completion-notifier` folder into the plugins area
 4. Enable the plugin
@@ -33,7 +33,7 @@ All tests should pass ✅
 
 ## 📝 What It Does
 
-- Listens for when Seline agent finishes responding
+- Listens for when Selene agent finishes responding
 - Sends a **loud desktop notification** on macOS
 - Shows different notifications for success (✅), error (❌), or abort (⏸️)
 - Fire-and-forget (doesn't block your response)
@@ -72,4 +72,4 @@ See [INSTALLATION.md](./INSTALLATION.md) for detailed troubleshooting.
 
 **That's it! You're all set.** 🎉
 
-When Seline finishes a task, you'll get a notification. No more watching the terminal!
+When Selene finishes a task, you'll get a notification. No more watching the terminal!

@@ -159,8 +159,12 @@ export const TOOL_ICON_MAP: Record<string, ToolIconConfig> = {
   NotebookEdit: { icon: Notebook, weight: "bold" },
   TodoWrite: { icon: ListBullets, weight: "regular" },
   EnterPlanMode: { icon: Notebook, weight: "duotone" },
+  ExitPlanMode: { icon: Notebook, weight: "bold" },
   EnterWorktree: { icon: GitDiff, weight: "duotone" },
+  AskUserQuestion: { icon: ChatCircleDots, weight: "regular" },
   Skill: { icon: Code, weight: "regular" },
+  TaskOutput: { icon: ListBullets, weight: "regular" },
+  TaskStop: { icon: Cube, weight: "bold" },
 
   // MCP & Integrations
   mcpTool: { icon: Plug, weight: "regular" },

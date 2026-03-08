@@ -16,7 +16,7 @@ const STATUS_CONFIG: Record<PlanStep["status"], { glyph: string; color: string; 
   canceled:    { glyph: "[-]", color: "text-terminal-muted",  textClass: "text-terminal-muted line-through" },
 };
 
-const STORAGE_KEY = "seline-plan-panel-collapsed";
+const STORAGE_KEY = "selene-plan-panel-collapsed";
 
 // ---------------------------------------------------------------------------
 // Component

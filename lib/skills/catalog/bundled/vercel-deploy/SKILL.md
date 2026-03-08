@@ -35,7 +35,7 @@ vercel deploy [path] -y
 If CLI fails with auth error, use the deploy script:
 
 ```bash
-skill_dir="${SELINE_SKILL_ROOT}"
+skill_dir="${SELENE_SKILL_ROOT}"
 
 # Deploy current directory
 bash "$skill_dir/scripts/deploy.sh"

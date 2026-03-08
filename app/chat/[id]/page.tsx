@@ -31,12 +31,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     const char = await getCharacterFull(characterId);
     const name = char?.displayName || char?.name;
     if (name) {
-      return { title: `${name} — Seline` };
+      return { title: `${name} — Selene` };
     }
   } catch {
     // fall through
   }
-  return { title: "Chat — Seline" };
+  return { title: "Chat — Selene" };
 }
 
 export default async function CharacterChatPage({ params, searchParams }: Props) {

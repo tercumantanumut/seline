@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
 
-const COMPOSER_EDITOR_MODE_STORAGE_PREFIX = "seline:composer-editor-mode";
-const COMPOSER_TIPTAP_DRAFT_STORAGE_PREFIX = "seline:composer-tiptap-draft";
+const COMPOSER_EDITOR_MODE_STORAGE_PREFIX = "selene:composer-editor-mode";
+const COMPOSER_TIPTAP_DRAFT_STORAGE_PREFIX = "selene:composer-tiptap-draft";
 
 const inMemoryEditorModeCache = new Map<string, boolean>();
 const inMemoryTiptapDraftCache = new Map<string, JSONContent | null>();

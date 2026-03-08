@@ -63,7 +63,7 @@ describe("Stop Message Loss Prevention", () => {
   /**
    * Scenario: Normal completion → next turn
    *
-   * Verifies the baseline: assistant message persisted with pre-generated ID,
+   * Verifies the baselene: assistant message persisted with pre-generated ID,
    * next turn's deleteMessagesNotIn keeps it when the frontend includes the ID.
    */
   it("preserves assistant message across turns when frontend includes its ID", async () => {

@@ -15,7 +15,7 @@
   },
   "onboarding": {
     "welcome": {
-      "title": "Welcome to Seline",
+      "title": "Welcome to Selene",
       "subtitle": "Your AI agents platform. Chat, create, research, and automate — everywhere.",
       "features": {
         "agents": {
@@ -197,15 +197,15 @@
       "title": "Choose Your Path",
       "subtitle": "Each path unlocks different capabilities. Change anytime in Settings.",
       "dev": {
-        "title": "Seline Dev",
+        "title": "Selene Dev",
         "tagline": "Ship code with an AI pair programmer"
       },
       "fun": {
-        "title": "Seline Fun",
+        "title": "Selene Fun",
         "tagline": "Personal AI companions with personality"
       },
       "work": {
-        "title": "Seline Work",
+        "title": "Selene Work",
         "tagline": "Team agents for your organization",
         "comingSoon": "Coming Soon"
       },
@@ -231,7 +231,9 @@
         "emotionDetectionDesc": "Avatar reacts based on conversation mood",
         "telegramToken": "Telegram bot token",
         "telegramTokenPlaceholder": "Paste your @BotFather token...",
-        "telegramTokenHint": "Optional"
+        "telegramTokenHint": "Optional",
+        "ttsAutoReply": "Auto-speak every reply",
+        "ttsAutoReplyDesc": "Every assistant reply includes audio output"
       }
     },
     "complete": {
@@ -242,7 +244,7 @@
         "chat": "Start a conversation and explore capabilities",
         "settings": "Fine-tune your experience in Settings"
       },
-      "cta": "Start Using Seline"
+      "cta": "Start Using Selene"
     },
     "wizard": {
       "stepWelcome": "Welcome",
@@ -323,8 +325,8 @@
   },
   "layout": {
     "brandShort": "S",
-    "brand": "Seline",
-    "homeAria": "Seline Home",
+    "brand": "Selene",
+    "homeAria": "Selene Home",
     "minimizeWindow": "Minimize window",
     "maximizeWindow": "Maximize window",
     "closeWindow": "Close window",
@@ -340,7 +342,7 @@
   },
   "authLayout": {
     "logoShort": "S",
-    "logo": "Seline"
+    "logo": "Selene"
   },
   "login": {
     "title": "Welcome back",
@@ -356,7 +358,7 @@
     "ctaLink": "Create one"
   },
   "signup": {
-    "titleFirst": "Welcome to Seline",
+    "titleFirst": "Welcome to Selene",
     "title": "Create an account",
     "subtitleFirst": "Set up your first account to get started",
     "subtitle": "Sign up to start creating",
@@ -1234,7 +1236,7 @@
     },
     "skillsPage": {
       "title": "Skills",
-      "subtitle": "Give Seline superpowers.",
+      "subtitle": "Give Selene superpowers.",
       "learnMore": "Learn more",
       "refresh": "Refresh",
       "newSkill": "New skill",
@@ -1454,7 +1456,7 @@
     "lastRunReason": "Last run reason:",
     "lastRunReasonFileChange": "File change detected",
     "lastRunReasonManual": "Manual sync started by user",
-    "lastRunReasonInitial": "Initial baseline sync after adding folder",
+    "lastRunReasonInitial": "Initial baselene sync after adding folder",
     "lastRunReasonScheduledFull": "Scheduled check ran a full re-scan",
     "lastRunReasonScheduledCheck": "Scheduled periodic check",
     "maxFileSizeMb": "Largest file size (MB)",
@@ -1935,7 +1937,7 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Manage how Seline works for you",
+    "subtitle": "Manage how Selene works for you",
     "save": {
       "cta": "Save Changes",
       "saving": "Saving...",
@@ -2057,9 +2059,9 @@
           "placeholder": "fc-...",
           "helper": "Needed only if you choose Firecrawl."
         },
-        "seline": {
-          "label": "Seline media key",
-          "placeholder": "Enter your Seline AI key",
+        "selene": {
+          "label": "Selene media key",
+          "placeholder": "Enter your Selene AI key",
           "helper": "Needed for image and video generation."
         },
         "ollama": {
@@ -2226,7 +2228,7 @@
       "subtitle": "Choose which model to use for each task. Leave blank to use provider defaults.",
       "defaults": {
         "label": "Defaults:",
-        "value": "If left empty, Seline chooses sensible defaults for your selected provider."
+        "value": "If left empty, Selene chooses sensible defaults for your selected provider."
       },
       "fields": {
         "chat": {
@@ -2608,7 +2610,7 @@
         "title": "Personal dictionary",
         "description": "Words and names to bias local transcription.",
         "helper": "Separate with commas. Saved words are used as whisper/parakeet hints.",
-        "placeholder": "e.g. Seline, k8s, OpenWhispr",
+        "placeholder": "e.g. Selene, k8s, OpenWhispr",
         "add": "Add words",
         "empty": "No dictionary words yet.",
         "remove": "Remove"

@@ -1,7 +1,7 @@
 /**
  * MCP Result Formatter
  *
- * Formats MCP tool results to match Seline's tool result conventions
+ * Formats MCP tool results to match Selene's tool result conventions
  * and strips base64 payloads to avoid context bloat.
  */
 
@@ -88,7 +88,7 @@ async function sanitizeValue(
 }
 
 /**
- * Format MCP tool results to match Seline's conventions
+ * Format MCP tool results to match Selene's conventions
  * Follows patterns from execute-command-tool.ts
  */
 export async function formatMCPToolResult(

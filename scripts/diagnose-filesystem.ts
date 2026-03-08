@@ -22,12 +22,12 @@ async function diagnose() {
     }
 
     const targetFolder = folders[0].folderPath;
-    const testFile = join(targetFolder, "seline-diagnostic-test.txt");
+    const testFile = join(targetFolder, "selene-diagnostic-test.txt");
 
     // 2. Test Node.js Write Permissions (Bypassing MCP)
     console.log(`\n✍️ Testing direct Node.js write to: ${testFile}`);
     try {
-        await writeFile(testFile, "Direct write from Seline backend success!");
+        await writeFile(testFile, "Direct write from Selene backend success!");
         console.log("✅ Direct write successful! (OS permissions are OK)");
     } catch (error) {
         console.error("❌ Direct write FAILED:", error);

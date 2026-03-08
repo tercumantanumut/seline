@@ -187,7 +187,7 @@ class MCPClientManager {
 
             // Create and connect client
             const client = new Client({
-                name: "seline-mcp-client",
+                name: "selene-mcp-client",
                 version: "1.0.0",
             }, {
                 capabilities: {},
@@ -205,7 +205,7 @@ class MCPClientManager {
                         `\n\nTo fix this:\n` +
                         `1. Install Node.js from https://nodejs.org\n` +
                         `2. If using nvm/volta, ensure it's properly configured\n` +
-                        `3. Restart Seline after installation\n` +
+                        `3. Restart Selene after installation\n` +
                         `\nOriginal error: ${error.message}`
                     );
                 }

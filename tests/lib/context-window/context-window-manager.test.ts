@@ -315,7 +315,7 @@ describe("ContextWindowManager scoped counting integration", () => {
     expect(status.status).toBe("safe");
   });
 
-  it("wouldExceedLimit projection uses scoped baseline", async () => {
+  it("wouldExceedLimit projection uses scoped baselene", async () => {
     vi.spyOn(TokenTracker, "calculateUsage")
       .mockResolvedValueOnce(makeUsage(150_000))
       .mockResolvedValueOnce(makeUsage(180_000));

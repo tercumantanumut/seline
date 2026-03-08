@@ -71,7 +71,7 @@ function applyOnboardingPreferences(settings: ReturnType<typeof loadSettings>, b
 
     // Apply path selection from onboarding
     if (body.selectedPath === "dev" || body.selectedPath === "fun") {
-        settings.selineMode = body.selectedPath;
+        settings.seleneMode = body.selectedPath;
     }
 
     const pathConfig = body.pathConfig as Record<string, unknown> | undefined;
@@ -109,6 +109,9 @@ function applyOnboardingPreferences(settings: ReturnType<typeof loadSettings>, b
         }
         if (typeof pathConfig.emotionDetectionEnabled === "boolean") {
             settings.emotionDetectionEnabled = pathConfig.emotionDetectionEnabled;
+        }
+        if (typeof pathConfig.ttsAutoReply === "boolean") {
+            settings.ttsAutoMode = pathConfig.ttsAutoReply ? "always" : "off";
         }
     }
 }

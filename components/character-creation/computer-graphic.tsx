@@ -127,7 +127,7 @@ export function ComputerGraphic({
 function DefaultScreenContent() {
   return (
     <div className="space-y-1">
-	      <div className="text-terminal-amber">Seline</div>
+	      <div className="text-terminal-amber">Selene</div>
       <div className="text-terminal-green opacity-70">{">"} _</div>
     </div>
   );

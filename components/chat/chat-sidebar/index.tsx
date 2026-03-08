@@ -1,10 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
-import { FolderManagerDialog } from "@/components/character-picker-dialogs";
+import {
+  FolderManagerDialog,
+  ToolEditorDialog,
+  PluginEditorDialog,
+  McpToolEditorDialog,
+} from "@/components/character-picker-dialogs";
+import {
+  IdentityEditorDialog,
+  McpRemovalWarningDialog,
+  DeleteAgentDialog,
+} from "@/components/character-picker-dialogs-2";
+import { Avatar3DModelSelector } from "@/components/avatar-3d/avatar-model-selector";
+import { useCharacterActions } from "@/components/character-picker-character-actions-hook";
+import { useToolEditor } from "@/components/character-picker-tool-editor-hook";
+import type { CharacterSummary } from "@/components/character-picker-types";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { getSessionActivityTimestamp } from "@/components/chat/chat-interface-utils";
@@ -21,6 +36,13 @@ interface CharacterFullData {
   name: string;
   displayName?: string | null;
   tagline?: string | null;
+  status?: string;
+  metadata?: Record<string, unknown> | null;
+  images?: Array<{
+    url: string;
+    isPrimary: boolean;
+    imageType: string;
+  }>;
 }
 
 interface ChannelConnectionSummary {
@@ -93,6 +115,7 @@ export function CharacterSidebar({
   characterId,
   onAvatarChange,
 }: CharacterSidebarProps) {
+  const router = useRouter();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -101,6 +124,8 @@ export function CharacterSidebar({
   const initials =
     characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
   const t = useTranslations("chat");
+  const tPicker = useTranslations("picker");
+  const tDeps = useTranslations("toolDependencies");
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [archivedSessions, setArchivedSessions] = useState<SessionInfo[]>([]);
   const [loadingArchived, setLoadingArchived] = useState(false);
@@ -116,6 +141,30 @@ export function CharacterSidebar({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
+
+  // Build a CharacterSummary from the full data for the agent action hooks
+  const characterSummary = useMemo((): CharacterSummary => ({
+    id: character.id,
+    name: character.name,
+    displayName: character.displayName,
+    tagline: character.tagline,
+    status: character.status || "active",
+    metadata: character.metadata as CharacterSummary["metadata"],
+    images: character.images,
+    hasActiveSession: true,
+  }), [character]);
+
+  const reloadPage = useCallback(async () => {
+    router.refresh();
+  }, [router]);
+
+  const charActions = useCharacterActions(
+    tPicker,
+    reloadPage,
+    () => true, // always has active session — we're in a chat
+  );
+
+  const toolEditor = useToolEditor(tPicker, tDeps, reloadPage);
 
   // Press '/' to focus the session search field — handled inside SessionList via its own ref
 
@@ -287,6 +336,94 @@ export function CharacterSidebar({
         onConfirmDelete={handleConfirmDelete}
       />
 
+      {/* Agent overflow menu dialogs */}
+      <ToolEditorDialog
+        open={toolEditor.toolEditorOpen}
+        onOpenChange={toolEditor.setToolEditorOpen}
+        editingCharacter={toolEditor.editingCharacter}
+        availableTools={toolEditor.availableTools}
+        selectedTools={toolEditor.selectedTools}
+        isSaving={toolEditor.isSaving}
+        toolSearchQuery={toolEditor.toolSearchQuery}
+        setToolSearchQuery={toolEditor.setToolSearchQuery}
+        collapsedCategories={toolEditor.collapsedCategories}
+        toolsByCategory={toolEditor.toolsByCategory}
+        filteredToolsByCategory={toolEditor.filteredToolsByCategory}
+        areDependenciesMet={toolEditor.areDependenciesMet}
+        getDependencyWarning={toolEditor.getDependencyWarning}
+        toggleCategory={toolEditor.toggleCategory}
+        toggleAllInCategory={toolEditor.toggleAllInCategory}
+        getSelectedCountInCategory={toolEditor.getSelectedCountInCategory}
+        toggleTool={toolEditor.toggleTool}
+        onSave={toolEditor.saveTools}
+      />
+
+      <PluginEditorDialog
+        open={charActions.pluginEditorOpen}
+        onOpenChange={charActions.setPluginEditorOpen}
+        editingCharacter={charActions.pluginEditingCharacter}
+        agentPlugins={charActions.agentPlugins}
+        loadingAgentPlugins={charActions.loadingAgentPlugins}
+        savingPluginId={charActions.savingPluginId}
+        toggleAgentPlugin={charActions.toggleAgentPlugin}
+      />
+
+      <McpToolEditorDialog
+        open={charActions.mcpToolEditorOpen}
+        onOpenChange={charActions.setMcpToolEditorOpen}
+        editingCharacter={charActions.mcpEditingCharacter}
+        mcpServers={charActions.mcpServers}
+        mcpTools={charActions.mcpTools}
+        mcpToolPreferences={charActions.mcpToolPreferences}
+        onUpdate={charActions.onUpdateMcp}
+        onComplete={charActions.saveMcpTools}
+      />
+
+      <IdentityEditorDialog
+        open={charActions.identityEditorOpen}
+        onOpenChange={charActions.setIdentityEditorOpen}
+        identityForm={charActions.identityForm}
+        setIdentityForm={charActions.setIdentityForm}
+        generatedPrompt={charActions.generatedPrompt}
+        isSaving={charActions.isSavingIdentity}
+        onSave={charActions.saveIdentity}
+      />
+
+      <McpRemovalWarningDialog
+        open={charActions.mcpRemovalWarningOpen}
+        onOpenChange={charActions.setMcpRemovalWarningOpen}
+        mcpToolsBeingRemoved={charActions.mcpToolsBeingRemoved}
+        isSaving={charActions.isSavingMcp}
+        onConfirm={(e) => {
+          e.preventDefault();
+          charActions.performMcpToolSave();
+        }}
+      />
+
+      {charActions.avatar3dSelectorCharacter && (
+        <Avatar3DModelSelector
+          open={charActions.avatar3dSelectorOpen}
+          onOpenChange={charActions.setAvatar3dSelectorOpen}
+          characterId={charActions.avatar3dSelectorCharacter.id}
+          characterName={charActions.avatar3dSelectorCharacter.displayName || charActions.avatar3dSelectorCharacter.name}
+          currentAvatarConfig={charActions.avatar3dSelectorCharacter.metadata?.avatarConfig as any}
+          onAvatarConfigChange={() => { void reloadPage(); }}
+        />
+      )}
+
+      <DeleteAgentDialog
+        open={charActions.deleteDialogOpen}
+        onOpenChange={charActions.setDeleteDialogOpen}
+        characterToDelete={charActions.characterToDelete}
+        isDeleting={charActions.isDeleting}
+        onConfirm={(e) => {
+          e.preventDefault();
+          void charActions.deleteCharacter().then(() => {
+            router.push("/");
+          });
+        }}
+      />
+
       <SidebarCharacterProfile
         character={character}
         avatarUrl={avatarUrl ?? undefined}
@@ -296,6 +433,15 @@ export function CharacterSidebar({
         onOpenAvatarDialog={() => setAvatarDialogOpen(true)}
         onOpenChannelsDialog={() => setChannelsOpen(true)}
         onOpenFoldersDialog={() => setFoldersOpen(true)}
+        onEditIdentity={() => charActions.openIdentityEditor(characterSummary)}
+        onEditTools={() => toolEditor.openToolEditor(characterSummary)}
+        onEditMcp={() => charActions.openMcpToolEditor(characterSummary)}
+        onEditPlugins={() => charActions.openPluginEditor(characterSummary)}
+        onEditAvatar3d={() => charActions.openAvatar3dSelector(characterSummary)}
+        onNavigateDashboard={() => router.push(`/dashboard/${character.id}`)}
+        onDuplicate={() => charActions.handleDuplicate(character.id)}
+        isDuplicating={charActions.isDuplicating}
+        onDelete={() => charActions.openDeleteDialog(characterSummary)}
       />
 
       <SessionList

@@ -13,7 +13,7 @@ import {
   RESPONSE_STYLE,
   DOING_TASKS,
   EXECUTING_WITH_CARE,
-  WORKFLOW_SUBAGENT_BASELINE,
+  WORKFLOW_SUBAGENT_BASELENE,
   TOOL_USAGE_RULES,
   TOOL_DISCOVERY_MINIMAL,
   TOOL_DISCOVERY_ALWAYS,
@@ -83,7 +83,7 @@ export function buildBaseSystemPrompt(options: BaseSystemPromptOptions): string 
     RESPONSE_STYLE,
     DOING_TASKS,
     EXECUTING_WITH_CARE,
-    WORKFLOW_SUBAGENT_BASELINE,
+    WORKFLOW_SUBAGENT_BASELENE,
     LANGUAGE_HANDLING,
     MEDIA_DISPLAY_RULES,
     TOOL_USAGE_RULES,
@@ -104,11 +104,11 @@ export function buildBaseSystemPrompt(options: BaseSystemPromptOptions): string 
 }
 
 /**
- * Default Seline agent configuration
+ * Default Selene agent configuration
  */
 export const DEFAULT_AGENT_CONFIG: BaseSystemPromptOptions = {
-  agentName: "Seline",
-  agentRole: `a powerful AI agent on the Seline platform — an open-source, self-hosted agent platform with rich capabilities including:
+  agentName: "Selene",
+  agentRole: `a powerful AI agent on the Selene platform — an open-source, self-hosted agent platform with rich capabilities including:
 - **Tools & Plugins**: Extensible tool system with plugin marketplace, hooks lifecycle (PreToolUse/PostToolUse), and MCP server integration
 - **Skills**: Reusable, parameterized prompt templates with version history and execution tracking
 - **Multi-Agent Workflows**: Agent delegation with initiator/subagent roles, shared resources, and observe/continue/stop operations
@@ -128,7 +128,7 @@ export const DEFAULT_AGENT_CONFIG: BaseSystemPromptOptions = {
 };
 
 /**
- * Build the default Seline agent system prompt
+ * Build the default Selene agent system prompt
  */
 export function buildDefaultSystemPrompt(
   options: { includeToolDiscovery?: boolean; toolLoadingMode?: "deferred" | "always" } = {}
@@ -193,7 +193,7 @@ export function buildCacheableSystemPrompt(
     RESPONSE_STYLE,
     DOING_TASKS,
     EXECUTING_WITH_CARE,
-    WORKFLOW_SUBAGENT_BASELINE,
+    WORKFLOW_SUBAGENT_BASELENE,
     LANGUAGE_HANDLING,
     MEDIA_DISPLAY_RULES,
     TOOL_USAGE_RULES,
@@ -237,7 +237,7 @@ export function buildCacheableSystemPrompt(
 }
 
 /**
- * Build the default Seline agent system prompt as cacheable blocks
+ * Build the default Selene agent system prompt as cacheable blocks
  */
 export function buildDefaultCacheableSystemPrompt(
   options: {

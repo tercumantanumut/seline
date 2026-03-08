@@ -7,7 +7,7 @@
  * 
  * Usage:
  *   npx ts-node scripts/vector-search-diagnosis.ts
- *   npx ts-node scripts/vector-search-diagnosis.ts --run=v1-baseline
+ *   npx ts-node scripts/vector-search-diagnosis.ts --run=v1-baselene
  */
 
 import path from "path";
@@ -136,7 +136,7 @@ interface ParameterConfig {
 
 const PARAMETER_CONFIGS: ParameterConfig[] = [
     {
-        name: "v1-baseline",
+        name: "v1-baselene",
         description: "Default V1 configuration (semantic only)",
         config: {
             enableHybridSearch: false,

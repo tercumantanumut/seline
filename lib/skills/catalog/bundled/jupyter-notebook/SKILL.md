@@ -27,7 +27,7 @@ Prefer the bundled templates and the helper script for consistent structure and 
 ## Skill path (set once)
 
 ```bash
-export JUPYTER_NOTEBOOK_CLI="${SELINE_SKILL_ROOT}/scripts/new_notebook.py"
+export JUPYTER_NOTEBOOK_CLI="${SELENE_SKILL_ROOT}/scripts/new_notebook.py"
 ```
 
 
@@ -59,25 +59,25 @@ Add short markdown cells that explain the purpose and expected result.
 Avoid large, noisy outputs when a short summary works.
 
 4. Apply the right pattern.
-For experiments, follow `${SELINE_SKILL_ROOT}/references/experiment-patterns.md`.
-For tutorials, follow `${SELINE_SKILL_ROOT}/references/tutorial-patterns.md`.
+For experiments, follow `${SELENE_SKILL_ROOT}/references/experiment-patterns.md`.
+For tutorials, follow `${SELENE_SKILL_ROOT}/references/tutorial-patterns.md`.
 
 5. Edit safely when working with existing notebooks.
 Preserve the notebook structure; avoid reordering cells unless it improves the top-to-bottom story.
 Prefer targeted edits over full rewrites.
-If you must edit raw JSON, review `${SELINE_SKILL_ROOT}/references/notebook-structure.md` first.
+If you must edit raw JSON, review `${SELENE_SKILL_ROOT}/references/notebook-structure.md` first.
 
 6. Validate the result.
 Run the notebook top-to-bottom when the environment allows.
 If execution is not possible, say so explicitly and call out how to validate locally.
-Use the final pass checklist in `${SELINE_SKILL_ROOT}/references/quality-checklist.md`.
+Use the final pass checklist in `${SELENE_SKILL_ROOT}/references/quality-checklist.md`.
 
 ## Templates and helper script
 - Templates live in `assets/experiment-template.ipynb` and `assets/tutorial-template.ipynb`.
 - The helper script loads a template, updates the title cell, and writes a notebook.
 
 Script path:
-- `$JUPYTER_NOTEBOOK_CLI` (installed default: `${SELINE_SKILL_ROOT}/scripts/new_notebook.py`)
+- `$JUPYTER_NOTEBOOK_CLI` (installed default: `${SELENE_SKILL_ROOT}/scripts/new_notebook.py`)
 
 ## Temp and output conventions
 - Use `tmp/jupyter-notebook/` for intermediate files; delete when done.
@@ -99,7 +99,7 @@ The bundled scaffold script uses only the Python standard library and does not r
 No required environment variables.
 
 ## Reference map
-- `${SELINE_SKILL_ROOT}/references/experiment-patterns.md`: experiment structure and heuristics.
-- `${SELINE_SKILL_ROOT}/references/tutorial-patterns.md`: tutorial structure and teaching flow.
-- `${SELINE_SKILL_ROOT}/references/notebook-structure.md`: notebook JSON shape and safe editing rules.
-- `${SELINE_SKILL_ROOT}/references/quality-checklist.md`: final validation checklist.
+- `${SELENE_SKILL_ROOT}/references/experiment-patterns.md`: experiment structure and heuristics.
+- `${SELENE_SKILL_ROOT}/references/tutorial-patterns.md`: tutorial structure and teaching flow.
+- `${SELENE_SKILL_ROOT}/references/notebook-structure.md`: notebook JSON shape and safe editing rules.
+- `${SELENE_SKILL_ROOT}/references/quality-checklist.md`: final validation checklist.

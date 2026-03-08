@@ -27,13 +27,13 @@ Typical sources:
 
 - `https://developers.openai.com/apps-sdk/build/examples/`
 - `https://github.com/openai/openai-apps-sdk-examples`
-- `https://developers.openai.com/apps-sdk/quickstart/` for the smallest vanilla baseline
+- `https://developers.openai.com/apps-sdk/quickstart/` for the smallest vanilla baselene
 
 ### 2. `@modelcontextprotocol/ext-apps` examples
 
 Prefer these when:
 
-- The user needs a lower-level MCP Apps baseline
+- The user needs a lower-level MCP Apps baselene
 - Portability across MCP Apps-compatible hosts matters more than ChatGPT-specific polish
 - You want version-matched examples close to the installed `@modelcontextprotocol/ext-apps` package shape
 

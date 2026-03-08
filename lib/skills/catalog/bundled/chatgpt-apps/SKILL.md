@@ -26,7 +26,7 @@ Use this skill to produce:
 Use `$openai-docs` first whenever building or changing a ChatGPT Apps SDK app.
 
 1. Invoke `$openai-docs` (preferred) or call the OpenAI docs MCP server directly.
-2. Fetch current Apps SDK docs before writing code, especially (baseline pages):
+2. Fetch current Apps SDK docs before writing code, especially (baselene pages):
    - `apps-sdk/build/mcp-server`
    - `apps-sdk/build/chatgpt-ui`
    - `apps-sdk/build/examples`
@@ -46,12 +46,12 @@ If `$openai-docs` is unavailable, use:
 - `mcp__openaiDeveloperDocs__search_openai_docs`
 - `mcp__openaiDeveloperDocs__fetch_openai_doc`
 
-Read `${SELINE_SKILL_ROOT}/references/apps-sdk-docs-workflow.md` for suggested doc queries and a compact checklist.
-Read `${SELINE_SKILL_ROOT}/references/app-archetypes.md` to classify the request into a small number of supported app shapes before choosing examples or scaffolds.
-Read `${SELINE_SKILL_ROOT}/references/repo-contract-and-validation.md` when generating or reviewing a repo so the output stays inside a stable “working app” contract.
-Read `${SELINE_SKILL_ROOT}/references/search-fetch-standard.md` when the app is connector-like, data-only, sync-oriented, or meant to work well with company knowledge or deep research.
-Read `${SELINE_SKILL_ROOT}/references/upstream-example-workflow.md` when starting a greenfield app or when deciding whether to adapt an upstream example or use the local fallback scaffold.
-Read `${SELINE_SKILL_ROOT}/references/window-openai-patterns.md` when the task needs ChatGPT-specific widget behavior or when translating repo examples that use wrapper-specific `app.*` helpers.
+Read `${SELENE_SKILL_ROOT}/references/apps-sdk-docs-workflow.md` for suggested doc queries and a compact checklist.
+Read `${SELENE_SKILL_ROOT}/references/app-archetypes.md` to classify the request into a small number of supported app shapes before choosing examples or scaffolds.
+Read `${SELENE_SKILL_ROOT}/references/repo-contract-and-validation.md` when generating or reviewing a repo so the output stays inside a stable “working app” contract.
+Read `${SELENE_SKILL_ROOT}/references/search-fetch-standard.md` when the app is connector-like, data-only, sync-oriented, or meant to work well with company knowledge or deep research.
+Read `${SELENE_SKILL_ROOT}/references/upstream-example-workflow.md` when starting a greenfield app or when deciding whether to adapt an upstream example or use the local fallback scaffold.
+Read `${SELENE_SKILL_ROOT}/references/window-openai-patterns.md` when the task needs ChatGPT-specific widget behavior or when translating repo examples that use wrapper-specific `app.*` helpers.
 
 ## Prompt Guidance
 
@@ -94,15 +94,15 @@ Infer the archetype unless a missing detail is truly blocking. Use the archetype
 - which validation checks matter most
 - whether `search` and `fetch` should be the default read-only tool surface
 
-Read `${SELINE_SKILL_ROOT}/references/app-archetypes.md` for the decision rubric.
+Read `${SELENE_SKILL_ROOT}/references/app-archetypes.md` for the decision rubric.
 
 ## Default Starting-Point Order
 
 For greenfield apps, prefer these starting points in order:
 
 1. **Official OpenAI examples** when a close example already matches the requested stack or interaction pattern.
-2. **Version-matched `@modelcontextprotocol/ext-apps` examples** when the user needs a lower-level or more portable MCP Apps baseline.
-3. **`${SELINE_SKILL_ROOT}/scripts/scaffold_node_ext_apps.mjs`** only when no close example fits, the user wants a tiny Node + vanilla starter, or network access/example retrieval is undesirable.
+2. **Version-matched `@modelcontextprotocol/ext-apps` examples** when the user needs a lower-level or more portable MCP Apps baselene.
+3. **`${SELENE_SKILL_ROOT}/scripts/scaffold_node_ext_apps.mjs`** only when no close example fits, the user wants a tiny Node + vanilla starter, or network access/example retrieval is undesirable.
 
 Do not generate a large custom scaffold from scratch if a close upstream example already exists.
 Copy the smallest matching example, remove unrelated demo code, then patch it to the current docs and the user request.
@@ -131,7 +131,7 @@ Define the tool surface area from user intents.
 - For educational/demo apps, prefer one concept per tool so the model can pick the right example cleanly.
 - Group demo tools by learning objective: data into the widget, widget actions back into the conversation or tools, host/layout environment signals, and lifecycle/streaming behavior.
 
-Read `${SELINE_SKILL_ROOT}/references/search-fetch-standard.md` when `search` and `fetch` may be relevant.
+Read `${SELENE_SKILL_ROOT}/references/search-fetch-standard.md` when `search` and `fetch` may be relevant.
 
 ### 2. Choose an App Architecture
 
@@ -156,11 +156,11 @@ Default to upstream examples for greenfield work when they are close to the requ
 - After copying, reconcile the example with the current docs you fetched: tool names/descriptions, annotations, `_meta.ui.*`, CSP, URI versioning, and local run instructions.
 - State which example you chose and why in one sentence.
 
-Read `${SELINE_SKILL_ROOT}/references/upstream-example-workflow.md` for the selection and adaptation rubric.
+Read `${SELENE_SKILL_ROOT}/references/upstream-example-workflow.md` for the selection and adaptation rubric.
 
 ### 2b. Use the Starter Script When a Low-Dependency Fallback Helps
 
-Use `${SELINE_SKILL_ROOT}/scripts/scaffold_node_ext_apps.mjs` only when the user wants a quick, greenfield Node starter and a vanilla HTML widget is acceptable, and no upstream example is a better starting point.
+Use `${SELENE_SKILL_ROOT}/scripts/scaffold_node_ext_apps.mjs` only when the user wants a quick, greenfield Node starter and a vanilla HTML widget is acceptable, and no upstream example is a better starting point.
 
 - Run it only after fetching current docs, then reconcile the generated files with the docs you fetched.
 - If you choose the script instead of an upstream example, say why the fallback is better for that request.
@@ -198,7 +198,7 @@ Use `window.openai` for compatibility and extensions (file upload, modal, displa
 - Treat those wrappers as implementation details or convenience layers, not the canonical public API to teach by default.
 - For ChatGPT-facing guidance, prefer the current documented surface: `window.openai.callTool(...)`, `window.openai.sendFollowUpMessage(...)`, `window.openai.openExternal(...)`, `window.openai.requestDisplayMode(...)`, and direct globals like `window.openai.theme`, `window.openai.locale`, `window.openai.displayMode`, `window.openai.toolInput`, `window.openai.toolOutput`, `window.openai.toolResponseMetadata`, and `window.openai.widgetState`.
 - If you reference wrapper helpers from repo examples, map them back to the documented `window.openai` or MCP Apps bridge primitives and call out that the wrapper is not the normative API surface.
-- Use `${SELINE_SKILL_ROOT}/references/window-openai-patterns.md` for the wrapper-to-canonical mapping and for React helper extraction patterns.
+- Use `${SELENE_SKILL_ROOT}/references/window-openai-patterns.md` for the wrapper-to-canonical mapping and for React helper extraction patterns.
 
 ### 5. Add Resource Metadata and Security
 
@@ -223,7 +223,7 @@ Every generated repo should satisfy a small, stable contract before you consider
 - The repo includes enough scripts or commands for a user to run and check it locally.
 - The response explicitly says what validation was run and what was not run.
 
-Read `${SELINE_SKILL_ROOT}/references/repo-contract-and-validation.md` for the detailed checklist and validation ladder.
+Read `${SELENE_SKILL_ROOT}/references/repo-contract-and-validation.md` for the detailed checklist and validation ladder.
 
 ### 6. Validate the Local Loop
 
@@ -240,7 +240,7 @@ Validate against the minimum working repo contract, not just “did files get cr
   - check widget updates after host events and follow-up tool calls
 - If you are only delivering a scaffold and are not installing dependencies, still run low-cost checks and say exactly what you did not run.
 
-Read `${SELINE_SKILL_ROOT}/references/repo-contract-and-validation.md` for the validation ladder.
+Read `${SELENE_SKILL_ROOT}/references/repo-contract-and-validation.md` for the validation ladder.
 
 ### 7. Connect and Test in ChatGPT (Developer Mode)
 
@@ -280,7 +280,7 @@ Only include these steps when the user intends a public directory listing.
 
 ## Interactive State Guidance
 
-Read `${SELINE_SKILL_ROOT}/references/interactive-state-sync-patterns.md` when the app has long-lived widget state, repeated interactions, or component-initiated tool calls (for example, games, boards, maps, dashboards, editors).
+Read `${SELENE_SKILL_ROOT}/references/interactive-state-sync-patterns.md` when the app has long-lived widget state, repeated interactions, or component-initiated tool calls (for example, games, boards, maps, dashboards, editors).
 
 Use it to choose patterns for:
 
@@ -310,11 +310,11 @@ When using this skill to scaffold code, produce output in this order unless the 
 
 ## References
 
-- `${SELINE_SKILL_ROOT}/references/app-archetypes.md` for classifying requests into a small number of supported app shapes
-- `${SELINE_SKILL_ROOT}/references/apps-sdk-docs-workflow.md` for doc queries, page targets, and code-generation checklist
-- `${SELINE_SKILL_ROOT}/references/interactive-state-sync-patterns.md` for reusable patterns for stateful or highly interactive widget apps
-- `${SELINE_SKILL_ROOT}/references/repo-contract-and-validation.md` for the minimum working repo contract and lightweight validation ladder
-- `${SELINE_SKILL_ROOT}/references/search-fetch-standard.md` for when and how to default to the standard `search` and `fetch` tools
-- `${SELINE_SKILL_ROOT}/references/upstream-example-workflow.md` for choosing between official examples, ext-apps examples, and the local fallback scaffold
-- `${SELINE_SKILL_ROOT}/references/window-openai-patterns.md` for ChatGPT-specific extensions, wrapper API translation, and React helper patterns
-- `${SELINE_SKILL_ROOT}/scripts/scaffold_node_ext_apps.mjs` for a minimal Node + `@modelcontextprotocol/ext-apps` fallback starter scaffold
+- `${SELENE_SKILL_ROOT}/references/app-archetypes.md` for classifying requests into a small number of supported app shapes
+- `${SELENE_SKILL_ROOT}/references/apps-sdk-docs-workflow.md` for doc queries, page targets, and code-generation checklist
+- `${SELENE_SKILL_ROOT}/references/interactive-state-sync-patterns.md` for reusable patterns for stateful or highly interactive widget apps
+- `${SELENE_SKILL_ROOT}/references/repo-contract-and-validation.md` for the minimum working repo contract and lightweight validation ladder
+- `${SELENE_SKILL_ROOT}/references/search-fetch-standard.md` for when and how to default to the standard `search` and `fetch` tools
+- `${SELENE_SKILL_ROOT}/references/upstream-example-workflow.md` for choosing between official examples, ext-apps examples, and the local fallback scaffold
+- `${SELENE_SKILL_ROOT}/references/window-openai-patterns.md` for ChatGPT-specific extensions, wrapper API translation, and React helper patterns
+- `${SELENE_SKILL_ROOT}/scripts/scaffold_node_ext_apps.mjs` for a minimal Node + `@modelcontextprotocol/ext-apps` fallback starter scaffold

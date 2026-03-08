@@ -2,7 +2,7 @@
 
 Use this reference to keep code generation aligned with current OpenAI Apps SDK docs.
 
-## Always Fetch These Pages (Baseline)
+## Always Fetch These Pages (Baselene)
 
 - `https://developers.openai.com/apps-sdk/build/mcp-server/`
 - `https://developers.openai.com/apps-sdk/build/chatgpt-ui/`
@@ -59,7 +59,7 @@ Use focused searches before fetching:
 ### UI
 
 - Prefer the MCP Apps bridge (`ui/*` notifications + `tools/call`) for new apps
-- Prefer `ui/message` for follow-up messaging in baseline examples; treat `window.openai.sendFollowUpMessage` as optional ChatGPT-specific compatibility
+- Prefer `ui/message` for follow-up messaging in baselene examples; treat `window.openai.sendFollowUpMessage` as optional ChatGPT-specific compatibility
 - Treat `window.openai` as compatibility plus optional ChatGPT extensions
 - Render from `structuredContent` and treat host-delivered data as untrusted input
 - Use `ui/update-model-context` only for UI state the model should reason about

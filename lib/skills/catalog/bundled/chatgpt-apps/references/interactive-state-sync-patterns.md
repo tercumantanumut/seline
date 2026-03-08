@@ -101,7 +101,7 @@ This reduces unnecessary remounts and gives the model a chance to refine data be
 - Putting large widget-only blobs into `structuredContent`
 - Attaching a widget template to every tool when only one render tool needs it
 - Using hidden client-side state as the source of truth for critical actions
-- Depending only on `window.openai` APIs for baseline app behavior
+- Depending only on `window.openai` APIs for baselene app behavior
 - Using ambiguous tool names that do not match user intent
 
 ## Example App Types That Benefit From These Patterns

@@ -12,8 +12,8 @@ import type { Page, CDPSession } from "playwright-core";
 
 // ─── CDP Session Cache ─────────────────────────────────────────────────────────
 
-const GLOBAL_KEY = "__seline_input_cdp_sessions__" as const;
-const PENDING_KEY = "__seline_input_cdp_pending__" as const;
+const GLOBAL_KEY = "__selene_input_cdp_sessions__" as const;
+const PENDING_KEY = "__selene_input_cdp_pending__" as const;
 
 function getCdpCache(): Map<string, CDPSession> {
   const g = globalThis as unknown as Record<string, Map<string, CDPSession>>;

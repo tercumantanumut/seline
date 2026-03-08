@@ -104,9 +104,9 @@ function getSessionsDir(): string {
 
 function getDbPath(): string {
   if (process.env.LOCAL_DATA_PATH) {
-    return join(process.env.LOCAL_DATA_PATH, "seline.db");
+    return join(process.env.LOCAL_DATA_PATH, "selene.db");
   }
-  return join(process.cwd(), ".local-data", "seline.db");
+  return join(process.cwd(), ".local-data", "selene.db");
 }
 
 // ---------------------------------------------------------------------------

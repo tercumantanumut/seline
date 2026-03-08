@@ -25,6 +25,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { GradientBackground } from "@/components/ui/noisy-gradient-backgrounds";
+import type { GradientColor } from "@/components/ui/noisy-gradient-backgrounds";
+import { getAgentAccentColor } from "@/lib/personalization/accent-colors";
 import { MarkdownText, UserMarkdownText } from "./markdown-text";
 import { ToolFallback } from "./tool-fallback";
 import { ToolCallGroup } from "./tool-call-group";
@@ -45,6 +48,20 @@ import {
   ClaudeBashToolUI,
   ClaudeReadToolUI,
   ClaudeWriteToolUI,
+  ClaudeGlobToolUI,
+  ClaudeGrepToolUI,
+  ClaudeAgentToolUI,
+  ClaudeWebFetchToolUI,
+  ClaudeWebSearchToolUI,
+  ClaudeNotebookEditToolUI,
+  ClaudeTodoWriteToolUI,
+  ClaudeEnterPlanModeToolUI,
+  ClaudeExitPlanModeToolUI,
+  ClaudeEnterWorktreeToolUI,
+  ClaudeAskUserQuestionToolUI,
+  ClaudeSkillToolUI,
+  ClaudeTaskOutputToolUI,
+  ClaudeTaskStopToolUI,
 } from "./claude-code-tools";
 import { useOptionalVoice } from "./voice-context";
 import { YouTubeInlinePreview } from "./youtube-inline";
@@ -65,11 +82,11 @@ import {
 } from "./thread-message-activity";
 
 /**
- * Wraps a by_name tool map so MCP-prefixed names (e.g. mcp__seline-platform__vectorSearch)
+ * Wraps a by_name tool map so MCP-prefixed names (e.g. mcp__selene-platform__vectorSearch)
  * resolve to the same component as the short name (vectorSearch).
  * Without this, assistant-ui's by_name lookup fails for all MCP tools and falls back to ToolFallback.
  */
-const MCP_PREFIX = "mcp__seline-platform__";
+const MCP_PREFIX = "mcp__selene-platform__";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mcpAwareToolMap(map: Record<string, FC<any>>): Record<string, FC<any>> {
   return new Proxy(map, {
@@ -299,6 +316,26 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
   const liveStatuses = useLiveToolStatuses(sessionId);
   const [isIdleThinking, setIsIdleThinking] = useState(false);
 
+  const accentColor = useMemo(
+    () => getAgentAccentColor(displayChar.id),
+    [displayChar.id]
+  );
+
+  const assistantGradientColors = useMemo((): GradientColor[] => {
+    const hex = accentColor.hex;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const dr = Math.max(0, Math.round(r * 0.3));
+    const dg = Math.max(0, Math.round(g * 0.3));
+    const db = Math.max(0, Math.round(b * 0.3));
+    return [
+      { color: `rgba(${dr},${dg},${db},1)`, stop: "0%" },
+      { color: `rgba(${r},${g},${b},1)`, stop: "60%" },
+      { color: `rgba(${Math.min(255, r + 30)},${Math.min(255, g + 30)},${Math.min(255, b + 30)},1)`, stop: "100%" },
+    ];
+  }, [accentColor.hex]);
+
   // Access message metadata for token usage
   // assistant-ui stores custom metadata in message.metadata.custom
   // and step-level usage in message.metadata.steps
@@ -408,8 +445,17 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
             alt={displayChar.name}
           />
         ) : null}
-        <AvatarFallback className="bg-terminal-green/20 text-terminal-green text-xs font-mono">
-          {displayChar.initials || displayChar.name.substring(0, 2).toUpperCase()}
+        <AvatarFallback className="relative overflow-hidden">
+          <GradientBackground
+            colors={assistantGradientColors}
+            gradientOrigin="bottom-middle"
+            gradientSize="150% 150%"
+            noiseIntensity={0.9}
+            noisePatternAlpha={45}
+            noisePatternSize={60}
+            noisePatternRefreshInterval={7}
+            className="rounded-full"
+          />
         </AvatarFallback>
       </Avatar>
 
@@ -430,7 +476,7 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
               ToolGroup: ToolCallGroup,
               tools: {
                 by_name: mcpAwareToolMap({
-                  // Seline MCP tools
+                  // Selene MCP tools
                   vectorSearch: VectorSearchToolUI,
                   showProductImages: ProductGalleryToolUI,
                   executeCommand: ExecuteCommandToolUI,
@@ -445,14 +491,26 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
                   askUserQuestion: AskFollowupQuestionToolUI,
                   askFollowupQuestion: AskFollowupQuestionToolUI,
                   AskFollowupQuestion: AskFollowupQuestionToolUI,
-                  AskUserQuestion: AskFollowupQuestionToolUI,
-                  ExitPlanMode: PlanApprovalToolUI,
                   promptLibrary: PromptLibraryToolUI,
                   // Claude Code native tools
                   Edit: ClaudeEditToolUI,
                   Bash: ClaudeBashToolUI,
                   Read: ClaudeReadToolUI,
                   Write: ClaudeWriteToolUI,
+                  Glob: ClaudeGlobToolUI,
+                  Grep: ClaudeGrepToolUI,
+                  Agent: ClaudeAgentToolUI,
+                  WebFetch: ClaudeWebFetchToolUI,
+                  WebSearch: ClaudeWebSearchToolUI,
+                  NotebookEdit: ClaudeNotebookEditToolUI,
+                  TodoWrite: ClaudeTodoWriteToolUI,
+                  EnterPlanMode: ClaudeEnterPlanModeToolUI,
+                  ExitPlanMode: ClaudeExitPlanModeToolUI,
+                  EnterWorktree: ClaudeEnterWorktreeToolUI,
+                  AskUserQuestion: ClaudeAskUserQuestionToolUI,
+                  Skill: ClaudeSkillToolUI,
+                  TaskOutput: ClaudeTaskOutputToolUI,
+                  TaskStop: ClaudeTaskStopToolUI,
                 }),
                 Fallback: ToolFallback,
               },

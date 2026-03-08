@@ -626,7 +626,7 @@ async function mirrorToGoogleCalendar(params: {
 
     // For recurring events, add recurrence rule if possible
     if (params.scheduleType === "cron" && params.cronExpression) {
-      eventArgs.description = `${params.description}\n\n[Seline scheduled task — cron: ${params.cronExpression}]`;
+      eventArgs.description = `${params.description}\n\n[Selene scheduled task — cron: ${params.cronExpression}]`;
     }
 
     console.log(

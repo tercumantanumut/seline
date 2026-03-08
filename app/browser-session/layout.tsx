@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Browser Session — Seline",
+  title: "Browser Session — Selene",
 };
 
 export default function BrowserSessionLayout({

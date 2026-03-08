@@ -12,7 +12,7 @@ import { readdirSync, statSync } from "fs";
 
 const VECTORDB_PATH = join(
   process.env.HOME || "",
-  "Library/Application Support/seline/data/vectordb"
+  "Library/Application Support/selene/data/vectordb"
 );
 
 const isDryRun = process.argv.includes("--dry-run");

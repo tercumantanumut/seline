@@ -58,6 +58,7 @@ const TOOLS_AUTO_EXPAND = new Set([
   "speakAloud",
   "askUserQuestion",
   "askFollowupQuestion",
+  "AskUserQuestion",
   "updatePlan",
   "ExitPlanMode",
   "showProductImages",

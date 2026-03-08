@@ -20,7 +20,7 @@ function getLocalDataDir(): string {
 
 /**
  * RTK supports overriding its DB location using RTK_DB_PATH.
- * We pin it to Seline's data directory so both products keep data together.
+ * We pin it to Selene's data directory so both products keep data together.
  */
 export function getRTKDbPath(): string {
   return join(getLocalDataDir(), "rtk", "history.db");

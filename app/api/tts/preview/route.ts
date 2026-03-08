@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       outputFormat: "audio-24khz-48kbitrate-mono-mp3",
     });
 
-    const tempPath = join(tmpdir(), `seline-preview-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);
+    const tempPath = join(tmpdir(), `selene-preview-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);
 
     try {
       await tts.ttsPromise(sampleText, tempPath);

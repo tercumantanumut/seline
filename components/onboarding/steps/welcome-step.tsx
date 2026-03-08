@@ -81,9 +81,13 @@ export function WelcomeStep({ onContinue }: WelcomeStepProps) {
                             transform: "translateX(-50%)",
                         }}
                     />
-                    <div className="relative">
-                        <span className="text-6xl font-bold font-mono text-terminal-green">S</span>
-                        <span className="text-5xl font-light font-mono text-terminal-dark ml-1">eline</span>
+                    <div className="relative flex items-center justify-center gap-3">
+                        <img
+                            src="/icon.png"
+                            alt="Selene"
+                            className="h-16 w-16 object-contain rounded-[22%]"
+                        />
+                        <span className="text-5xl font-light font-mono text-terminal-dark">Selene</span>
                     </div>
                 </div>
 

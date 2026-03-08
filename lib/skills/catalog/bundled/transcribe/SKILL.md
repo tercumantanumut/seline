@@ -44,7 +44,7 @@ python3 -m pip install openai
 ## Skill path (set once)
 
 ```bash
-export TRANSCRIBE_CLI="${SELINE_SKILL_ROOT}/scripts/transcribe_diarize.py"
+export TRANSCRIBE_CLI="${SELENE_SKILL_ROOT}/scripts/transcribe_diarize.py"
 ```
 
 
@@ -76,4 +76,4 @@ python3 "$TRANSCRIBE_CLI" \
 ```
 
 ## Reference map
-- `${SELINE_SKILL_ROOT}/references/api.md`: supported formats, limits, response formats, and known-speaker notes.
+- `${SELENE_SKILL_ROOT}/references/api.md`: supported formats, limits, response formats, and known-speaker notes.

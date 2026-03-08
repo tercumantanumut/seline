@@ -17,7 +17,7 @@ export async function fetchSkillFromGitHub(source: CatalogSkillSource): Promise<
   const res = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
-      "User-Agent": "seline-skills-catalog",
+      "User-Agent": "selene-skills-catalog",
     },
     cache: "no-store",
   });

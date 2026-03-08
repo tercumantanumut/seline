@@ -1,6 +1,6 @@
 ---
 name: "imagegen"
-description: "Use when the user asks to generate or edit images via the OpenAI Image API (for example: generate image, edit/inpaint/mask, background removal or replacement, transparent background, product shots, concept art, covers, or batch variants); run the bundled CLI (`${SELINE_SKILL_ROOT}/scripts/image_gen.py`) and require `OPENAI_API_KEY` for live calls."
+description: "Use when the user asks to generate or edit images via the OpenAI Image API (for example: generate image, edit/inpaint/mask, background removal or replacement, transparent background, product shots, concept art, covers, or batch variants); run the bundled CLI (`${SELENE_SKILL_ROOT}/scripts/image_gen.py`) and require `OPENAI_API_KEY` for live calls."
 ---
 
 
@@ -23,7 +23,7 @@ Generates or edits images for the current project (e.g., website assets, game as
 2. Collect inputs up front: prompt(s), exact text (verbatim), constraints/avoid list, and any input image(s)/mask(s). For multi-image edits, label each input by index and role; for edits, list invariants explicitly.
 3. If batch: write a temporary JSONL under tmp/ (one job per line), run once, then delete the JSONL.
 4. Augment prompt into a short labeled spec (structure + constraints) without inventing new creative requirements.
-5. Run the bundled CLI (`${SELINE_SKILL_ROOT}/scripts/image_gen.py`) with sensible defaults (see ${SELINE_SKILL_ROOT}/references/cli.md).
+5. Run the bundled CLI (`${SELENE_SKILL_ROOT}/scripts/image_gen.py`) with sensible defaults (see ${SELENE_SKILL_ROOT}/references/cli.md).
 6. For complex edits/generations, inspect outputs (open/view images) and validate: subject, style, composition, text accuracy, and invariants/avoid items.
 7. Iterate: make a single targeted change (prompt or mask), re-run, re-check.
 8. Save/return final outputs and note the final prompt + flags used.
@@ -62,8 +62,8 @@ If installation isn't possible in this environment, tell the user which dependen
 - Require `OPENAI_API_KEY` before any live API call.
 - Use the OpenAI Python SDK (`openai` package) for all API calls; do not use raw HTTP.
 - If the user requests edits, use `client.images.edit(...)` and include input images (and mask if provided).
-- Prefer the bundled CLI (`${SELINE_SKILL_ROOT}/scripts/image_gen.py`) over writing new one-off scripts.
-- Never modify `${SELINE_SKILL_ROOT}/scripts/image_gen.py`. If something is missing, ask the user before doing anything else.
+- Prefer the bundled CLI (`${SELENE_SKILL_ROOT}/scripts/image_gen.py`) over writing new one-off scripts.
+- Never modify `${SELENE_SKILL_ROOT}/scripts/image_gen.py`. If something is missing, ask the user before doing anything else.
 - If the result isn’t clearly relevant or doesn’t satisfy constraints, iterate with small targeted prompt changes; only ask a question if a missing detail blocks success.
 
 ## Prompt augmentation
@@ -117,7 +117,7 @@ Avoid: <negative constraints>
 
 Augmentation rules:
 - Keep it short; add only details the user already implied or provided elsewhere.
-- Always classify the request into a taxonomy slug above and tailor constraints/composition/quality to that bucket. Use the slug to find the matching example in `${SELINE_SKILL_ROOT}/references/sample-prompts.md`.
+- Always classify the request into a taxonomy slug above and tailor constraints/composition/quality to that bucket. Use the slug to find the matching example in `${SELENE_SKILL_ROOT}/references/sample-prompts.md`.
 - If the user gives a broad request (e.g., "Generate images for this website"), use judgment to propose tasteful, context-appropriate assets and map each to a taxonomy slug.
 - For edits, explicitly list invariants ("change only X; keep Y unchanged").
 - If any critical detail is missing and blocks success, ask a question; otherwise proceed.
@@ -156,19 +156,19 @@ Constraints: change only the background; keep the product and its edges unchange
 - For strict edits (identity/layout lock), consider input_fidelity=high.
 - If results feel “tacky”, add a brief “Avoid:” line (stock-photo vibe; cheesy lens flare; oversaturated neon; harsh bloom; oversharpening; clutter) and specify restraint (“editorial”, “premium”, “subtle”).
 
-More principles: `${SELINE_SKILL_ROOT}/references/prompting.md`. Copy/paste specs: `${SELINE_SKILL_ROOT}/references/sample-prompts.md`.
+More principles: `${SELENE_SKILL_ROOT}/references/prompting.md`. Copy/paste specs: `${SELENE_SKILL_ROOT}/references/sample-prompts.md`.
 
 ## Guidance by asset type
-Asset-type templates (website assets, game assets, wireframes, logo) are consolidated in `${SELINE_SKILL_ROOT}/references/sample-prompts.md`.
+Asset-type templates (website assets, game assets, wireframes, logo) are consolidated in `${SELENE_SKILL_ROOT}/references/sample-prompts.md`.
 
 ## CLI + environment notes
-- CLI commands + examples: `${SELINE_SKILL_ROOT}/references/cli.md`
-- API parameter quick reference: `${SELINE_SKILL_ROOT}/references/image-api.md`
-- If network approvals / sandbox settings are getting in the way: `${SELINE_SKILL_ROOT}/references/codex-network.md`
+- CLI commands + examples: `${SELENE_SKILL_ROOT}/references/cli.md`
+- API parameter quick reference: `${SELENE_SKILL_ROOT}/references/image-api.md`
+- If network approvals / sandbox settings are getting in the way: `${SELENE_SKILL_ROOT}/references/codex-network.md`
 
 ## Reference map
-- **`${SELINE_SKILL_ROOT}/references/cli.md`**: how to *run* image generation/edits/batches via `${SELINE_SKILL_ROOT}/scripts/image_gen.py` (commands, flags, recipes).
-- **`${SELINE_SKILL_ROOT}/references/image-api.md`**: what knobs exist at the API level (parameters, sizes, quality, background, edit-only fields).
-- **`${SELINE_SKILL_ROOT}/references/prompting.md`**: prompting principles (structure, constraints/invariants, iteration patterns).
-- **`${SELINE_SKILL_ROOT}/references/sample-prompts.md`**: copy/paste prompt recipes (generate + edit workflows; examples only).
-- **`${SELINE_SKILL_ROOT}/references/codex-network.md`**: environment/sandbox/network-approval troubleshooting.
+- **`${SELENE_SKILL_ROOT}/references/cli.md`**: how to *run* image generation/edits/batches via `${SELENE_SKILL_ROOT}/scripts/image_gen.py` (commands, flags, recipes).
+- **`${SELENE_SKILL_ROOT}/references/image-api.md`**: what knobs exist at the API level (parameters, sizes, quality, background, edit-only fields).
+- **`${SELENE_SKILL_ROOT}/references/prompting.md`**: prompting principles (structure, constraints/invariants, iteration patterns).
+- **`${SELENE_SKILL_ROOT}/references/sample-prompts.md`**: copy/paste prompt recipes (generate + edit workflows; examples only).
+- **`${SELENE_SKILL_ROOT}/references/codex-network.md`**: environment/sandbox/network-approval troubleshooting.

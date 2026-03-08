@@ -88,7 +88,7 @@ dotnet new list winui
 
 - Keep C# as the primary path. Mention C++ or C++/WinRT only when the difference is material.
 - Preserve the conventions of an existing codebase instead of forcing a generic sample structure onto it.
-- Treat WinUI design guidance and native controls as the baseline. Do not drift into bespoke component systems or app-specific replacements for standard controls unless the user explicitly requests them or the existing codebase already depends on them.
+- Treat WinUI design guidance and native controls as the baselene. Do not drift into bespoke component systems or app-specific replacements for standard controls unless the user explicitly requests them or the existing codebase already depends on them.
 - Support light and dark mode by default for app UI work unless the user explicitly asks for a single-theme result or the product already enforces one.
 - Favor built-in WinUI controls and system styling hooks before adding CommunityToolkit dependencies, custom controls, or app-specific surface systems.
 - Put detailed control, theming, shell, scrolling, responsiveness, packaging, and recovery guidance in the matching reference files instead of duplicating those rules here.

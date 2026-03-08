@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { resilientFetch, resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
+import { resilientFetch, resilientPut } from "@/lib/utils/resilient-fetch";
 
 import type { LLMProvider } from "./provider-step";
 
@@ -262,11 +262,14 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
         const isElectron = !!electronAPI?.isElectron;
 
         try {
-            // Fetch Agent SDK auth status and any login URL surfaced by the SDK.
-            const { data: authData, error: authError } = await resilientFetch<{ success: boolean; url?: string | null; error?: string }>("/api/auth/claudecode/authorize", { retries: 1 });
+            // Plain fetch — no timeout. The authorize endpoint spawns `claude login`
+            // which can take well over 10s on first run; resilientFetch's default
+            // 10s timeout would abort the request prematurely.
+            const authResponse = await fetch("/api/auth/claudecode/authorize");
+            const authData = await authResponse.json();
 
-            if (authError || !authData?.success) {
-                throw new Error(authData?.error || authError || "Failed to initialize authentication");
+            if (!authData.success) {
+                throw new Error(authData.error || "Failed to initialize authentication");
             }
 
             if (authData.url) {
@@ -277,7 +280,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 }
             }
 
-            // Keep existing UI flow: user confirms completion via submit action.
+            // Show paste-code UI so user can submit the auth code.
             setClaudeCodePasteMode(true);
             setLoading(false);
         } catch (err) {
@@ -292,10 +295,15 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
         setError(null);
 
         try {
-            const { data, error: fetchError } = await resilientPost<{ success: boolean; error?: string }>("/api/auth/claudecode/exchange", {});
+            const response = await fetch("/api/auth/claudecode/exchange", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: claudeCodePasteValue }),
+            });
+            const data = await response.json();
 
-            if (fetchError || !data?.success) {
-                throw new Error(data?.error || fetchError || "Claude Agent SDK is not authenticated yet");
+            if (!data.success) {
+                throw new Error(data.error || "Claude Agent SDK is not authenticated yet");
             }
 
             setIsAuthenticated(true);

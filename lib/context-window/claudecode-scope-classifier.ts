@@ -22,8 +22,8 @@ function normalizePassthroughToolName(raw: string): string {
   if (raw.startsWith("tool-")) {
     return raw.slice("tool-".length);
   }
-  if (raw.startsWith("mcp__seline-platform__")) {
-    return raw.slice("mcp__seline-platform__".length);
+  if (raw.startsWith("mcp__selene-platform__")) {
+    return raw.slice("mcp__selene-platform__".length);
   }
   return raw;
 }

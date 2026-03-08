@@ -1,8 +1,8 @@
-# Electron Builder Configuration for Seline
+# Electron Builder Configuration for Selene
 # https://www.electron.build/configuration/configuration
 
 appId: "ai.zlutty.app"
-productName: "Seline"
+productName: "Selene"
 copyright: "Copyright © 2024-2025 Zlutty.AI"
 icon: "build-resources/icon.png"
 
@@ -163,7 +163,7 @@ win:
     - target: "nsis"
     - target: "portable"
   # icon: "build-resources/icon.ico"
-  legalTrademarks: "Seline is a trademark of Seline"
+  legalTrademarks: "Selene is a trademark of Selene"
 
 # NSIS installer settings
 nsis:
@@ -171,14 +171,14 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: "Seline"
+  shortcutName: "Selene"
   artifactName: "${productName}-Setup-${version}.${ext}"
-  uninstallDisplayName: "Seline"
+  uninstallDisplayName: "Selene"
   deleteAppDataOnUninstall: false
 
 # DMG settings for macOS
 dmg:
-  title: "Seline"
+  title: "Selene"
   sign: false
   contents:
     - x: 130

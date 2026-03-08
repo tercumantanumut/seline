@@ -1,7 +1,7 @@
 /**
  * Command Execution Module
  * 
- * Sandboxed command execution for Seline.
+ * Sandboxed command execution for Selene.
  * Allows AI tools to run shell commands safely within synced directories.
  */
 

@@ -12,14 +12,14 @@ import { mkdirSync, existsSync } from 'fs';
  * Get the path to the user's workspace directory
  * Creates the directory if it doesn't exist
  *
- * Location: ~/.seline/workspace (user home directory)
+ * Location: ~/.selene/workspace (user home directory)
  */
 export function getUserWorkspacePath(): string {
   // Use user's home directory, NOT the app data directory
   // This keeps workspace separate from app internals
   const { homedir } = require('os');
   const homeDir = homedir();
-  const workspacePath = join(homeDir, '.seline', 'workspace');
+  const workspacePath = join(homeDir, '.selene', 'workspace');
 
   // Ensure directory exists
   if (!existsSync(workspacePath)) {

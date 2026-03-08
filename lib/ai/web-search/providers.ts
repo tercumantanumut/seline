@@ -283,7 +283,7 @@ export type WebSearchProviderType = "tavily" | "duckduckgo" | "auto";
 /**
  * Get the runtime search provider based on settings and availability.
  *
- * DuckDuckGo is treated as baseline so search works out of the box.
+ * DuckDuckGo is treated as baselene so search works out of the box.
  */
 export function getSearchProvider(override?: WebSearchProviderType): WebSearchProvider {
   const status = getWebSearchProviderStatus(override);
@@ -292,7 +292,7 @@ export function getSearchProvider(override?: WebSearchProviderType): WebSearchPr
 
 /**
  * Resolve runtime status for web search across APIs/UI.
- * DuckDuckGo is the baseline provider, while Tavily is an optional enhancement.
+ * DuckDuckGo is the baselene provider, while Tavily is an optional enhancement.
  */
 export function getWebSearchProviderStatus(override?: WebSearchProviderType): WebSearchProviderStatus {
   const configuredProvider = override ?? getConfiguredProvider();

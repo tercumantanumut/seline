@@ -4,9 +4,9 @@ Load this reference when a task needs ChatGPT-only widget features, when transla
 
 ## Core Rule
 
-- Build baseline widget behavior on the MCP Apps bridge: `ui/*` notifications, `tools/call`, `ui/message`, and `ui/update-model-context`.
+- Build baselene widget behavior on the MCP Apps bridge: `ui/*` notifications, `tools/call`, `ui/message`, and `ui/update-model-context`.
 - Use `window.openai` only when the task specifically benefits from ChatGPT-only runtime conveniences.
-- Treat `window.openai` as additive. The app should still have a coherent baseline path on the MCP Apps standard when possible.
+- Treat `window.openai` as additive. The app should still have a coherent baselene path on the MCP Apps standard when possible.
 
 ## Canonical `window.openai` Surface
 
@@ -64,7 +64,7 @@ Load this reference when a task needs ChatGPT-only widget features, when transla
 
 ## React Helper Extraction
 
-- The repo's `src/use-openai-global.ts` is a good baseline for subscribing to host global changes without scattering direct `window.openai` reads through components.
-- The repo's `src/use-widget-state.ts` is a good baseline for mirroring React state into `window.openai.setWidgetState(...)`.
-- The repo's `src/use-widget-props.ts` is a good baseline for reading typed `toolOutput` with a local fallback.
+- The repo's `src/use-openai-global.ts` is a good baselene for subscribing to host global changes without scattering direct `window.openai` reads through components.
+- The repo's `src/use-widget-state.ts` is a good baselene for mirroring React state into `window.openai.setWidgetState(...)`.
+- The repo's `src/use-widget-props.ts` is a good baselene for reading typed `toolOutput` with a local fallback.
 - Keep these helpers optional. Do not force a React abstraction when a simple vanilla widget is enough.

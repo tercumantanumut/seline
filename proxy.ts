@@ -62,7 +62,7 @@ export async function proxy(request: NextRequest) {
 
   // Detect locale and prepare to set header for i18n/request.ts
   const locale = detectLocale(request);
-  const schedulerSecret = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
+  const schedulerSecret = process.env.INTERNAL_API_SECRET || "selene-internal-scheduler";
   const internalAuthHeader = request.headers.get("x-internal-auth");
   const isScheduledRunHeader = request.headers.get("x-scheduled-run") === "true";
   const isInternalAuthRequest =

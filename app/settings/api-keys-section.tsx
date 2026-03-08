@@ -553,15 +553,15 @@ export function ApiKeysSection({
         </div>
 
         <div>
-          <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.seline.label")}</label>
+          <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.selene.label")}</label>
           <input
             type="password"
             value={formState.stylyAiApiKey}
             onChange={(e) => updateField("stylyAiApiKey", e.target.value)}
-            placeholder={t("api.fields.seline.placeholder")}
+            placeholder={t("api.fields.selene.placeholder")}
             className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           />
-          <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.seline.helper")}</p>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.selene.helper")}</p>
         </div>
       </div>
     </div>

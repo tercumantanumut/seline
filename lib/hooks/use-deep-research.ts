@@ -48,7 +48,7 @@ interface RunStatusResponse {
 }
 
 const POLL_INTERVAL_MS = 2000;
-const DEEP_RESEARCH_STORAGE_PREFIX = 'seline:deep-research-state';
+const DEEP_RESEARCH_STORAGE_PREFIX = 'selene:deep-research-state';
 const DEEP_RESEARCH_COMPLETED_STATES = new Set(['succeeded', 'failed', 'cancelled']);
 
 interface LocalDeepResearchSnapshot {

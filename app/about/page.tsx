@@ -10,7 +10,7 @@ import { ZLUTTY_DURATIONS, ZLUTTY_EASINGS } from "@/lib/animations/utils";
 import { ExternalLinkIcon, InfoIcon } from "lucide-react";
 
 const LINKEDIN_URL = "https://www.linkedin.com/in/umut-tan-97214b9b/";
-const GITHUB_URL = "https://github.com/tercumantanumut/seline";
+const GITHUB_URL = "https://github.com/tercumantanumut/selene";
 
 export default function AboutPage() {
   const t = useTranslations("about");
@@ -18,8 +18,8 @@ export default function AboutPage() {
   const { root, scope } = useAnimeScope();
 
   useEffect(() => {
-    document.title = `${t("title")} — Seline`;
-    return () => { document.title = "Seline"; };
+    document.title = `${t("title")} — Selene`;
+    return () => { document.title = "Selene"; };
   }, [t]);
 
   useEffect(() => {

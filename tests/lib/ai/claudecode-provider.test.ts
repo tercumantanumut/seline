@@ -45,8 +45,8 @@ vi.mock("@/lib/ai/retry/stream-recovery", () => ({
   sleepWithAbort: vi.fn(async () => {}),
 }));
 
-vi.mock("@/lib/ai/providers/seline-sdk-mcp-server", () => ({
-  createSelineSdkMcpServer: vi.fn(() => ({})),
+vi.mock("@/lib/ai/providers/selene-sdk-mcp-server", () => ({
+  createSeleneSdkMcpServer: vi.fn(() => ({})),
 }));
 
 // ---------------------------------------------------------------------------
@@ -80,8 +80,8 @@ describe("normalizeClaudeSdkToolName", () => {
   });
 
   it("keeps valid MCP-prefixed tool names intact", () => {
-    expect(normalizeClaudeSdkToolName("mcp__seline-platform__searchTools")).toBe(
-      "mcp__seline-platform__searchTools"
+    expect(normalizeClaudeSdkToolName("mcp__selene-platform__searchTools")).toBe(
+      "mcp__selene-platform__searchTools"
     );
   });
 

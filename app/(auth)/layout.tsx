@@ -59,10 +59,14 @@ export default function AuthLayout({
           <div className="flex justify-center">
             <div
               ref={logoRef}
-              className="flex items-center gap-2 transform-gpu"
+              className="flex items-center gap-3 transform-gpu"
               style={{ perspective: "500px" }}
             >
-              <span className="text-4xl font-bold font-mono text-terminal-green">{t("logoShort")}</span>
+              <img
+                src="/icon.png"
+                alt="Selene"
+                className="h-12 w-12 object-contain rounded-[22%]"
+              />
               <span className="text-2xl font-semibold font-mono text-terminal-dark">{t("logo")}</span>
             </div>
           </div>

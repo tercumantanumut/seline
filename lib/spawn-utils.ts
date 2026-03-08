@@ -48,7 +48,7 @@ export async function spawnWithFileCapture(
     signal: NodeJS.Signals | null;
     timedOut: boolean;
 }> {
-    const tmpDir = await mkdtemp(join(tmpdir(), "seline-exec-"));
+    const tmpDir = await mkdtemp(join(tmpdir(), "selene-exec-"));
     const outFile = join(tmpDir, "out");
     const errFile = join(tmpDir, "err");
     const inFile = join(tmpDir, "in");

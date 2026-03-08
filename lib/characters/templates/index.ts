@@ -1,8 +1,8 @@
 import { resolve } from "path";
 import type { AgentTemplate } from "./types";
-import { SELINE_DEFAULT_TEMPLATE } from "./seline-default";
+import { SELENE_DEFAULT_TEMPLATE } from "./selene-default";
 import { SYSTEM_AGENT_TEMPLATES } from "./system-agents";
-import { resolveSelineTemplateTools, type ToolResolutionResult } from "./resolve-tools";
+import { resolveSeleneTemplateTools, type ToolResolutionResult } from "./resolve-tools";
 import {
   createCharacter,
   getUserCharacters,
@@ -23,7 +23,7 @@ import {
 } from "@/lib/agents/workflows";
 
 const TEMPLATES: Map<string, AgentTemplate> = new Map([
-  [SELINE_DEFAULT_TEMPLATE.id, SELINE_DEFAULT_TEMPLATE],
+  [SELENE_DEFAULT_TEMPLATE.id, SELENE_DEFAULT_TEMPLATE],
 ]);
 
 export function getAllTemplates(): AgentTemplate[] {
@@ -53,7 +53,7 @@ function resolvePathVariable(pathVar: string): string {
   if (pathVar === "${USER_WORKSPACE}") {
     return getUserWorkspacePath();
   }
-  // ${SETUP_FOLDER} has been removed - it was used for bundling Seline's source code
+  // ${SETUP_FOLDER} has been removed - it was used for bundling Selene's source code
   // into production builds, which is no longer supported.
   // If a template still references ${SETUP_FOLDER}, fall back to user workspace.
   if (pathVar === "${SETUP_FOLDER}") {
@@ -82,13 +82,13 @@ export async function ensureDefaultAgentExists(userId: string): Promise<string |
     // If user has any characters but no default, respect their choice
     // They may have explicitly deleted the default agent
     if (existingCharacters.length > 0) {
-      const existingSeline = existingCharacters.find(
-        (character) => character.name.toLowerCase() === SELINE_DEFAULT_TEMPLATE.name.toLowerCase()
+      const existingSelene = existingCharacters.find(
+        (character) => character.name.toLowerCase() === SELENE_DEFAULT_TEMPLATE.name.toLowerCase()
       );
-      if (existingSeline) {
+      if (existingSelene) {
         try {
-          await setDefaultCharacter(userId, existingSeline.id);
-          return existingSeline.id;
+          await setDefaultCharacter(userId, existingSelene.id);
+          return existingSelene.id;
         } catch (error) {
           // If setting default fails due to race condition, check if another default was created
           const nowDefault = await getUserDefaultCharacter(userId);
@@ -105,7 +105,7 @@ export async function ensureDefaultAgentExists(userId: string): Promise<string |
     // Only create default agent for brand new users (zero characters)
     // This ensures first-time users get the default, but it can be deleted permanently
     try {
-      const newDefaultId = await createAgentFromTemplate(userId, SELINE_DEFAULT_TEMPLATE);
+      const newDefaultId = await createAgentFromTemplate(userId, SELENE_DEFAULT_TEMPLATE);
       if (newDefaultId) {
         ensureSystemAgentsExist(userId, newDefaultId).catch((err) => {
           console.error("[SystemAgents] Background provisioning failed:", err);
@@ -133,30 +133,30 @@ export async function createAgentFromTemplate(
   template: AgentTemplate
 ): Promise<string | null> {
   try {
-    // For the Seline default template, resolve tools dynamically based on settings
+    // For the Selene default template, resolve tools dynamically based on settings
     let resolvedTools = template.enabledTools;
     let toolWarnings: ToolResolutionResult["warnings"] = [];
 
-    if (template.id === "seline-default") {
+    if (template.id === "selene-default") {
       try {
         const settings = loadSettings();
-        const resolution = resolveSelineTemplateTools(settings);
+        const resolution = resolveSeleneTemplateTools(settings);
         resolvedTools = resolution.enabledTools;
         toolWarnings = resolution.warnings;
 
         if (toolWarnings.length > 0) {
           console.log(
-            `[Templates] Seline template: ${toolWarnings.length} tool(s) disabled due to missing prerequisites:`
+            `[Templates] Selene template: ${toolWarnings.length} tool(s) disabled due to missing prerequisites:`
           );
           for (const w of toolWarnings) {
             console.log(`  - ${w.toolName}: ${w.reason}`);
           }
         }
         console.log(
-          `[Templates] Seline template resolved ${resolvedTools.length} tools (from ${template.enabledTools.length} static)`
+          `[Templates] Selene template resolved ${resolvedTools.length} tools (from ${template.enabledTools.length} static)`
         );
       } catch (error) {
-        console.warn("[Templates] Failed to resolve Seline tools dynamically, using static list:", error);
+        console.warn("[Templates] Failed to resolve Selene tools dynamically, using static list:", error);
         resolvedTools = template.enabledTools;
       }
     }
@@ -435,4 +435,4 @@ async function ensureSystemWorkflow(
 }
 
 export type { AgentTemplate, AgentTemplateMemory } from "./types";
-export { resolveSelineTemplateTools, type ToolResolutionResult, type ToolWarning } from "./resolve-tools";
+export { resolveSeleneTemplateTools, type ToolResolutionResult, type ToolWarning } from "./resolve-tools";

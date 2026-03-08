@@ -15,7 +15,7 @@ import {
 
 /* ─── Types ─── */
 
-export type SelinePath = "dev" | "fun";
+export type SelenePath = "dev" | "fun";
 
 export interface PathConfigState {
     // Dev
@@ -28,6 +28,7 @@ export interface PathConfigState {
     avatar3dEnabled: boolean;
     emotionDetectionEnabled: boolean;
     telegramBotToken: string;
+    ttsAutoReply: boolean;
 }
 
 export const DEFAULT_PATH_CONFIG: PathConfigState = {
@@ -39,11 +40,12 @@ export const DEFAULT_PATH_CONFIG: PathConfigState = {
     avatar3dEnabled: true,
     emotionDetectionEnabled: false,
     telegramBotToken: "",
+    ttsAutoReply: true,
 };
 
 interface PathSelectorProps {
-    selectedPath: SelinePath | null;
-    onSelectPath: (path: SelinePath | null) => void;
+    selectedPath: SelenePath | null;
+    onSelectPath: (path: SelenePath | null) => void;
     pathConfig: PathConfigState;
     onPathConfigChange: (updates: Partial<PathConfigState>) => void;
 }
@@ -394,6 +396,29 @@ function FunConfigPanel({
                 )}
             </AnimatePresence>
 
+            {/* Auto-speak every reply */}
+            <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.13 }}
+                className="sm:col-span-2"
+            >
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-white/[0.08] bg-white/[0.04]">
+                    <div className="min-w-0">
+                        <p className="font-mono text-sm text-white/90">
+                            {t("config.ttsAutoReply")}
+                        </p>
+                        <p className="font-mono text-[11px] text-white/40">
+                            {t("config.ttsAutoReplyDesc")}
+                        </p>
+                    </div>
+                    <Toggle
+                        checked={config.ttsAutoReply}
+                        onChange={(v) => onChange({ ttsAutoReply: v })}
+                    />
+                </div>
+            </motion.div>
+
             {/* 3D Avatar toggle */}
             <motion.div
                 initial={{ opacity: 0, x: -8 }}
@@ -681,7 +706,7 @@ export function PathSelector({
 
 /* ─── Highlight map for features grid dimming ─── */
 
-export const PATH_HIGHLIGHT_MAP: Record<SelinePath, string[]> = {
+export const PATH_HIGHLIGHT_MAP: Record<SelenePath, string[]> = {
     dev: [
         "llmProviders",
         "contextChain",

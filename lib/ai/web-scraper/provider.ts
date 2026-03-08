@@ -18,6 +18,6 @@ export function getWebScraperProvider(): WebScraperProvider {
 }
 
 export function isWebScraperConfigured(): boolean {
-  // Always true: local scraper is the baseline, Firecrawl is optional enhancement.
+  // Always true: local scraper is the baselene, Firecrawl is optional enhancement.
   return true;
 }

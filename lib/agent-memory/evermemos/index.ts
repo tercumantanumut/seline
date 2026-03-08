@@ -1,7 +1,7 @@
 /**
  * EverMemOS Integration
  *
- * Optional shared memory layer that sits on top of Seline's per-agent
+ * Optional shared memory layer that sits on top of Selene's per-agent
  * local memory system. When enabled, memories are stored both locally
  * and in EverMemOS, and searches query both sources.
  *

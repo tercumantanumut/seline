@@ -114,9 +114,9 @@ function injectSkillRoot(
   catalogId: string | null | undefined
 ): string {
   if (!catalogId) return renderedPrompt;
-  if (!renderedPrompt.includes("SELINE_SKILL_ROOT")) return renderedPrompt;
+  if (!renderedPrompt.includes("SELENE_SKILL_ROOT")) return renderedPrompt;
   const skillRoot = getBundledSkillRootPath(catalogId);
-  return renderedPrompt.replace(/\$\{SELINE_SKILL_ROOT\}/g, skillRoot);
+  return renderedPrompt.replace(/\$\{SELENE_SKILL_ROOT\}/g, skillRoot);
 }
 
 function normalizeAction(input: RunSkillInput): RunSkillAction {

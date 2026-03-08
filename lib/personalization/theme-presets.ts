@@ -28,7 +28,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "ember",
     label: "Ember",
-    description: "Warm terracotta & cream — the classic Seline look",
+    description: "Warm terracotta & cream — the classic Selene look",
     swatches: ["#C2714F", "#F5E6D3", "#1A1A1A"],
   },
   {

@@ -236,7 +236,7 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
 
       {/* Decorative Elements */}
       <div className="absolute bottom-8 left-8 font-mono text-xs text-terminal-muted opacity-80">
-        Seline
+        Selene
       </div>
       <div className="absolute bottom-8 right-8 font-mono text-xs text-terminal-muted opacity-80">
         {new Date().getFullYear()}

@@ -1,10 +1,10 @@
 /**
- * Seline Platform MCP Server for Claude Agent SDK
+ * Selene Platform MCP Server for Claude Agent SDK
  *
  * Creates an in-process MCP server (via createSdkMcpServer) that bridges
- * Seline's ToolRegistry and per-agent MCP servers to the Claude Agent SDK.
+ * Selene's ToolRegistry and per-agent MCP servers to the Claude Agent SDK.
  *
- * This lets the SDK agent see and call all Seline platform tools (vectorSearch,
+ * This lets the SDK agent see and call all Selene platform tools (vectorSearch,
  * memorize, runSkill, scheduleTask, etc.) and any MCP server tools configured
  * for the active agent — not just Claude Code's built-in tools.
  *
@@ -38,7 +38,7 @@ import { ToolRegistry } from "@/lib/ai/tool-registry/registry";
 import { getMCPToolsForAgent, getMCPToolId } from "@/lib/ai/tool-registry/mcp-tool-adapter";
 import { createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry/search-tool";
 import type { ToolSearchContext } from "@/lib/ai/tool-registry/search-tool";
-import type { SelineMcpContext } from "./mcp-context-store";
+import type { SeleneMcpContext } from "./mcp-context-store";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -202,7 +202,7 @@ function extractRichOutputs(result: unknown): string[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Build an in-process MCP server that exposes all Seline platform tools
+ * Build an in-process MCP server that exposes all Selene platform tools
  * available for the current agent to the Claude Agent SDK.
  *
  * Fixes applied vs previous version:
@@ -211,13 +211,13 @@ function extractRichOutputs(result: unknown): string[] {
  *  2. DEFERRED LOADING: tools with alwaysLoad=false require searchTools discovery
  *     before execution when toolLoadingMode === "deferred".
  *  3. RICH OUTPUTS: image/video URLs in tool results are forwarded to
- *     ctx.onRichOutput so the Seline UI renders media chips.
+ *     ctx.onRichOutput so the Selene UI renders media chips.
  *
  * Call this once per SDK query — the underlying MCP server is lightweight
  * (no subprocess, no network) and is garbage-collected when the query ends.
  */
-export function createSelineSdkMcpServer(
-  ctx: SelineMcpContext
+export function createSeleneSdkMcpServer(
+  ctx: SeleneMcpContext
 ): McpSdkServerConfigWithInstance {
   const registry = ToolRegistry.getInstance();
 
@@ -344,7 +344,7 @@ export function createSelineSdkMcpServer(
         },
       });
     } catch (err) {
-      console.warn(`[SelineMcpServer] Failed to instantiate tool "${name}":`, err);
+      console.warn(`[SeleneMcpServer] Failed to instantiate tool "${name}":`, err);
     }
   }
 
@@ -358,7 +358,7 @@ export function createSelineSdkMcpServer(
   try {
     mcpTools = getMCPToolsForAgent(ctx.enabledMcpServers, ctx.enabledMcpTools);
   } catch (err) {
-    console.warn("[SelineMcpServer] getMCPToolsForAgent failed, no MCP tools exposed:", err);
+    console.warn("[SeleneMcpServer] getMCPToolsForAgent failed, no MCP tools exposed:", err);
   }
 
   // Add MCP tool IDs to enabledTools so searchTools can discover them
@@ -418,7 +418,7 @@ export function createSelineSdkMcpServer(
 
   const builtInCount = sdkTools.length - mcpTools.length;
   console.log(
-    `[SelineMcpServer] Exposing ${sdkTools.length} tools to SDK agent` +
+    `[SeleneMcpServer] Exposing ${sdkTools.length} tools to SDK agent` +
     ` (${builtInCount} built-in, ${mcpTools.length} MCP)` +
     (useDeferredMode
       ? `, deferred mode: ${activatedTools.size} pre-activated`
@@ -426,7 +426,7 @@ export function createSelineSdkMcpServer(
   );
 
   return createSdkMcpServer({
-    name: "seline-platform",
+    name: "selene-platform",
     version: "1.0.0",
     tools: sdkTools,
   });

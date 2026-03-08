@@ -17,7 +17,7 @@ function loadSettings() {
   }
 
   // Try Electron user data path
-  const electronPath = path.join(os.homedir(), "AppData", "Roaming", "seline", "data", "settings.json");
+  const electronPath = path.join(os.homedir(), "AppData", "Roaming", "selene", "data", "settings.json");
   if (fs.existsSync(electronPath)) {
     console.log("Found settings at:", electronPath);
     return JSON.parse(fs.readFileSync(electronPath, "utf-8"));

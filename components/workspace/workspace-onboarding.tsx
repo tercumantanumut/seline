@@ -79,7 +79,7 @@ const STEPS = [
     visual: (
       <div className="grid grid-cols-2 gap-2">
         {[
-          { agent: "Seline", branch: "auth-refactor", status: "3 files", color: "emerald" },
+          { agent: "Selene", branch: "auth-refactor", status: "3 files", color: "emerald" },
           { agent: "CodeBot", branch: "fix-bug-123", status: "PR #67", color: "blue" },
         ].map((w) => (
           <div

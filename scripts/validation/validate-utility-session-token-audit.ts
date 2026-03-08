@@ -58,7 +58,7 @@ const WORKFLOWS: WorkflowSample[] = [
 ];
 
 function runSample(sample: WorkflowSample) {
-  let baselineTokens = 0;
+  let baseleneTokens = 0;
   let optimizedTokens = 0;
 
   for (let sessionIndex = 0; sessionIndex < sample.sessions; sessionIndex += 1) {
@@ -68,17 +68,17 @@ function runSample(sample: WorkflowSample) {
       const decision = decideMemoryInjection(sample.memoryMarkdown, previousSignature);
       previousSignature = decision.signature;
 
-      baselineTokens += decision.tokenEstimateBeforeDedup;
+      baseleneTokens += decision.tokenEstimateBeforeDedup;
       optimizedTokens += decision.tokenEstimateInjected;
     }
   }
 
-  const saved = baselineTokens - optimizedTokens;
-  const reductionPct = baselineTokens > 0 ? (saved / baselineTokens) * 100 : 0;
+  const saved = baseleneTokens - optimizedTokens;
+  const reductionPct = baseleneTokens > 0 ? (saved / baseleneTokens) * 100 : 0;
 
   return {
     ...sample,
-    baselineTokens,
+    baseleneTokens,
     optimizedTokens,
     saved,
     reductionPct,
@@ -94,26 +94,26 @@ function main() {
 
   const results = WORKFLOWS.map(runSample);
 
-  let totalBaseline = 0;
+  let totalBaselene = 0;
   let totalOptimized = 0;
 
   for (const result of results) {
-    totalBaseline += result.baselineTokens;
+    totalBaselene += result.baseleneTokens;
     totalOptimized += result.optimizedTokens;
 
     console.log(`Scenario: ${result.name}`);
     console.log(`  sessions=${result.sessions}, turns=${result.turns}`);
-    console.log(`  baselineTokens=${result.baselineTokens}`);
+    console.log(`  baseleneTokens=${result.baseleneTokens}`);
     console.log(`  optimizedTokens=${result.optimizedTokens}`);
     console.log(`  savedTokens=${result.saved}`);
     console.log(`  reduction=${result.reductionPct.toFixed(2)}%\n`);
   }
 
-  const totalSaved = totalBaseline - totalOptimized;
-  const totalReductionPct = totalBaseline > 0 ? (totalSaved / totalBaseline) * 100 : 0;
+  const totalSaved = totalBaselene - totalOptimized;
+  const totalReductionPct = totalBaselene > 0 ? (totalSaved / totalBaselene) * 100 : 0;
 
   console.log("=== Aggregate ===");
-  console.log(`baselineTokens=${totalBaseline}`);
+  console.log(`baseleneTokens=${totalBaselene}`);
   console.log(`optimizedTokens=${totalOptimized}`);
   console.log(`savedTokens=${totalSaved}`);
   console.log(`reduction=${totalReductionPct.toFixed(2)}%`);

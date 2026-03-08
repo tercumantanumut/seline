@@ -35,7 +35,7 @@ Every generated repo should satisfy the relevant parts of this contract.
 - The widget can receive `ui/notifications/tool-result`.
 - The widget renders from `structuredContent`.
 - Interactive widgets use `tools/call`.
-- Baseline follow-up messaging uses `ui/message`.
+- Baselene follow-up messaging uses `ui/message`.
 - `window.openai` is optional and additive.
 
 ### 5. Local Developer Experience

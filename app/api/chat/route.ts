@@ -79,7 +79,7 @@ import { prepareMessagesForRequest } from "./message-prep";
 import { createOnFinishCallback, createOnAbortCallback } from "./stream-callbacks";
 import { createSyncStreamingMessage } from "./streaming-progress";
 import { buildSystemPromptForRequest } from "./system-prompt-builder";
-import { mcpContextStore, type SelineMcpContext } from "@/lib/ai/providers/mcp-context-store";
+import { mcpContextStore, type SeleneMcpContext } from "@/lib/ai/providers/mcp-context-store";
 import { createSdkToolResultBridge } from "./sdk-tool-result-bridge";
 import {
   disableToolForSchemaRecovery,
@@ -462,7 +462,7 @@ export async function POST(req: Request) {
         void generateSessionTitle(sessionId, plainTextContent);
       }
 
-      // Fire-and-forget emotion detection (gated behind Seline Fun setting)
+      // Fire-and-forget emotion detection (gated behind Selene Fun setting)
       if (appSettings.emotionDetectionEnabled) {
         detectEmotion(plainTextContent, [], { conversationId: sessionId }).catch(() => {});
       }
@@ -579,7 +579,7 @@ export async function POST(req: Request) {
 
     const useDeferredLoading = toolLoadingMode !== "always";
 
-    // ── Seline MCP context for SDK agent tool exposure ─────────────────────────
+    // ── Selene MCP context for SDK agent tool exposure ─────────────────────────
     // Stored in AsyncLocalStorage so the Claude Agent SDK fetch interceptor can
     // read it without needing changes to every function signature in between.
     // Must be set AFTER buildToolsForRequest() so MCP servers are already
@@ -612,7 +612,7 @@ export async function POST(req: Request) {
     // This preserves real tool output in streaming + DB instead of placeholder stubs.
     sdkToolResultBridge = createSdkToolResultBridge();
 
-    const mcpCtx: SelineMcpContext = {
+    const mcpCtx: SeleneMcpContext = {
       userId: dbUser.id,
       sessionId,
       runId,
@@ -632,7 +632,7 @@ export async function POST(req: Request) {
       enabledMcpTools,
       alwaysLoadMcpToolIds,
       // Rich output callback: fires when an SDK MCP tool produces an image/video/etc.
-      // Wires the result into Seline's streaming state so the UI renders media chips.
+      // Wires the result into Selene's streaming state so the UI renders media chips.
       // Capture non-null references in locals so the closure has definite types.
       onRichOutput: (() => {
         const _state = streamingState;

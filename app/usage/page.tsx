@@ -62,8 +62,8 @@ function UsagePageContent() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialSessionId);
 
   useEffect(() => {
-    document.title = `${t("title")} — Seline`;
-    return () => { document.title = "Seline"; };
+    document.title = `${t("title")} — Selene`;
+    return () => { document.title = "Selene"; };
   }, [t]);
 
   useEffect(() => {
@@ -244,7 +244,7 @@ function UsagePageContent() {
                     <div className="grid gap-4 md:grid-cols-4">
                       <div className="rounded-lg border border-terminal-border bg-terminal-cream/80 p-3">
                         <p className="font-mono text-[11px] text-terminal-muted">{t("analytics.cards.tokens.title")}</p>
-                        <div className="mt-2 flex items-baseline gap-2 font-mono">
+                        <div className="mt-2 flex items-baselene gap-2 font-mono">
                           <span className="text-lg font-semibold text-terminal-dark">
                             {analytics.tokenUsage.totalTokens.toLocaleString()}
                           </span>
@@ -260,7 +260,7 @@ function UsagePageContent() {
 
                       <div className="rounded-lg border border-terminal-border bg-terminal-cream/80 p-3">
                         <p className="font-mono text-[11px] text-terminal-muted">{t("analytics.cards.cost.title")}</p>
-                        <div className="mt-2 flex items-baseline gap-2 font-mono">
+                        <div className="mt-2 flex items-baselene gap-2 font-mono">
                           <span className="text-lg font-semibold text-terminal-dark">
                             {formatUsd(analytics.cost.totalCostUsd, 4)}
                           </span>
@@ -295,7 +295,7 @@ function UsagePageContent() {
 
                       <div className="rounded-lg border border-terminal-border bg-terminal-cream/80 p-3">
                         <p className="font-mono text-[11px] text-terminal-muted">{t("analytics.cards.cache.title")}</p>
-                        <div className="mt-2 flex items-baseline gap-2 font-mono">
+                        <div className="mt-2 flex items-baselene gap-2 font-mono">
                           <span className="text-lg font-semibold text-terminal-dark">
                             {formatUsd(analytics.cache.estimatedSavingsUsd, 4)}
                           </span>

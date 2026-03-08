@@ -15,7 +15,7 @@
   },
   "onboarding": {
     "welcome": {
-      "title": "Seline'e hoş geldiniz",
+      "title": "Selene'e hoş geldiniz",
       "subtitle": "AI ajan platformunuz. Sohbet edin, oluşturun, araştırın ve otomatikleştirin — her yerde.",
       "features": {
         "agents": {
@@ -197,15 +197,15 @@
       "title": "Yolunu Sec",
       "subtitle": "Her yol farkli yetenekleri acar. Ayarlar'dan istedigin zaman degistirebilirsin.",
       "dev": {
-        "title": "Seline Dev",
+        "title": "Selene Dev",
         "tagline": "Yapay zeka es programcisiyla kod yaz"
       },
       "fun": {
-        "title": "Seline Fun",
+        "title": "Selene Fun",
         "tagline": "Kisilikli yapay zeka arkadaslari"
       },
       "work": {
-        "title": "Seline Work",
+        "title": "Selene Work",
         "tagline": "Organizasyonuz icin takim ajanlari",
         "comingSoon": "Yakinda"
       },
@@ -231,7 +231,9 @@
         "emotionDetectionDesc": "Avatar sohbet ruh haline gore tepki verir",
         "telegramToken": "Telegram bot tokeni",
         "telegramTokenPlaceholder": "@BotFather tokenini yapistir...",
-        "telegramTokenHint": "Istege bagli"
+        "telegramTokenHint": "Istege bagli",
+        "ttsAutoReply": "Her yaniti otomatik seslendir",
+        "ttsAutoReplyDesc": "Her asistan yaniti ses ciktisi icerir"
       }
     },
     "complete": {
@@ -242,7 +244,7 @@
         "chat": "Sohbete başlayın ve yetenekleri keşfedin",
         "settings": "Ayarlar'da deneyiminizi ince ayarlayın"
       },
-      "cta": "Seline'i kullanmaya başla"
+      "cta": "Selene'i kullanmaya başla"
     },
     "wizard": {
       "stepWelcome": "Hoş Geldiniz",
@@ -1214,7 +1216,7 @@
     },
     "skillsPage": {
       "title": "Beceriler",
-      "subtitle": "Seline'e süper güçler ver.",
+      "subtitle": "Selene'e süper güçler ver.",
       "learnMore": "Daha fazla bilgi",
       "refresh": "Yenile",
       "newSkill": "Yeni beceri",
@@ -2021,9 +2023,9 @@
           "placeholder": "fc-...",
           "helper": "Firecrawl ile web taraması için gerekli"
         },
-        "seline": {
-          "label": "Seline AI API Anahtarı",
-          "placeholder": "Seline AI anahtarınızı girin",
+        "selene": {
+          "label": "Selene AI API Anahtarı",
+          "placeholder": "Selene AI anahtarınızı girin",
           "helper": "Görsel/video üretimi için gerekli"
         },
         "ollama": {

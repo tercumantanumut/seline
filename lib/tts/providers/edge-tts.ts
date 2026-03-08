@@ -34,7 +34,7 @@ export class EdgeTTSProvider implements TTSProvider {
     });
 
     // Write to a temporary file, then read into buffer
-    const tempPath = join(tmpdir(), `seline-tts-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);
+    const tempPath = join(tmpdir(), `selene-tts-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);
 
     try {
       await tts.ttsPromise(options.text, tempPath);

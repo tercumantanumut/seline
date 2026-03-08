@@ -66,39 +66,39 @@ case "$STOP_REASON" in
   "completed")
     case "$PLATFORM" in
       "Darwin")
-        send_macos_notification "Seline" "✅ Task completed successfully" "Glass"
+        send_macos_notification "Selene" "✅ Task completed successfully" "Glass"
         ;;
       "Linux")
-        send_linux_notification "Seline" "✅ Task completed successfully" "normal"
+        send_linux_notification "Selene" "✅ Task completed successfully" "normal"
         ;;
       "MINGW"*|"MSYS"*|"CYGWIN"*)
-        send_windows_notification "Seline" "✅ Task completed successfully"
+        send_windows_notification "Selene" "✅ Task completed successfully"
         ;;
     esac
     ;;
   "error")
     case "$PLATFORM" in
       "Darwin")
-        send_macos_notification "Seline" "❌ Task failed with error" "Alarm"
+        send_macos_notification "Selene" "❌ Task failed with error" "Alarm"
         ;;
       "Linux")
-        send_linux_notification "Seline" "❌ Task failed with error" "critical"
+        send_linux_notification "Selene" "❌ Task failed with error" "critical"
         ;;
       "MINGW"*|"MSYS"*|"CYGWIN"*)
-        send_windows_notification "Seline" "❌ Task failed with error"
+        send_windows_notification "Selene" "❌ Task failed with error"
         ;;
     esac
     ;;
   "aborted")
     case "$PLATFORM" in
       "Darwin")
-        send_macos_notification "Seline" "⏸️  Task was aborted" "Pop"
+        send_macos_notification "Selene" "⏸️  Task was aborted" "Pop"
         ;;
       "Linux")
-        send_linux_notification "Seline" "⏸️  Task was aborted" "low"
+        send_linux_notification "Selene" "⏸️  Task was aborted" "low"
         ;;
       "MINGW"*|"MSYS"*|"CYGWIN"*)
-        send_windows_notification "Seline" "⏸️  Task was aborted"
+        send_windows_notification "Selene" "⏸️  Task was aborted"
         ;;
     esac
     ;;
@@ -106,13 +106,13 @@ case "$STOP_REASON" in
     # Unknown stop reason - send generic notification
     case "$PLATFORM" in
       "Darwin")
-        send_macos_notification "Seline" "Task finished" "Glass"
+        send_macos_notification "Selene" "Task finished" "Glass"
         ;;
       "Linux")
-        send_linux_notification "Seline" "Task finished" "normal"
+        send_linux_notification "Selene" "Task finished" "normal"
         ;;
       "MINGW"*|"MSYS"*|"CYGWIN"*)
-        send_windows_notification "Seline" "Task finished"
+        send_windows_notification "Selene" "Task finished"
         ;;
     esac
     ;;

@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>selene — local-first AI desktop</title>
+  <meta name="description" content="Local-first, open-source conversational AI. 40+ tools, multi-agent collaboration, plugin system. Privacy by default." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    :root {
+      --bg:        #080808;
+      --bg2:       #0d0d0d;
+      --surface:   #111111;
+      --surface2:  #161616;
+      --border:    #1e1e1e;
+      --border2:   #2a2a2a;
+      --teal:      #00d4aa;
+      --teal-glow: rgba(0,212,170,0.18);
+      --teal-dim:  rgba(0,212,170,0.08);
+      --green:     #28c840;
+      --text:      #ececec;
+      --text2:     #a0a0a0;
+      --muted:     #555;
+      --mono:      'JetBrains Mono', monospace;
+      --sans:      'Inter', system-ui, sans-serif;
+      --r:         10px;
+      --r-lg:      16px;
+      --ease:      cubic-bezier(0.16,1,0.3,1);
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; overflow-x: hidden; }
+
+    /* Grain */
+    body::after {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* ── NAV ─────────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2.5rem; height: 58px;
+      border-bottom: 1px solid transparent;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    nav.scrolled { background: rgba(8,8,8,0.88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom-color: var(--border); }
+    /* Progress bar */
+    #nav-progress {
+      position: fixed; top: 58px; left: 0; height: 2px; width: 100%;
+      background: var(--teal); transform: scaleX(0); transform-origin: left; z-index: 101;
+      opacity: 0.8;
+    }
+    .nav-logo {
+      font-family: var(--mono); font-size: 1.05rem; font-weight: 700;
+      color: var(--teal); text-decoration: none; letter-spacing: -0.01em;
+      display: flex; align-items: center; gap: 2px; cursor: pointer;
+    }
+    .nav-logo .cur { display: inline-block; width: 2px; height: 1em; background: var(--teal); margin-left: 1px; animation: blink 1s step-end infinite; }
+    .nav-center { display: flex; align-items: center; gap: 1.75rem; }
+    .nav-link { color: var(--muted); text-decoration: none; font-size: 0.82rem; transition: color 0.2s; }
+    .nav-link:hover, .nav-link.active { color: var(--text); }
+    .nav-right { display: flex; align-items: center; gap: 1rem; }
+    .nav-stars { display: flex; align-items: center; gap: 0.35rem; font-family: var(--mono); font-size: 0.72rem; color: var(--text2); }
+    .nav-stars svg { color: #f5c518; flex-shrink: 0; }
+    .nav-kbd { font-family: var(--mono); font-size: 0.58rem; color: var(--muted); border: 1px solid var(--border2); border-radius: 4px; padding: 0.1rem 0.35rem; margin-left: 4px; }
+
+    /* ── BUTTONS ─────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.5rem 1.1rem; border-radius: var(--r);
+      font-size: 0.85rem; font-weight: 500; font-family: var(--sans);
+      text-decoration: none; cursor: pointer; border: 1px solid transparent;
+      transition: all 0.2s; white-space: nowrap; position: relative; overflow: hidden;
+    }
+    .btn-filled { background: var(--teal); color: #000; border-color: var(--teal); font-weight: 600; }
+    .btn-filled::after {
+      content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transform: skewX(-20deg); animation: shimmer 3s ease-in-out infinite;
+    }
+    .btn-filled:hover { background: #00efbf; box-shadow: 0 0 24px rgba(0,212,170,0.4); }
+    .btn-outline { color: var(--teal); border-color: rgba(0,212,170,0.35); background: var(--teal-dim); }
+    .btn-outline:hover { border-color: var(--teal); box-shadow: 0 0 16px rgba(0,212,170,0.2); }
+    .btn-ghost { color: var(--text2); border-color: var(--border2); background: transparent; }
+    .btn-ghost:hover { color: var(--text); border-color: #3a3a3a; }
+    .btn-lg { padding: 0.75rem 1.75rem; font-size: 0.95rem; border-radius: var(--r-lg); }
+    .btn-sm { padding: 0.35rem 0.85rem; font-size: 0.8rem; }
+
+    /* ── HERO ────────────────────────────────────────────────── */
+    #hero {
+      min-height: 100vh; display: grid; grid-template-columns: 1.1fr 0.9fr;
+      align-items: center; gap: 4rem; max-width: 1200px;
+      margin: 0 auto; padding: 7rem 2.5rem 5rem;
+    }
+    .hero-left { display: flex; flex-direction: column; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--teal-dim); border: 1px solid rgba(0,212,170,0.2);
+      border-radius: 999px; padding: 0.3rem 0.85rem;
+      font-family: var(--mono); font-size: 0.72rem; color: var(--teal);
+      margin-bottom: 1.75rem; width: fit-content;
+    }
+    .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); animation: pulse-dot 2s ease-in-out infinite; }
+    .hero-h1 { font-size: clamp(2.4rem, 4.5vw, 3.8rem); font-weight: 800; line-height: 1.08; letter-spacing: -0.035em; margin-bottom: 1.25rem; }
+    .hero-h1 em { color: var(--teal); font-style: normal; }
+    /* Word clip-mask reveal */
+    .word-wrap { display: inline-block; overflow: hidden; vertical-align: bottom; }
+    .word-wrap span { display: inline-block; }
+    .hero-sub { font-size: 1.05rem; color: var(--text2); line-height: 1.7; margin-bottom: 2.25rem; max-width: 420px; }
+    .hero-ctas { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 3rem; }
+    .hero-stats { display: flex; gap: 2rem; flex-wrap: wrap; padding-top: 2rem; border-top: 1px solid var(--border); }
+    .stat { display: flex; flex-direction: column; gap: 0.1rem; }
+    .stat-n { font-family: var(--mono); font-size: 1.35rem; font-weight: 700; color: var(--text); }
+    .stat-l { font-size: 0.75rem; color: var(--muted); }
+
+    /* Hero right */
+    .hero-right { position: relative; }
+    .hero-right::before {
+      content: ''; position: absolute; top: 15%; left: 5%; right: 5%; bottom: 15%;
+      background: radial-gradient(ellipse, rgba(0,212,170,0.14) 0%, transparent 70%);
+      pointer-events: none; z-index: -1; filter: blur(50px);
+    }
+    .hero-img-wrap {
+      position: relative; border-radius: var(--r-lg); overflow: hidden;
+      border: 1px solid var(--border2);
+      box-shadow: 0 0 0 1px rgba(0,212,170,0.06), 0 40px 80px rgba(0,0,0,0.7), 0 0 120px rgba(0,212,170,0.06);
+    }
+    .hero-img-wrap img { width: 100%; height: 380px; object-fit: cover; display: block; filter: brightness(0.85) saturate(0.9); }
+    .hero-img-wrap::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(0,212,170,0.08) 0%, transparent 60%); pointer-events: none; }
+    .img-chip {
+      position: absolute; bottom: 1.25rem; left: 1.25rem;
+      background: rgba(8,8,8,0.9); backdrop-filter: blur(12px);
+      border: 1px solid var(--border2); border-radius: var(--r);
+      padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.6rem;
+    }
+    .chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s ease-in-out infinite; }
+    .chip-text { font-family: var(--mono); font-size: 0.72rem; color: var(--text2); }
+    .chip-text strong { color: var(--text); }
+    .img-chip2 {
+      position: absolute; top: 1.25rem; right: 1.25rem;
+      background: rgba(8,8,8,0.9); backdrop-filter: blur(12px);
+      border: 1px solid rgba(0,212,170,0.25); border-radius: var(--r);
+      padding: 0.5rem 0.9rem; font-family: var(--mono); font-size: 0.7rem; color: var(--teal);
+    }
+
+    /* ── SCREENSHOTS ─────────────────────────────────────────── */
+    #screenshots { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--bg2); padding: 5rem 2.5rem; overflow: hidden; }
+    .screenshots-inner { max-width: 1200px; margin: 0 auto; }
+    .screenshots-label { font-family: var(--mono); font-size: 0.72rem; color: var(--teal); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.6rem; }
+    .screenshots-title { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; letter-spacing: -0.025em; margin-bottom: 3rem; display: flex; align-items: center; gap: 0.3rem; }
+    .img-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 1rem; }
+    .img-card {
+      border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--border2);
+      position: relative; outline: 1px solid transparent;
+      transition: outline-color 0.2s, box-shadow 0.2s;
+    }
+    .img-card:hover { outline-color: rgba(0,212,170,0.45); box-shadow: 0 0 30px rgba(0,212,170,0.07); }
+    #sc1 { grid-row: span 2; }
+    .img-card img { width: 100%; height: 100%; min-height: 200px; object-fit: cover; display: block; filter: brightness(0.82) saturate(0.85); transition: filter 0.3s; }
+    .img-card:hover img { filter: brightness(0.9) saturate(1); }
+    .img-card-label {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 2.5rem 1rem 0.9rem;
+      background: linear-gradient(to top, rgba(8,8,8,0.96), transparent);
+      font-family: var(--mono); font-size: 0.78rem; color: var(--text2);
+      transition: color 0.2s, background 0.2s;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .img-card:hover .img-card-label { color: var(--teal); }
+    .label-tag { color: var(--teal); font-weight: 500; }
+    .label-arrow { opacity: 0; transform: translateX(-6px); transition: opacity 0.2s, transform 0.2s; }
+    .img-card:hover .label-arrow { opacity: 1; transform: translateX(0); }
+
+    /* ── FEATURES ────────────────────────────────────────────── */
+    #features { max-width: 1200px; margin: 0 auto; padding: 7rem 2.5rem; }
+    .features-header { margin-bottom: 3rem; }
+    .section-label { font-family: var(--mono); font-size: 0.72rem; color: var(--teal); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.6rem; }
+    .section-title { font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; }
+    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+    .card {
+      background: var(--surface); padding: 1.75rem 1.6rem;
+      position: relative; overflow: hidden; transition: background 0.25s;
+      cursor: default;
+    }
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,212,170,0.4), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .card:hover::before { opacity: 1; }
+    .card-icon-wrap {
+      width: 34px; height: 34px; border-radius: 8px;
+      background: var(--teal-dim); border: 1px solid rgba(0,212,170,0.15);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 1.1rem; transition: border-color 0.2s;
+    }
+    .card:hover .card-icon-wrap { border-color: rgba(0,212,170,0.4); }
+    .card-icon-wrap svg { color: var(--teal); opacity: 0.75; transition: opacity 0.2s; }
+    .card:hover .card-icon-wrap svg { opacity: 1; }
+    .card-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .card-body { font-size: 0.83rem; color: var(--text2); line-height: 1.65; }
+    .card-body em { color: var(--text); font-style: normal; font-weight: 500; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 1.1rem; }
+    .card-tag { font-family: var(--mono); font-size: 0.68rem; border-radius: 4px; padding: 0.15rem 0.5rem; border: 1px solid; }
+    .card-tag.teal { color: var(--teal); background: var(--teal-dim); border-color: rgba(0,212,170,0.2); }
+    .card-tag.green { color: var(--green); background: rgba(40,200,64,0.07); border-color: rgba(40,200,64,0.2); }
+    .card-tag.new { color: #f59e0b; background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.2); }
+    .card-more { font-size: 0.75rem; color: var(--teal); opacity: 0; transform: translateY(4px); transition: all 0.2s; }
+    .card:hover .card-more { opacity: 1; transform: translateY(0); }
+
+    /* ── TODAY ───────────────────────────────────────────────── */
+    #today { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 5rem 2.5rem; }
+    .today-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.2fr; gap: 3.5rem; align-items: center; }
+    .today-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--teal-dim); border: 1px solid rgba(0,212,170,0.2);
+      border-radius: 999px; padding: 0.3rem 0.9rem;
+      font-family: var(--mono); font-size: 0.72rem; color: var(--teal);
+      margin-bottom: 1.25rem; width: fit-content;
+    }
+    .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); animation: pulse-dot 2s ease-in-out infinite; flex-shrink: 0; }
+    .today-h2 { font-size: clamp(1.6rem, 2.8vw, 2.2rem); font-weight: 700; letter-spacing: -0.025em; margin-bottom: 1rem; }
+    .today-desc { color: var(--text2); font-size: 0.95rem; line-height: 1.75; margin-bottom: 1.5rem; }
+    .terminals { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2rem; }
+    .terminal-block {
+      background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r); overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .terminal-block:hover { border-color: rgba(0,212,170,0.3); box-shadow: 0 0 20px rgba(0,212,170,0.05); }
+    .terminal-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+    .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .t-dot.r { background: #ff5f57; } .t-dot.y { background: #ffbd2e; } .t-dot.g { background: var(--green); }
+    .t-name { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); margin-left: auto; }
+    .terminal-body { padding: 1rem; font-family: var(--mono); font-size: 0.76rem; line-height: 1.85; min-height: 130px; }
+    .t-line { display: block; min-height: 1.4em; }
+    .t-cmd { color: var(--teal); } .t-ok { color: var(--green); } .t-dim { color: var(--muted); } .t-txt { color: var(--text); }
+    /* Scanline on today image */
+    .today-img-wrap {
+      border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--border2);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 80px rgba(0,212,170,0.07); position: relative;
+    }
+    .today-img-wrap::before {
+      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px);
+    }
+    .today-img-wrap::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(0,212,170,0.1) 0%, transparent 50%); pointer-events: none; z-index: 2; }
+    .today-img-wrap img { width: 100%; height: 320px; object-fit: cover; filter: brightness(0.78) saturate(0.8); display: block; }
+
+    /* ── CTA ─────────────────────────────────────────────────── */
+    #cta { position: relative; overflow: hidden; padding: 9rem 2.5rem; text-align: center; }
+    #cta::before {
+      content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,212,170,0.4), transparent);
+    }
+    #cta::after {
+      content: ''; position: absolute; top: -200px; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 800px;
+      background: radial-gradient(ellipse, rgba(0,212,170,0.07) 0%, transparent 65%);
+      pointer-events: none; z-index: 0;
+      animation: glow-pulse 4s ease-in-out infinite;
+    }
+    .cta-inner { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; }
+    .cta-label { font-family: var(--mono); font-size: 0.72rem; color: var(--teal); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1rem; }
+    .cta-h2 { font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; margin-bottom: 1.25rem; }
+    .cta-h2 em { color: var(--teal); font-style: normal; }
+    .cta-sub { color: var(--text2); font-size: 1rem; margin-bottom: 2.5rem; }
+    .platform-btns { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    /* Download progress on macOS btn */
+    .btn-dl { position: relative; overflow: hidden; }
+    .btn-dl-bar { position: absolute; inset: 0; background: rgba(0,0,0,0.2); transform: scaleX(0); transform-origin: left; border-radius: inherit; pointer-events: none; }
+    .cta-fine { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+
+    /* ── FOOTER ──────────────────────────────────────────────── */
+    footer { border-top: 1px solid var(--border); padding: 2rem 2.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    .footer-logo { font-family: var(--mono); font-size: 1rem; color: var(--teal); font-weight: 700; }
+    .footer-links { display: flex; gap: 1.5rem; }
+    .footer-links a { font-size: 0.78rem; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); }
+
+    /* ── KEYFRAMES ───────────────────────────────────────────── */
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    @keyframes pulse-dot { 0%,100%{box-shadow:0 0 0 0 rgba(0,212,170,0.5)} 50%{box-shadow:0 0 0 5px rgba(0,212,170,0)} }
+    @keyframes shimmer { 0%{left:-60%} 60%,100%{left:120%} }
+    @keyframes glow-pulse { 0%,100%{opacity:1;transform:translateX(-50%) scale(1)} 50%{opacity:1.5;transform:translateX(-50%) scale(1.08)} }
+    @keyframes float-up { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+    @keyframes float-down { 0%,100%{transform:translateY(0)} 50%{transform:translateY(5px)} }
+
+    /* ── RESPONSIVE ──────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      #hero { grid-template-columns: 1fr; gap: 3rem; padding: 6rem 1.5rem 4rem; }
+      .hero-right { display: none; }
+      .today-inner { grid-template-columns: 1fr; gap: 2.5rem; }
+      .today-img-wrap { display: none; }
+      .img-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+      #sc1 { grid-row: span 1; }
+      #features, #screenshots, #today, #cta { padding: 5rem 1.5rem; }
+    }
+    @media (max-width: 640px) {
+      nav { padding: 0 1.25rem; }
+      .nav-center, .nav-stars { display: none; }
+      .cards-grid { grid-template-columns: 1fr; }
+      .terminals { grid-template-columns: 1fr; }
+      .img-grid { grid-template-columns: 1fr; }
+      .hero-stats { gap: 1.5rem; }
+      footer { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ──────────────────────────────────────────────────── -->
+<div id="nav-progress"></div>
+<nav id="nav">
+  <a href="#" class="nav-logo" id="nav-logo-link">selene<span class="cur"></span></a>
+  <div class="nav-center">
+    <a href="#features" class="nav-link" data-section="features">Features</a>
+    <a href="#today" class="nav-link" data-section="today">Today</a>
+    <a href="https://github.com/umuttan/selene" target="_blank" class="nav-link">GitHub</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-stars">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      <span id="star-count">127</span>
+    </div>
+    <a href="https://selene.diekerit.com/" target="_blank" class="btn btn-filled btn-sm" id="nav-dl-btn">
+      Download <kbd class="nav-kbd">⌘K</kbd>
+    </a>
+  </div>
+</nav>
+
+<!-- ── HERO ─────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="hero-left">
+    <div class="hero-badge" id="hero-badge">
+      <span class="dot"></span>
+      v0.2.1 — Multi-agent + Plugin system shipped
+    </div>
+    <h1 class="hero-h1" id="hero-h1">
+      <div>
+        <span class="word-wrap"><span>The</span></span>
+        <span class="word-wrap"><span> AI</span></span>
+        <span class="word-wrap"><span> that</span></span>
+        <span class="word-wrap"><span> lives</span></span>
+      </div>
+      <div>
+        <span class="word-wrap"><span>on </span></span>
+        <span class="word-wrap"><span><em>your</em></span></span>
+        <span class="word-wrap"><span> machine.</span></span>
+      </div>
+    </h1>
+    <p class="hero-sub" id="hero-sub">
+      Local-first, open-source AI desktop. 40+ tools, multi-agent collaboration,
+      drag-and-drop plugin system. No cloud. No account. No compromise.
+    </p>
+    <div class="hero-ctas" id="hero-ctas">
+      <a href="https://selene.diekerit.com/" target="_blank" class="btn btn-filled btn-lg">↓ Download free</a>
+      <a href="https://github.com/umuttan/selene" target="_blank" class="btn btn-ghost btn-lg">View on GitHub</a>
+    </div>
+    <div class="hero-stats" id="hero-stats">
+      <div class="stat"><span class="stat-n" data-count="127">127</span><span class="stat-l">GitHub stars</span></div>
+      <div class="stat"><span class="stat-n">40+</span><span class="stat-l">built-in tools</span></div>
+      <div class="stat"><span class="stat-n" data-count="116">116</span><span class="stat-l">issues closed</span></div>
+      <div class="stat"><span class="stat-n">&lt;1d</span><span class="stat-l">avg fix time</span></div>
+    </div>
+  </div>
+
+  <div class="hero-right" id="hero-right">
+    <div class="hero-img-wrap">
+      <img src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=900&q=85&auto=format&fit=crop" alt="Dark code editor" loading="eager" />
+      <div class="img-chip" id="chip1">
+        <span class="chip-dot"></span>
+        <span class="chip-text"><strong>4 agents</strong> running · local inference</span>
+      </div>
+      <div class="img-chip2" id="chip2">🔒 100% local</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SCREENSHOTS ───────────────────────────────────────────── -->
+<section id="screenshots">
+  <div class="screenshots-inner">
+    <div class="screenshots-label">// screenshots</div>
+    <h2 class="screenshots-title">Built for real work<span class="cur" style="margin-left:4px;background:var(--text);width:3px;height:0.9em;display:inline-block;vertical-align:middle;"></span></h2>
+    <div class="img-grid">
+      <div class="img-card" id="sc1">
+        <img src="https://images.unsplash.com/photo-1607799279861-4dd421887fb3?w=800&q=80&auto=format&fit=crop" alt="AI research" loading="lazy" />
+        <div class="img-card-label"><span class="label-tag">deep research</span> · 6-phase workflow <span class="label-arrow">→</span></div>
+      </div>
+      <div class="img-card" id="sc2">
+        <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=80&auto=format&fit=crop" alt="Multi-agent" loading="lazy" />
+        <div class="img-card-label"><span class="label-tag">multi-agent</span> · collaboration <span class="label-arrow">→</span></div>
+      </div>
+      <div class="img-card" id="sc3">
+        <img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80&auto=format&fit=crop" alt="Plugin system" loading="lazy" />
+        <div class="img-card-label"><span class="label-tag">plugin system</span> · drag & drop <span class="label-arrow">→</span></div>
+      </div>
+      <div class="img-card" id="sc4">
+        <img src="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&q=80&auto=format&fit=crop" alt="Vector search" loading="lazy" />
+        <div class="img-card-label"><span class="label-tag">vector search</span> · LanceDB <span class="label-arrow">→</span></div>
+      </div>
+      <div class="img-card" id="sc5">
+        <img src="https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=600&q=80&auto=format&fit=crop" alt="Local inference" loading="lazy" />
+        <div class="img-card-label"><span class="label-tag">local inference</span> · Ollama <span class="label-arrow">→</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FEATURES ──────────────────────────────────────────────── -->
+<section id="features">
+  <div class="features-header">
+    <div class="section-label">capabilities</div>
+    <h2 class="section-title">Real workflows. Not demos.</h2>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-icon-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </div>
+      <div class="card-title">Deep Research</div>
+      <div class="card-body"><em>"Competitive analysis on Notion vs Linear"</em> → 6-phase report, cited sources, in minutes.</div>
+      <div class="card-footer">
+        <span class="card-tag teal">multi-model routing</span>
+        <span class="card-more">Explore →</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-icon-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="card-title">Multi-Agent Collaboration</div>
+      <div class="card-body"><em>"Delegate to UX + code agent simultaneously"</em> → Shared context, merged results.</div>
+      <div class="card-footer">
+        <span class="card-tag new">shipped today</span>
+        <span class="card-more">Explore →</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-icon-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      </div>
+      <div class="card-title">Plugin System</div>
+      <div class="card-body"><em>"Drop a folder"</em> → Agent provisioned, skills wired, hooks scoped. Zero YAML.</div>
+      <div class="card-footer">
+        <span class="card-tag new">shipped today</span>
+        <span class="card-more">Explore →</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-icon-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 2.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></svg>
+      </div>
+      <div class="card-title">Multi-Channel Bots</div>
+      <div class="card-body"><em>"Your agent answers WhatsApp at 2am"</em> → Route messages, auto-reply, always on.</div>
+      <div class="card-footer">
+        <span class="card-tag teal">WhatsApp · Telegram · Slack</span>
+        <span class="card-more">Explore →</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-icon-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div class="card-title">Privacy First</div>
+      <div class="card-body"><em>"All inference on your machine"</em> → No cloud. No telemetry. LanceDB + Ollama.</div>
+      <div class="card-footer">
+        <span class="card-tag green">100% local</span>
+        <span class="card-more">Explore →</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-icon-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="card-title">Task Scheduler</div>
+      <div class="card-body"><em>"Run a cron every Monday 9am"</em> → Pause, resume, trigger on demand.</div>
+      <div class="card-footer">
+        <span class="card-tag teal">cron · interval · once</span>
+        <span class="card-more">Explore →</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── TODAY ─────────────────────────────────────────────────── -->
+<section id="today">
+  <div class="today-inner">
+    <div class="today-left">
+      <div class="today-badge"><span class="pulse-dot"></span> v0.2.1 · Shipped</div>
+      <h2 class="today-h2">Multi-Agent Collaboration<br>× Easy Plugin System</h2>
+      <p class="today-desc">
+        Agents now delegate to specialized sub-agents — each with their own tools, skills, and plugin scope.
+        Drop a folder → Selene auto-provisions the agent, assigns the plugin, wires skills.
+        No YAML. No config files. Just drag and drop.
+      </p>
+      <div class="terminals">
+        <div class="terminal-block">
+          <div class="terminal-header">
+            <span class="t-dot r"></span><span class="t-dot y"></span><span class="t-dot g"></span>
+            <span class="t-name">plugin-import</span>
+          </div>
+          <div class="terminal-body" id="term1">
+            <span class="t-line" id="t1l1"></span>
+            <span class="t-line" id="t1l2"></span>
+            <span class="t-line" id="t1l3"></span>
+            <span class="t-line" id="t1l4"></span>
+            <span class="t-line" id="t1l5"></span>
+            <span class="t-line" id="t1l6"></span>
+          </div>
+        </div>
+        <div class="terminal-block">
+          <div class="terminal-header">
+            <span class="t-dot r"></span><span class="t-dot y"></span><span class="t-dot g"></span>
+            <span class="t-name">multi-agent</span>
+          </div>
+          <div class="terminal-body" id="term2">
+            <span class="t-line" id="t2l1"></span>
+            <span class="t-line" id="t2l2"></span>
+            <span class="t-line" id="t2l3"></span>
+            <span class="t-line" id="t2l4"></span>
+            <span class="t-line" id="t2l5"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="today-right">
+      <div class="today-img-wrap">
+        <img src="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=800&q=80&auto=format&fit=crop" alt="AI network" loading="lazy" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ───────────────────────────────────────────────────── -->
+<section id="cta">
+  <div class="cta-inner">
+    <div class="cta-label">get started free</div>
+    <h2 class="cta-h2">Your AI. Your machine.<br><em>Your rules.</em></h2>
+    <p class="cta-sub">MIT License. No account. No subscription. Runs entirely on your hardware.</p>
+    <div class="platform-btns">
+      <a href="https://selene.diekerit.com/" target="_blank" class="btn btn-filled btn-lg btn-dl" id="btn-mac">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        macOS
+        <div class="btn-dl-bar" id="mac-bar"></div>
+      </a>
+      <a href="https://selene.diekerit.com/" target="_blank" class="btn btn-outline btn-lg">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+        Windows
+      </a>
+      <a href="https://selene.diekerit.com/" target="_blank" class="btn btn-ghost btn-lg">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 0 0 .11.135 9.976 9.976 0 0 0-.11 1.456c0 5.523 4.477 10 10 10s10-4.477 10-10c0-5.522-4.477-10-10-10zm0 1.5c4.687 0 8.5 3.813 8.5 8.5s-3.813 8.5-8.5 8.5-8.5-3.813-8.5-8.5 3.813-8.5 8.5-8.5z"/></svg>
+        Linux
+      </a>
+    </div>
+    <div class="cta-fine">selene v0.2.1 · MIT License · Open Source · Free Forever</div>
+  </div>
+</section>
+
+<!-- ── FOOTER ────────────────────────────────────────────────── -->
+<footer>
+  <span class="footer-logo">selene_</span>
+  <div class="footer-links">
+    <a href="https://github.com/umuttan/selene" target="_blank">GitHub</a>
+    <a href="https://selene.diekerit.com/" target="_blank">Download</a>
+    <a href="https://selene.diekerit.com/" target="_blank">Docs</a>
+  </div>
+  <span class="footer-copy">MIT License · Built in public · 2026</span>
+</footer>
+
+<!-- ── SCRIPT ────────────────────────────────────────────────── -->
+<script>
+gsap.registerPlugin(ScrollTrigger, TextPlugin);
+
+/* ── NAV ─────────────────────────────────────────────────────── */
+// Progress bar
+gsap.to('#nav-progress', {
+  scaleX: 1, ease: 'none',
+  scrollTrigger: { trigger: 'body', start: 'top top', end: 'bottom bottom', scrub: 0.3 }
+});
+
+// Glass on scroll
+window.addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 40);
+}, { passive: true });
+
+// Star count-up
+gsap.to({ val: 120 }, {
+  val: 127, duration: 1.5, delay: 0.5, ease: 'power2.out',
+  onUpdate: function() { document.getElementById('star-count').textContent = Math.round(this.targets()[0].val); }
+});
+
+// ⌘K shortcut
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); window.open('https://selene.diekerit.com/', '_blank'); }
+});
+
+// Active section nav highlight
+const navLinks = document.querySelectorAll('.nav-link[data-section]');
+const sections = ['features', 'today'].map(id => document.getElementById(id));
+const io = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navLinks.forEach(l => l.classList.toggle('active', l.dataset.section === entry.target.id));
+    }
+  });
+}, { threshold: 0.4 });
+sections.forEach(s => s && io.observe(s));
+
+/* ── HERO ─────────────────────────────────────────────────────── */
+// Word clip-mask reveal
+const words = document.querySelectorAll('.word-wrap span');
+gsap.set(words, { y: '110%' });
+const heroTl = gsap.timeline({ delay: 0.15 });
+heroTl
+  .from('#hero-badge', { opacity: 0, y: 16, duration: 0.5, ease: 'power2.out' })
+  .to(words, { y: '0%', stagger: 0.06, duration: 0.6, ease: 'power2.out' }, '-=0.2')
+  .from('#hero-sub', { opacity: 0, y: 20, duration: 0.5, ease: 'power2.out' }, '-=0.3')
+  .from('#hero-ctas', { opacity: 0, y: 20, duration: 0.5, ease: 'power2.out' }, '-=0.3')
+  .from('#hero-stats .stat', { opacity: 0, y: 16, stagger: 0.08, duration: 0.4, ease: 'power2.out' }, '-=0.2')
+  .from('#hero-right', { opacity: 0, x: 40, duration: 0.8, ease: 'power2.out' }, '-=0.6')
+  .from('#chip1', { opacity: 0, x: -12, duration: 0.4, ease: 'power2.out' }, '-=0.3')
+  .from('#chip2', { opacity: 0, x: 12, duration: 0.4, ease: 'power2.out' }, '-=0.35');
+
+// Chip idle float
+gsap.to('#chip1', { y: -5, repeat: -1, yoyo: true, duration: 2.5, ease: 'sine.inOut', delay: 1.5 });
+gsap.to('#chip2', { y: 5, repeat: -1, yoyo: true, duration: 2.8, ease: 'sine.inOut', delay: 1.8 });
+
+// Hero parallax
+gsap.to('#hero-right', {
+  y: '-8%', ease: 'none',
+  scrollTrigger: { trigger: '#hero', start: 'top top', end: 'bottom top', scrub: true }
+});
+
+/* ── SCREENSHOTS ─────────────────────────────────────────────── */
+gsap.from('#screenshots .screenshots-label, #screenshots .screenshots-title', {
+  opacity: 0, y: 20, stagger: 0.1, duration: 0.5, ease: 'power2.out',
+  scrollTrigger: { trigger: '#screenshots', start: 'top 85%' }
+});
+gsap.from('#sc1, #sc2, #sc3, #sc4, #sc5', {
+  opacity: 0, y: 36, stagger: { each: 0.08, from: 'start' }, duration: 0.6, ease: 'power2.out',
+  scrollTrigger: { trigger: '.img-grid', start: 'top 82%' }
+});
+
+/* ── FEATURES ────────────────────────────────────────────────── */
+gsap.from('.features-header .section-label, .features-header .section-title', {
+  opacity: 0, y: 20, stagger: 0.1, duration: 0.5, ease: 'power2.out',
+  scrollTrigger: { trigger: '#features', start: 'top 85%' }
+});
+gsap.from('.card', {
+  opacity: 0, y: 30, scale: 0.97, stagger: 0.07, duration: 0.55, ease: 'power2.out',
+  scrollTrigger: { trigger: '.cards-grid', start: 'top 80%' }
+});
+
+// Cursor-following radial glow on cards
+document.querySelectorAll('.card').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    const r = card.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    card.style.background = `radial-gradient(200px circle at ${x}px ${y}px, rgba(0,212,170,0.07), var(--surface))`;
+  });
+  card.addEventListener('mouseleave', () => { card.style.background = ''; });
+});
+
+/* ── TODAY — Typewriter terminals ────────────────────────────── */
+const term1Lines = [
+  { id: 't1l1', html: '<span class="t-cmd">$</span> <span class="t-txt">drop ./shadcn-ui-plugin/</span>' },
+  { id: 't1l2', html: '<span class="t-ok">✓</span> <span class="t-dim">Plugin detected</span>' },
+  { id: 't1l3', html: '<span class="t-ok">✓</span> <span class="t-dim">Agent provisioned: <span class="t-txt">"shadcn-ui"</span></span>' },
+  { id: 't1l4', html: '<span class="t-ok">✓</span> <span class="t-dim">Skills loaded: <span class="t-txt">12</span></span>' },
+  { id: 't1l5', html: '<span class="t-ok">✓</span> <span class="t-dim">Hooks scoped to agent</span>' },
+  { id: 't1l6', html: '<span class="t-cmd">→</span> <span class="t-txt">Ready.<span class="cur" style="background:var(--teal);width:2px;height:0.9em;display:inline-block;vertical-align:middle;margin-left:2px;"></span></span>' },
+];
+const term2Lines = [
+  { id: 't2l1', html: '<span class="t-dim">Agent: </span><span class="t-txt">Selene Architect</span>' },
+  { id: 't2l2', html: '<span class="t-cmd">→</span> <span class="t-dim">delegates → </span><span class="t-txt">UX Planner</span>' },
+  { id: 't2l3', html: '<span class="t-cmd">→</span> <span class="t-dim">delegates → </span><span class="t-txt">Code Developer</span>' },
+  { id: 't2l4', html: '<span class="t-ok">←</span> <span class="t-dim">result merged</span>' },
+  { id: 't2l5', html: '<span class="t-ok">✓</span> <span class="t-txt">Task complete<span class="cur" style="background:var(--green);width:2px;height:0.9em;display:inline-block;vertical-align:middle;margin-left:2px;"></span></span>' },
+];
+
+function typeTerminals() {
+  let delay = 0;
+  term1Lines.forEach(({ id, html }) => {
+    setTimeout(() => { document.getElementById(id).innerHTML = html; }, delay);
+    delay += 320;
+  });
+  delay += 200;
+  term2Lines.forEach(({ id, html }) => {
+    setTimeout(() => { document.getElementById(id).innerHTML = html; }, delay);
+    delay += 300;
+  });
+}
+
+let terminalFired = false;
+ScrollTrigger.create({
+  trigger: '.terminals', start: 'top 80%', once: true,
+  onEnter: () => { if (!terminalFired) { terminalFired = true; typeTerminals(); } }
+});
+
+gsap.from('.today-badge, .today-h2, .today-desc', {
+  opacity: 0, y: 28, stagger: 0.12, duration: 0.55, ease: 'power2.out',
+  scrollTrigger: { trigger: '#today', start: 'top 78%' }
+});
+gsap.from('.terminal-block', {
+  opacity: 0, y: 24, stagger: 0.15, duration: 0.5, ease: 'power2.out',
+  scrollTrigger: { trigger: '.terminals', start: 'top 82%' }
+});
+gsap.from('.today-img-wrap', {
+  opacity: 0, x: 40, duration: 0.7, ease: 'power2.out',
+  scrollTrigger: { trigger: '#today', start: 'top 75%' }
+});
+
+/* ── CTA ─────────────────────────────────────────────────────── */
+gsap.from('.cta-label, .cta-h2, .cta-sub, .platform-btns, .cta-fine', {
+  opacity: 0, y: 28, stagger: 0.1, duration: 0.55, ease: 'power2.out',
+  scrollTrigger: { trigger: '#cta', start: 'top 82%' }
+});
+
+// macOS download progress animation
+document.getElementById('btn-mac').addEventListener('click', function(e) {
+  const bar = document.getElementById('mac-bar');
+  const btn = this;
+  const orig = btn.innerHTML;
+  // Don't prevent default — let download happen
+  gsap.fromTo(bar, { scaleX: 0 }, {
+    scaleX: 1, duration: 1.4, ease: 'power1.inOut',
+    onComplete: () => {
+      gsap.to(bar, { opacity: 0, duration: 0.3 });
+    }
+  });
+});
+</script>
+</body>
+</html>

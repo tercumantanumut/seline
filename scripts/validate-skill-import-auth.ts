@@ -65,7 +65,7 @@ async function testRequireAuthWithInvalidSession() {
     // Create a mock request with invalid session cookie
     const mockRequest = new Request("http://localhost:3000/test", {
       headers: new Headers({
-        cookie: "seline-session=invalid-session-id-12345",
+        cookie: "selene-session=invalid-session-id-12345",
       }),
     });
     
