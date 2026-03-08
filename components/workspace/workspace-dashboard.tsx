@@ -307,19 +307,20 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                       <Trash2 className="h-3.5 w-3.5" />
                     )}
                   </Button>
-                  {ws.status === "pr-open" && ws.prUrl ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs font-mono text-terminal-muted hover:text-blue-600"
-                      asChild
-                    >
-                      <a href={ws.prUrl} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        {t("viewPR")}
-                      </a>
-                    </Button>
-                  ) : (
+                  <div className="flex items-center gap-1">
+                    {ws.status === "pr-open" && ws.prUrl && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs font-mono text-terminal-muted hover:text-blue-600"
+                        asChild
+                      >
+                        <a href={ws.prUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          {t("viewPR")}
+                        </a>
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -329,7 +330,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                       <Play className="h-3 w-3 mr-1" />
                       {t("continue")}
                     </Button>
-                  )}
+                  </div>
                 </div>
               </motion.div>
             );
