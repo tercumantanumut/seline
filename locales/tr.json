@@ -1565,13 +1565,14 @@
       }
     },
     "intro": {
+      "title": "Ajan Oluştur",
       "subtitle": "İşiniz veya projeleriniz için odaklanmış bir AI ajanı yapılandırın",
       "guidedCreation": "ADIM ADIM OLUŞTUR",
       "or": "veya",
       "quickCreate": "HIZLI OLUŞTUR",
       "quickPrompt": "Ajanınızın rolünü veya amacını tek cümlede açıklayın:",
       "quickPlaceholder": "SaaS ürünümüz için SSS'leri yanıtlayan ve yanıt taslakları hazırlayan müşteri destek ajanı.",
-      "back": "← Geri",
+      "back": "Geri",
       "generate": "OLUŞTUR",
       "templateCategory": "Kategori",
       "templateEmpty": "Şablon bulunamadı.",
@@ -1599,7 +1600,7 @@
       "example3": "API'leri açık ve basit bir dille açıklayan teknik yazım ajanı",
       "errorMinLength": "Lütfen ajanınızı en az 10 karakterle tanımlayın",
       "errorMaxLength": "Konsept 500 karakterden az olmalıdır",
-      "back": "← Geri",
+      "back": "Geri",
       "cmdEnter": "⌘+Enter ile gönder",
       "continue": "Devam →"
     },
@@ -1616,7 +1617,7 @@
       "errorTaglineMax": "Slogan 100 karakterden az olmalıdır",
       "errorPurposeMin": "Lütfen ajanın amacını en az 10 karakterle tanımlayın",
       "errorPurposeMax": "Amaç 1000 karakterden az olmalıdır",
-      "back": "← Geri",
+      "back": "Geri",
       "continue": "Devam →"
     },
     "capabilities": {
@@ -1739,7 +1740,7 @@
         "delegateToSubagent": "Alt Ajana Devret",
         "delegateToSubagentDesc": "Görevleri iş akışı alt ajanlarına gönder ve yanıtlarını al"
       },
-      "back": "← Geri",
+      "back": "Geri",
       "continue": "Devam →",
       "dependencyWarnings": {
         "syncedFolders": "Senkronize klasörler gerekli",
@@ -1773,7 +1774,7 @@
         "pixel": "Piksel Sanatı",
         "pixelDesc": "Retro piksel stili"
       },
-      "back": "← Geri",
+      "back": "Geri",
       "generateCharacter": "Karakter Oluştur →"
     },
     "knowledgeBase": {
@@ -1783,8 +1784,9 @@
       "orDragFiles": "veya dosyaları buraya sürükleyin",
       "supportedFormats": "PDF, TXT, Markdown, HTML desteklenir",
       "uploadedDocuments": "Yüklenen Belgeler",
+      "confirmDelete": "Onayla?",
       "skipHint": "Bu adımı atlayabilir ve belgeleri daha sonra ekleyebilirsiniz",
-      "back": "← Geri",
+      "back": "Geri",
       "continue": "Devam →",
       "skip": "Atla →"
     },
@@ -1809,7 +1811,11 @@
       "toolsEnabled": "Araçlar: {count} etkin",
       "documentsCount": "Belgeler: {count} eklendi",
       "readyToDeploy": "Dağıtıma hazır",
-      "back": "← Geri",
+      "mcpTools": "MCP Araçları",
+      "mcpServersCount": "{count, plural, =1 {# MCP sunucusu} other {# MCP sunucusu}}",
+      "mcpToolCount": "{count} araç",
+      "mcpSummary": "{servers} MCP sunucusu, {tools} araç",
+      "back": "Geri",
       "creating": "Oluşturuluyor...",
       "createAgent": "Ajan Oluştur ✓"
     },
@@ -1880,6 +1886,9 @@
       "connected": "Bağlı",
       "toolsCount": "{enabled}/{total} araç",
       "continue": "Devam",
+      "connectionError": "Bağlantı başarısız",
+      "disconnected": "bağlantı kesildi",
+      "back": "Geri",
       "loadingMode": {
         "label": "Yükleme Modu",
         "always": "Her Zaman",

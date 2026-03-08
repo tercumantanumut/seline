@@ -19,8 +19,6 @@ interface IntroPageProps {
 export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps) {
   const t = useTranslations("characterCreation.intro");
   const tc = useTranslations("common");
-  const [showSubtitle, setShowSubtitle] = useState(false);
-  const [showPrompt, setShowPrompt] = useState(false);
   const [quickDescription, setQuickDescription] = useState("");
   const [isQuickMode, setIsQuickMode] = useState(false);
   const [isElectronApp, setIsElectronApp] = useState(false);
@@ -35,17 +33,19 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
   // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && showPrompt && !isQuickMode) {
+      if (e.key === "Enter" && !isQuickMode) {
         onContinue();
       }
-      if (e.key === "Escape" && !isQuickMode && onBack) {
+      if (e.key === "Escape" && isQuickMode) {
+        setIsQuickMode(false);
+      } else if (e.key === "Escape" && !isQuickMode && onBack) {
         onBack();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showPrompt, isQuickMode, onContinue, onBack]);
+  }, [isQuickMode, onContinue, onBack]);
 
   // Focus input when quick mode is activated
   useEffect(() => {
@@ -77,7 +77,7 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
           size="lg"
           screenContent={
             <div className="flex items-center justify-center h-full">
-              <span className="text-terminal-green text-lg animate-pulse">
+              <span className="text-terminal-green text-lg animate-blink">
                 ▋
               </span>
             </div>
@@ -85,7 +85,7 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
         />
       </motion.div>
 
-      {/* Title */}
+      {/* Title & Subtitle */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -93,33 +93,43 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
           delay: prefersReducedMotion ? 0 : 0.4,
           duration: prefersReducedMotion ? 0 : 0.5,
         }}
-        onAnimationComplete={() => {
-          // Trigger subtitle after animation completes
-          setTimeout(() => setShowSubtitle(true), prefersReducedMotion ? 0 : 300);
-        }}
         className="text-center space-y-4 max-w-2xl"
       >
+        {/* Heading */}
+        <motion.h1
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            delay: prefersReducedMotion ? 0 : 0.6,
+            duration: prefersReducedMotion ? 0 : 0.5,
+          }}
+          className="text-3xl font-bold text-terminal-dark font-mono"
+        >
+          {t("title")}
+        </motion.h1>
+
         {/* Subtitle */}
-        {showSubtitle && (
-          <motion.p
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.5 }}
-            className="text-lg text-terminal-muted font-mono"
-            onAnimationComplete={() => {
-              setTimeout(() => setShowPrompt(true), prefersReducedMotion ? 0 : 500);
-            }}
-          >
-            {t("subtitle")}
-          </motion.p>
-        )}
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            delay: prefersReducedMotion ? 0 : 0.8,
+            duration: prefersReducedMotion ? 0 : 0.5,
+          }}
+          className="text-lg text-terminal-muted font-mono"
+        >
+          {t("subtitle")}
+        </motion.p>
 
         {/* Action Buttons */}
-        {showPrompt && !isQuickMode && (
+        {!isQuickMode && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
+            transition={{
+              delay: prefersReducedMotion ? 0 : 1.0,
+              duration: prefersReducedMotion ? 0 : 0.3,
+            }}
             className="pt-8 space-y-4"
           >
             {/* Main Continue Button */}
@@ -150,7 +160,7 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
         )}
 
         {/* Quick Create Input */}
-        {showPrompt && isQuickMode && (
+        {isQuickMode && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -174,9 +184,11 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
                   className="w-full pl-10 pr-4 py-3 bg-terminal-dark text-terminal-cream font-mono text-sm rounded-lg placeholder:text-terminal-cream/40 focus:outline-none focus:ring-2 focus:ring-terminal-green/50"
                   autoComplete="off"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 animate-blink text-terminal-green">
-                  ▋
-                </span>
+                {!quickDescription && (
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 animate-blink text-terminal-green pointer-events-none">
+                    ▋
+                  </span>
+                )}
               </div>
               <div className="flex items-center justify-center gap-4">
                 <button

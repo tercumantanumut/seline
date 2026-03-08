@@ -1590,13 +1590,14 @@
       }
     },
     "intro": {
+      "title": "Create an Agent",
       "subtitle": "Configure a focused AI agent for your work or projects",
       "guidedCreation": "GUIDED CREATION",
       "or": "or",
       "quickCreate": "QUICK CREATE",
       "quickPrompt": "Describe your agent's role or purpose in one sentence:",
       "quickPlaceholder": "Customer support agent for our SaaS product that answers FAQs and drafts replies.",
-      "back": "← Back",
+      "back": "Back",
       "generate": "GENERATE",
       "templateCategory": "Category",
       "templateEmpty": "No templates found.",
@@ -1624,7 +1625,7 @@
       "example3": "Technical writing agent that explains APIs in clear, simple language",
       "errorMinLength": "Please describe your agent in at least 10 characters",
       "errorMaxLength": "Concept must be less than 500 characters",
-      "back": "← Back",
+      "back": "Back",
       "cmdEnter": "⌘+Enter to submit",
       "continue": "Continue →"
     },
@@ -1641,7 +1642,7 @@
       "errorTaglineMax": "Tagline must be less than 100 characters",
       "errorPurposeMin": "Please describe the agent's purpose in at least 10 characters",
       "errorPurposeMax": "Purpose must be less than 1000 characters",
-      "back": "← Back",
+      "back": "Back",
       "continue": "Continue →"
     },
     "capabilities": {
@@ -1776,7 +1777,7 @@
         "localGrepEnabled": "Requires Local Grep enabled",
         "devWorkspaceEnabled": "Requires Developer Workspace enabled"
       },
-      "back": "← Back",
+      "back": "Back",
       "continue": "Continue →"
     },
     "embeddingSetup": {
@@ -1816,6 +1817,9 @@
       "connected": "Connected",
       "toolsCount": "{enabled}/{total} tools",
       "continue": "Continue",
+      "connectionError": "Connection failed",
+      "disconnected": "disconnected",
+      "back": "Back",
       "loadingMode": {
         "label": "Loading Mode",
         "always": "Always",
@@ -1841,7 +1845,7 @@
         "pixel": "Pixel Art",
         "pixelDesc": "Retro pixel style"
       },
-      "back": "← Back",
+      "back": "Back",
       "generateCharacter": "Generate Character →"
     },
     "knowledgeBase": {
@@ -1851,8 +1855,9 @@
       "orDragFiles": "or drag files here",
       "supportedFormats": "Supports PDF, TXT, Markdown, HTML",
       "uploadedDocuments": "Uploaded Documents",
+      "confirmDelete": "Confirm?",
       "skipHint": "You can skip this step and add documents later",
-      "back": "← Back",
+      "back": "Back",
       "continue": "Continue →",
       "skip": "Skip →"
     },
@@ -1877,7 +1882,11 @@
       "toolsEnabled": "Tools: {count} enabled",
       "documentsCount": "Documents: {count} attached",
       "readyToDeploy": "Ready to deploy",
-      "back": "← Back",
+      "mcpTools": "MCP Tools",
+      "mcpServersCount": "{count, plural, =1 {# MCP server} other {# MCP servers}}",
+      "mcpToolCount": "{count} tools",
+      "mcpSummary": "{servers} MCP servers, {tools} tools",
+      "back": "Back",
       "creating": "Creating...",
       "createAgent": "Create Agent ✓"
     },

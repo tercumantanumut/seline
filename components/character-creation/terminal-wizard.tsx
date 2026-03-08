@@ -426,6 +426,8 @@ export function TerminalWizard() {
                 identity={state.identity}
                 enabledTools={state.enabledTools}
                 documents={state.documents}
+                enabledMcpServers={state.enabledMcpServers}
+                enabledMcpTools={state.enabledMcpTools}
                 onConfirm={handleFinalizeAgent}
                 onBack={() => navigateTo(hasMcpServers === false ? "capabilities" : "mcpTools", -1)}
                 isSubmitting={isSubmitting}

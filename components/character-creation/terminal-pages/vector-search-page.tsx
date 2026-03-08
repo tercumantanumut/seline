@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useReducedMotion } from "../hooks/use-reduced-motion";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
-import { DatabaseIcon, ArrowLeftIcon, ArrowRightIcon, SkipForwardIcon } from "lucide-react";
+import { DatabaseIcon, ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface VectorSearchPageProps {
@@ -12,7 +12,8 @@ interface VectorSearchPageProps {
   agentName: string;
   onSubmit: () => void;
   onBack: () => void;
-  onSkip: () => void;
+  /** @deprecated Skip button removed - onSubmit handles both cases. Kept for backward compatibility. */
+  onSkip?: () => void;
 }
 
 export function VectorSearchPage({
@@ -20,7 +21,6 @@ export function VectorSearchPage({
   agentName,
   onSubmit,
   onBack,
-  onSkip,
 }: VectorSearchPageProps) {
   const t = useTranslations("characterCreation.vectorSearchPage");
   const [showContent, setShowContent] = useState(false);
@@ -58,12 +58,12 @@ export function VectorSearchPage({
             <DatabaseIcon className="w-5 h-5 text-terminal-green" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-terminal-muted uppercase tracking-wide">{t("step")}</span>
-              <h2 className="font-mono font-semibold text-terminal-dark">{t("title")}</h2>
-            </div>
+            <h2 className="font-mono font-semibold text-terminal-dark">{t("title")}</h2>
             <p className="text-sm text-terminal-muted font-mono">
               {t("description", { agentName })}
+            </p>
+            <p className="text-xs text-terminal-dark/50 font-mono mt-1">
+              Sync folders from your file system so your agent can search their contents. Files are indexed locally for fast retrieval.
             </p>
           </div>
         </motion.div>
@@ -92,13 +92,6 @@ export function VectorSearchPage({
               </button>
 
               <div className="flex gap-3 order-1 sm:order-2">
-                <button
-                  onClick={onSkip}
-                  className="flex items-center gap-2 font-mono text-terminal-muted hover:text-terminal-dark transition-colors"
-                >
-                  <SkipForwardIcon className="w-4 h-4" />
-                  {t("skip")}
-                </button>
                 <button
                   onClick={onSubmit}
                   className="flex items-center gap-2 px-4 py-2 bg-terminal-green text-white font-mono rounded hover:bg-terminal-green/90 transition-colors"
