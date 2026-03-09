@@ -302,8 +302,11 @@ export function summarizeToolOutputByName(toolName: string, value: unknown): str
   const MAX = 140;
 
   switch (toolName) {
+    case "Read":
     case "readFile": {
-      const fp = typeof record.filePath === "string" ? record.filePath : undefined;
+      const fp = typeof record.filePath === "string" ? record.filePath
+        : typeof record.file_path === "string" ? (record.file_path as string)
+        : undefined;
       const fileName = fp ? (fp.split("/").pop() || fp) : undefined;
       const lines = typeof record.totalLines === "number" ? record.totalLines : undefined;
       const lang = typeof record.language === "string" ? record.language : undefined;
@@ -314,22 +317,36 @@ export function summarizeToolOutputByName(toolName: string, value: unknown): str
       if (record.truncated) parts.push("truncated");
       return parts.length > 0 ? parts.join(", ") : summarizeToolOutput(value);
     }
+    case "Edit":
     case "editFile": {
-      const fp = typeof record.filePath === "string" ? record.filePath : undefined;
+      const fp = typeof record.filePath === "string" ? record.filePath
+        : typeof record.file_path === "string" ? (record.file_path as string)
+        : undefined;
       const fileName = fp ? (fp.split("/").pop() || fp) : undefined;
       if (fileName) {
-        const changed = typeof record.linesChanged === "number" ? `, ${record.linesChanged} lines changed` : "";
-        return `${fileName}${changed}`;
+        const changed = typeof record.linesChanged === "number" ? record.linesChanged
+          : typeof record.lines_changed === "number" ? (record.lines_changed as number)
+          : undefined;
+        const changedSuffix = changed !== undefined ? `, ${changed} lines changed` : "";
+        return `${fileName}${changedSuffix}`;
       }
       return summarizeToolOutput(value);
     }
+    case "Write":
     case "writeFile": {
-      const fp = typeof record.filePath === "string" ? record.filePath : undefined;
+      const fp = typeof record.filePath === "string" ? record.filePath
+        : typeof record.file_path === "string" ? (record.file_path as string)
+        : undefined;
       return fp ? (fp.split("/").pop() || fp) : summarizeToolOutput(value);
     }
+    case "Grep":
     case "localGrep": {
-      const count = typeof record.matchCount === "number" ? record.matchCount : undefined;
-      const total = typeof record.totalMatchCount === "number" ? record.totalMatchCount : undefined;
+      const count = typeof record.matchCount === "number" ? record.matchCount
+        : typeof record.match_count === "number" ? (record.match_count as number)
+        : undefined;
+      const total = typeof record.totalMatchCount === "number" ? record.totalMatchCount
+        : typeof record.total_match_count === "number" ? (record.total_match_count as number)
+        : undefined;
       const pattern = typeof record.pattern === "string" ? record.pattern : undefined;
       if (count !== undefined && pattern) {
         const countText = total && total > count ? `${count} of ${total}` : `${count}`;
@@ -337,12 +354,21 @@ export function summarizeToolOutputByName(toolName: string, value: unknown): str
       }
       return summarizeToolOutput(value);
     }
+    case "Glob": {
+      const matches = Array.isArray(record.matches) ? record.matches
+        : Array.isArray(record.result) ? record.result
+        : undefined;
+      if (matches) return `${matches.length} file${matches.length === 1 ? "" : "s"} matched`;
+      return summarizeToolOutput(value);
+    }
+    case "WebSearch":
     case "webSearch": {
-      if (typeof record.answer === "string") return summarizeString(record.answer, MAX);
+      if (typeof record.answer === "string" && record.answer.trim()) return summarizeString(record.answer.trim(), MAX);
       const sources = Array.isArray(record.sources) ? record.sources : [];
       if (sources.length > 0) return `${sources.length} source${sources.length === 1 ? "" : "s"} found`;
       return summarizeToolOutput(value);
     }
+    case "Bash":
     case "executeCommand": {
       if (typeof record.stdout === "string" && record.stdout.trim()) {
         return summarizeString(record.stdout.trim(), MAX);
@@ -350,9 +376,23 @@ export function summarizeToolOutputByName(toolName: string, value: unknown): str
       if (typeof record.stderr === "string" && record.stderr.trim()) {
         return summarizeString(record.stderr.trim(), MAX);
       }
-      const exit = typeof record.exitCode === "number" ? record.exitCode : null;
+      const exit = typeof record.exitCode === "number" ? record.exitCode
+        : typeof record.exit_code === "number" ? (record.exit_code as number)
+        : null;
       if (exit !== null) return exit === 0 ? "Completed successfully" : `Exit code ${exit}`;
       return summarizeToolOutput(value);
+    }
+    case "Agent": {
+      if (typeof record.description === "string" && record.description.trim()) {
+        return summarizeString(record.description.trim(), MAX);
+      }
+      return summarizeToolOutput(value);
+    }
+    case "NotebookEdit": {
+      const fp = typeof record.notebook_path === "string" ? record.notebook_path
+        : typeof record.notebookPath === "string" ? (record.notebookPath as string)
+        : undefined;
+      return fp ? (fp.split("/").pop() || fp) : summarizeToolOutput(value);
     }
     case "searchTools": {
       const results = Array.isArray(record.results) ? record.results : [];

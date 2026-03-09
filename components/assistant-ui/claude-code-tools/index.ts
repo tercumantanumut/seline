@@ -11,9 +11,7 @@ export { ClaudeNotebookEditToolUI } from "./claude-notebook-tool-ui";
 export {
   ClaudeTodoWriteToolUI,
   ClaudeEnterPlanModeToolUI,
-  ClaudeExitPlanModeToolUI,
   ClaudeEnterWorktreeToolUI,
-  ClaudeAskUserQuestionToolUI,
   ClaudeSkillToolUI,
   ClaudeTaskOutputToolUI,
   ClaudeTaskStopToolUI,
