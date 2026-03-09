@@ -192,7 +192,7 @@ export function SidebarCharacterProfile({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="absolute top-2 right-2 rounded-md p-1 opacity-0 transition-opacity hover:bg-terminal-dark/10 group-hover/card:opacity-60 hover:!opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green focus-visible:ring-offset-1 focus-visible:ring-offset-terminal-cream"
+                className="absolute top-2 right-2 rounded-md p-1 opacity-40 transition-opacity hover:bg-terminal-dark/10 hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green focus-visible:ring-offset-1 focus-visible:ring-offset-terminal-cream"
                 aria-label={`Agent options for ${character.displayName || character.name}`}
               >
                 <MoreHorizontal className="w-4 h-4 text-terminal-muted" />

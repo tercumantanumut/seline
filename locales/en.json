@@ -923,6 +923,7 @@
     },
     "queue": {
       "messagesQueued": "{count} message{count, plural, one {} other {s}} queued",
+      "messagesInjected": "{count} message{count, plural, one {} other {s}} injected",
       "backgroundHint": "Queued until the background task completes"
     },
     "enhance": {
