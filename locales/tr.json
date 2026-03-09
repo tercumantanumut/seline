@@ -2637,10 +2637,31 @@
           "name": "Assistant UI Belgeleri",
           "description": "Assistant UI belgelerinde ara"
         },
+        "coda": {
+          "name": "Coda",
+          "description": "Coda dokümanları, sayfaları ve tabloları oluştur ve yönet",
+          "setup": "API anahtarınızı https://coda.io/account → API ayarları bölümünden alın."
+        },
         "everything": {
           "name": "Everything",
           "description": "Pek çok örnek aracı olan örnek sunucu"
         }
+      },
+      "templateAlreadyInstalled": "{name} zaten yüklü. Varsayılan ayarlarla yeniden yüklensin mi?",
+      "installedBadge": "Yüklü",
+      "envDialog": {
+        "title": "{name} Yapılandır",
+        "description": "API kimlik bilgilerinizi aşağıya yapıştırın. Bunlar yerel olarak saklanır ve hizmetle kimlik doğrulama için kullanılır.",
+        "envLabel": "Gerekli kimlik bilgileri",
+        "placeholder": "{key} değerini buraya yapıştırın",
+        "existingPlaceholder": "Mevcut değeri korumak için boş bırakın",
+        "alreadyConfigured": "zaten yapılandırılmış",
+        "getKey": "Anahtar al",
+        "setupHint": "Kurulum:",
+        "install": "Yükle ve Bağlan",
+        "cancel": "İptal",
+        "missingValues": "Devam etmek için tüm gerekli değerleri doldurun.",
+        "allFilled": "Yüklemeye hazır."
       }
     }
   },
