@@ -5,6 +5,7 @@ import {
     hasRequiredApiKeys,
 } from "@/lib/settings/settings-manager";
 import { invalidateProviderCache } from "@/lib/ai/providers";
+import { getClaudeCodeAuthState, getClaudeCodeAuthStatus } from "@/lib/auth/claudecode-auth";
 
 const VALID_LLM_PROVIDERS = new Set([
     "anthropic",
@@ -27,7 +28,19 @@ function clearProviderBoundModels(settings: ReturnType<typeof loadSettings>) {
     settings.utilityModel = "";
 }
 
-function detectMissingProvider(settings: ReturnType<typeof loadSettings>): "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "claudecode" | null {
+async function detectMissingProvider(settings: ReturnType<typeof loadSettings>): Promise<"anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "claudecode" | null> {
+    if (settings.llmProvider === "claudecode") {
+        const cachedState = getClaudeCodeAuthState();
+        if (cachedState.isAuthenticated || settings.claudecodeAuth?.isAuthenticated) {
+            return null;
+        }
+
+        const status = await getClaudeCodeAuthStatus();
+        if (status.authenticated) {
+            return null;
+        }
+    }
+
     if (!hasRequiredApiKeys()) {
         if (settings.llmProvider === "anthropic") return "anthropic";
         if (settings.llmProvider === "openrouter") return "openrouter";
@@ -136,7 +149,7 @@ function applyOnboardingPreferences(settings: ReturnType<typeof loadSettings>, b
  */
 export async function GET() {
     const settings = loadSettings();
-    const missingProvider = detectMissingProvider(settings);
+    const missingProvider = await detectMissingProvider(settings);
 
     return NextResponse.json({
         isComplete: settings.onboardingComplete === true,

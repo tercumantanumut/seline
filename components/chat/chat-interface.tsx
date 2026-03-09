@@ -589,7 +589,9 @@ export default function ChatInterface({
             }
 
             const resumedForegroundRunId =
-                !isForegroundStreamingRef.current && data.hasActiveRun
+                !isForegroundStreamingRef.current &&
+                data.hasActiveRun &&
+                data.hasInteractiveWait !== true
                     ? data.runId ?? null
                     : null;
 

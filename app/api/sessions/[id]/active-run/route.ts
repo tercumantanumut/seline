@@ -4,6 +4,7 @@ import { listAgentRunsBySession, completeAgentRun } from "@/lib/observability/qu
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { isStale } from "@/lib/utils/timestamp";
+import { hasPendingInteractiveWait } from "@/lib/interactive-tool-bridge";
 
 function isBackgroundChatRun(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== "object") return false;
@@ -59,12 +60,15 @@ export async function GET(req: Request, { params }: RouteParams) {
       ? latestDeepResearchRun.metadata as Record<string, unknown>
       : {};
 
+    const hasInteractiveWait = hasPendingInteractiveWait(sessionId);
+
     if (!activeForegroundChatRun) {
       return NextResponse.json({
         hasActiveRun: false,
         runId: null,
         pipelineName: null,
         startedAt: null,
+        hasInteractiveWait,
         latestDeepResearchRunId: latestDeepResearchRun?.id ?? null,
         latestDeepResearchStatus: latestDeepResearchRun?.status ?? null,
         latestDeepResearchState: latestDeepResearchMetadata.deepResearchState ?? null,
@@ -76,6 +80,7 @@ export async function GET(req: Request, { params }: RouteParams) {
       runId: activeForegroundChatRun.id,
       pipelineName: activeForegroundChatRun.pipelineName,
       startedAt: activeForegroundChatRun.startedAt,
+      hasInteractiveWait,
       latestDeepResearchRunId: latestDeepResearchRun?.id ?? null,
       latestDeepResearchStatus: latestDeepResearchRun?.status ?? null,
       latestDeepResearchState: latestDeepResearchMetadata.deepResearchState ?? null,
