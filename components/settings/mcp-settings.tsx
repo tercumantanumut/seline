@@ -98,7 +98,7 @@ export function MCPSettings() {
         setIsLoading(false);
     };
 
-    const saveAll = async (updatedServers = mcpServers, updatedEnv = environment) => {
+    const saveAll = async (updatedServers = mcpServers, updatedEnv = environment): Promise<boolean> => {
         setIsSaving(true);
         const { error } = await resilientPut("/api/mcp", {
             mcpServers: { mcpServers: updatedServers },
@@ -109,11 +109,14 @@ export function MCPSettings() {
             setRawJson(JSON.stringify({ mcpServers: updatedServers }, null, 2));
             setEnvironment(updatedEnv);
             toast.success(t("saved"));
+            setIsSaving(false);
+            return true;
         } else {
             console.error("Failed to save MCP config:", error);
             toast.error(t("saveFailed"));
+            setIsSaving(false);
+            return false;
         }
-        setIsSaving(false);
     };
 
     const connectServer = async (serverName: string) => {
@@ -178,8 +181,9 @@ export function MCPSettings() {
 
         // No env vars needed (or all already filled) -- install directly
         const updatedServers = { ...mcpServers, [template.id]: template.config };
-        await saveAll(updatedServers);
-        toast.success(t("templateAdded", { name: template.name }));
+        if (await saveAll(updatedServers)) {
+            toast.success(t("templateAdded", { name: template.name }));
+        }
     };
 
     /** Called by the env dialog after the user fills in credentials */
@@ -192,9 +196,12 @@ export function MCPSettings() {
         // Add server config
         const updatedServers = { ...mcpServers, [template.id]: template.config };
         // Save both at once
-        await saveAll(updatedServers, updatedEnv);
-        setPendingTemplate(null);
-        toast.success(t("templateAdded", { name: template.name }));
+        if (await saveAll(updatedServers, updatedEnv)) {
+            setPendingTemplate(null);
+            toast.success(t("templateAdded", { name: template.name }));
+        } else {
+            throw new Error(t("saveFailed"));
+        }
     };
 
     const handleDeleteServer = async (serverName: string) => {

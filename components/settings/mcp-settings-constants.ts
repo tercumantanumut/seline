@@ -124,9 +124,9 @@ export const PREBUILT_TEMPLATES: MCPTemplate[] = [
     config: {
       command: "npx",
       args: ["-y", "coda-mcp@latest"],
-      env: { CODA_API_KEY: "" },
+      env: { API_KEY: "" },
     },
-    requiredEnv: ["CODA_API_KEY"],
+    requiredEnv: ["API_KEY"],
     setupInstructions:
       "Get your API key from https://coda.io/account → API settings.",
     difficulty: "Easy",
