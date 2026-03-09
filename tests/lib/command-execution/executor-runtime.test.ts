@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/shell-env/resolver", () => ({
     getResolvedShellEnvironment: vi.fn(() => ({})),
@@ -19,9 +19,16 @@ const baseRuntime: BundledRuntimeInfo = {
 };
 
 describe("buildSafeEnvironment", () => {
+    const originalEnv = process.env;
+
     beforeEach(() => {
         vi.clearAllMocks();
+        process.env = { ...originalEnv };
         vi.mocked(shellEnvResolver.getResolvedShellEnvironment).mockReturnValue({});
+    });
+
+    afterEach(() => {
+        process.env = originalEnv;
     });
 
     it("merges resolved shell environment over process.env", () => {
@@ -75,6 +82,30 @@ describe("buildSafeEnvironment", () => {
 
         expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
         expect(env.ELECTRON_NO_ATTACH_CONSOLE).toBeUndefined();
+        expect(env.SAFE_KEY).toBe("ok");
+    });
+
+    it("removes runtime identity vars inherited from the app process", () => {
+        process.env.NODE_ENV = "production";
+        process.env.SELENE_PRODUCTION_BUILD = "1";
+
+        const env = buildSafeEnvironment(baseRuntime);
+
+        expect(env.NODE_ENV).toBeUndefined();
+        expect(env.SELENE_PRODUCTION_BUILD).toBeUndefined();
+    });
+
+    it("removes runtime identity vars resolved from the login shell", () => {
+        vi.mocked(shellEnvResolver.getResolvedShellEnvironment).mockReturnValue({
+            NODE_ENV: "production",
+            SELENE_PRODUCTION_BUILD: "1",
+            SAFE_KEY: "ok",
+        });
+
+        const env = buildSafeEnvironment(baseRuntime);
+
+        expect(env.NODE_ENV).toBeUndefined();
+        expect(env.SELENE_PRODUCTION_BUILD).toBeUndefined();
         expect(env.SAFE_KEY).toBe("ok");
     });
 });
