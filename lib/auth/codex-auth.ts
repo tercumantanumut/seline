@@ -28,7 +28,6 @@ export const CODEX_CONFIG = {
   API_PATH: "/codex/responses",
   REFRESH_THRESHOLD_MS: 15 * 60 * 1000,
   HEADERS: {
-    "OpenAI-Beta": "responses=experimental",
     originator: "codex_cli_rs",
   } as const,
   JWT_CLAIM_PATH: "https://api.openai.com/auth",
