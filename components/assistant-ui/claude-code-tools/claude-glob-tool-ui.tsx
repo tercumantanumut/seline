@@ -87,7 +87,7 @@ export const ClaudeGlobToolUI: ToolCallContentPartComponent = ({ args, result })
         {!StatusIcon && <div className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-terminal-muted animate-pulse" />}
         <SearchIcon className="h-3 w-3 shrink-0 text-terminal-muted" />
         <span className="text-terminal-muted">{isRunning ? "Finding..." : hasError ? "Find failed" : "Find"}</span>
-        <span className="font-medium text-terminal-dark truncate">{pattern}</span>
+        <span className="font-medium text-terminal-dark truncate min-w-0 flex-1" title={pattern}>{pattern}</span>
 
         {!isRunning && !hasError && fileCount > 0 && (
           <span className="text-terminal-muted ml-auto shrink-0">

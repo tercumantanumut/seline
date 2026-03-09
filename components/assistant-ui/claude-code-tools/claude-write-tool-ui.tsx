@@ -97,7 +97,7 @@ export const ClaudeWriteToolUI: ToolCallContentPartComponent = ({ args, result }
         <span className="text-terminal-muted">
           {isRunning ? "Writing..." : hasError ? "Write failed" : "Wrote"}
         </span>
-        <span className="font-medium text-terminal-dark truncate">{fileName}</span>
+        <span className="font-medium text-terminal-dark truncate min-w-0 flex-1" title={filePath || fileName}>{fileName}</span>
 
         {lineCount > 0 && (
           <span className="text-terminal-muted ml-auto shrink-0">

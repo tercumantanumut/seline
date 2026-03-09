@@ -120,7 +120,7 @@ export const ClaudeEditToolUI: ToolCallContentPartComponent = ({ args, result })
         {!StatusIcon && <div className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-terminal-muted animate-pulse" />}
         <ActionIcon className="h-3 w-3 shrink-0 text-terminal-muted" />
         <span className="text-terminal-muted">{getActionLabel()}</span>
-        <span className="font-medium text-terminal-dark truncate">{fileName}</span>
+        <span className="font-medium text-terminal-dark truncate min-w-0 flex-1" title={filePath || fileName}>{fileName}</span>
 
         {(additions > 0 || removals > 0) && (
           <span className="ml-auto shrink-0 text-terminal-muted">

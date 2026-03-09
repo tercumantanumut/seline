@@ -16,7 +16,7 @@ import { useToolExpansion } from "./tool-expansion-context";
 import {
   getFallbackToolPhase,
   summarizeToolInputByName,
-  summarizeToolOutput,
+  summarizeToolOutputByName,
   useLiveToolStatuses,
   type LiveToolPhase,
 } from "./tool-live-status";
@@ -242,7 +242,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       const phase = liveStatus?.phase ?? getFallbackToolPhase(part.result, canonicalStatus === "running");
       const detail = liveStatus?.detail;
       const inputPreview = liveStatus?.argsPreview ?? summarizeToolInputByName(canonicalToolName, partLike.input ?? partLike.args ?? partLike.argsText);
-      const outputPreview = liveStatus?.outputPreview ?? summarizeToolOutput(part.result);
+      const outputPreview = liveStatus?.outputPreview ?? summarizeToolOutputByName(canonicalToolName, part.result);
 
       return {
         key: partLike.toolCallId ?? `${part.toolName}-${index}`,
