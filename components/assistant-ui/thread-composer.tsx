@@ -962,7 +962,9 @@ export const Composer: FC<{
         <div className="mb-2 flex flex-col gap-1">
           <div className="text-xs text-terminal-muted font-mono flex items-center gap-1">
             <ClockIcon className="size-3" />
-            {t("queue.messagesQueued", { count: queuedMessages.length })}
+            {queuedMessages.every(m => m.status === "injected-live")
+              ? t("queue.messagesInjected", { count: queuedMessages.length })
+              : t("queue.messagesQueued", { count: queuedMessages.length })}
           </div>
           {isBackgroundTaskRunning && (
             <div className="text-[11px] text-terminal-muted/80 font-mono">{t("queue.backgroundHint")}</div>
@@ -974,7 +976,7 @@ export const Composer: FC<{
                 className={cn(
                   "flex items-center gap-1 rounded px-2 py-1 text-xs font-mono",
                   msg.status === "injected-live"
-                    ? "bg-green-100/30 text-green-700 border border-green-300/40"
+                    ? "bg-terminal-dark/10 text-terminal-muted border border-terminal-dark/20"
                     : msg.status === "queued-live"
                     ? "bg-yellow-50/30 text-yellow-700 border border-yellow-300/40"
                     : msg.status === "fallback"
@@ -983,7 +985,7 @@ export const Composer: FC<{
                 )}
               >
                 {msg.status === "injected-live" && (
-                  <CheckCircleIcon className="size-3 shrink-0 text-green-600" />
+                  <CheckCircleIcon className="size-3 shrink-0 text-terminal-muted" />
                 )}
                 {msg.status === "queued-live" && (
                   <Loader2Icon className="size-3 shrink-0 animate-spin" />

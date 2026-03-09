@@ -115,6 +115,7 @@
       "connecting": "Bağlanılıyor...",
       "signInOpenAI": "OpenAI ile giriş yap",
       "signInAnthropic": "Anthropic ile giriş yap",
+      "claudecodeLoginHint": "Burada giriş yapmadan önce cihazınızda Claude Code'a giriş yaptığınızdan emin olun.",
       "apiKeySaved": "API Anahtarı kaydedildi!",
       "saving": "Kaydediliyor...",
       "saveApiKey": "API Anahtarını Kaydet",
@@ -923,6 +924,7 @@
     },
     "queue": {
       "messagesQueued": "{count} mesaj sırada",
+      "messagesInjected": "{count} mesaj iletildi",
       "backgroundHint": "Arka plan görevi tamamlanana kadar sıraya alındı"
     },
     "enhance": {
@@ -1976,6 +1978,8 @@
         "signInOpenAI": "OpenAI ile giriş yap",
         "claudecodeTitle": "Claude Code",
         "claudecodeDesc": "Claude Code modellerini kullanmak için Anthropic hesabınızı bağlayın.",
+        "claudecodeWarning": "Yalnızca kişisel kullanım — ticari kullanım için değil",
+        "claudecodeLoginHint": "Burada giriş yapmadan önce cihazınızda Claude Code'a giriş yaptığınızdan emin olun.",
         "signInAnthropic": "Anthropic ile giriş yap",
         "authFlowTitle": "Kimlik Doğrulamayı Tamamla",
         "authStep1": "Anthropic kimlik doğrulama sayfası ile bir tarayıcı penceresi açıldı",

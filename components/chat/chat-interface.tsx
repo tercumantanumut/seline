@@ -238,6 +238,7 @@ const StreamingAutoSpeakBridge: FC<{
         return () => {
             lifecycle.cancel();
             lifecycleRef.current = null;
+            cancelAudio?.();
             queue.cancel();
             queueRef.current = null;
             splitter.reset();

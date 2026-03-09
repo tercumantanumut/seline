@@ -4,6 +4,7 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { CommandOutput } from "@/components/ui/command-output";
 import { useToolExpansion } from "../tool-expansion-context";
+import { parseTextResult } from "./parse-text-result";
 
 type ToolCallContentPartComponent = FC<{
   toolName: string;
@@ -16,24 +17,6 @@ type ToolCallContentPartComponent = FC<{
   };
   result?: unknown;
 }>;
-
-function parseTextResult(result: unknown): string | undefined {
-  if (!result) return undefined;
-  if (typeof result === "string") return result;
-  if (typeof result === "object") {
-    const r = result as Record<string, unknown>;
-    if (Array.isArray(r.content)) {
-      const textItem = r.content.find(
-        (item: unknown) =>
-          item && typeof item === "object" && (item as { type?: string }).type === "text"
-      ) as { text?: string } | undefined;
-      if (textItem?.text) return textItem.text;
-    }
-    if (typeof r.text === "string") return r.text;
-    if (typeof r.stdout === "string") return r.stdout;
-  }
-  return undefined;
-}
 
 function isErrorResult(result: unknown): boolean {
   if (!result) return false;

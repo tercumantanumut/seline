@@ -388,6 +388,31 @@ for (const pkg of devOnlyPackages) {
     }
 }
 
+// 10c. Clean up broken symlinks in Turbopack external module wrappers (.next/node_modules)
+// Turbopack creates symlinks like webpack-<hash> → ../../node_modules/webpack for
+// serverExternalPackages. After step 10b removes dev packages (webpack, etc.), these
+// symlinks become dangling. Broken symlinks cause codesign to fail with ENOENT during
+// Electron packaging on macOS.
+console.log('Cleaning up broken symlinks in standalone .next/node_modules...');
+const turbopackNodeModules = path.join(standaloneDir, '.next', 'node_modules');
+if (fs.existsSync(turbopackNodeModules)) {
+    for (const entry of fs.readdirSync(turbopackNodeModules)) {
+        const entryPath = path.join(turbopackNodeModules, entry);
+        try {
+            const stats = fs.lstatSync(entryPath);
+            if (stats.isSymbolicLink()) {
+                // Check if symlink target exists
+                try {
+                    fs.statSync(entryPath); // follows symlink
+                } catch {
+                    console.log(`  Removing broken symlink: ${entry}`);
+                    fs.unlinkSync(entryPath);
+                }
+            }
+        } catch {}
+    }
+}
+
 // 11. Prune platform-specific binaries and caches from standalone
 console.log('Pruning standalone dependencies for current platform...');
 pruneStandaloneForPlatform(standaloneDir);

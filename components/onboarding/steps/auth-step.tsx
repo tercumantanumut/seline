@@ -495,6 +495,11 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                         t("oauth.button")
                                     )}
                                 </Button>
+                                {provider === "claudecode" && (
+                                    <p className="text-sm text-amber-600 font-mono">
+                                        {t("claudecodeLoginHint")}
+                                    </p>
+                                )}
                                 <p className="text-sm text-terminal-muted font-mono">
                                     {t("oauth.hint")}
                                 </p>

@@ -15,10 +15,23 @@ const BLOCKED_ENV_KEYS = new Set([
     "ELECTRON_ENABLE_LOGGING",
 ]);
 
+/**
+ * Prefix patterns for env vars that should never leak to child processes.
+ * __NEXT_PRIVATE_* vars are internal to the running Next.js instance —
+ * leaking them causes child Next.js processes (e.g. in synced project folders)
+ * to use the wrong project root, turbopack config, or React bundle.
+ */
+const BLOCKED_ENV_PREFIXES = ["__NEXT_PRIVATE_"];
+
 function sanitizeEnvironment(env: Record<string, string | undefined>): Record<string, string | undefined> {
     const sanitized = { ...env };
     for (const key of BLOCKED_ENV_KEYS) {
         delete sanitized[key];
+    }
+    for (const key of Object.keys(sanitized)) {
+        if (BLOCKED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+            delete sanitized[key];
+        }
     }
     return sanitized;
 }
