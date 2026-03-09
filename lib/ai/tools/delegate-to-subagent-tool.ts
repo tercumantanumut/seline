@@ -48,13 +48,14 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
   type: "object",
   title: "DelegateToSubagentInput",
   description:
-    "Delegate work to workflow sub-agents. Core flow: list -> start -> observe(waitSeconds) -> continue/stop.",
+    "Delegate work to a sub-agent. By default blocks until completion and returns the final result. " +
+    "Launch multiple start calls in parallel for concurrent sub-agent work.",
   properties: {
     action: {
       type: "string",
       enum: ["start", "observe", "continue", "stop", "list"],
       description:
-        "Action to perform: 'start' a new delegation, 'observe' progress and read full response, 'continue' with a follow-up message, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
+        "Action to perform: 'start' a new delegation (blocks by default), 'observe' progress of a background delegation, 'continue' with a follow-up message, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
     },
     agentId: {
       type: "string",
@@ -86,17 +87,25 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
       description:
         "A follow-up message to send to the sub-agent in an existing delegation session. Required for 'continue'.",
     },
+    mode: {
+      type: "string",
+      enum: ["blocking", "background"],
+      description:
+        "Execution mode for 'start'. 'blocking' (default): waits for the sub-agent to complete and returns the final result directly. " +
+        "'background': returns immediately with a delegationId — use observe/continue/stop to manage.",
+    },
     waitSeconds: {
       type: "number",
       minimum: 0,
       maximum: MAX_OBSERVE_WAIT_SECONDS,
       description:
-        "Optional for 'observe' (and for 'start' when runInBackground=false). Wait this many seconds before returning (or until delegation completes), to avoid rapid polling loops. Example: 30, 60, 600.",
+        "Max wait time in seconds. For blocking 'start': timeout before returning partial result (default 300). " +
+        "For 'observe': wait before returning (default 0). Example: 30, 60, 600.",
     },
     runInBackground: {
       type: "boolean",
       description:
-        "Optional flag. For action='start', true (default) returns immediately; false performs a start then observe wait window before returning.",
+        "Deprecated — use mode instead. true maps to mode='background', false maps to mode='blocking'.",
     },
     resume: {
       type: "string",
@@ -120,9 +129,9 @@ export function createDelegateToSubagentTool(
   return tool({
     description:
       "Delegate work to a sub-agent in your workflow team. " +
-      "Preferred orchestration sequence: list -> start -> observe(waitSeconds) -> continue/stop. " +
-      "start runs in background by default; use runInBackground=false to start then wait via observe in a single call. " +
-      "Use resume as a compatibility alias to continue an existing delegation by delegationId.",
+      "By default, 'start' blocks until the sub-agent completes and returns the final result. " +
+      "Launch multiple start calls in parallel for concurrent sub-agent work. " +
+      "Use mode='background' for manual management via observe/continue/stop.",
     inputSchema: delegateSchema,
     execute: async (input: DelegateToSubagentInput): Promise<DelegateResult> => {
       const normalizedInput = normalizeCompatibilityInput(input);

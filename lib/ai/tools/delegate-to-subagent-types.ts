@@ -28,7 +28,9 @@ export interface DelegateToSubagentInput {
   delegationId?: string;
   followUpMessage?: string;
   waitSeconds?: number;
+  /** @deprecated Use mode instead. Kept for backwards compatibility. */
   runInBackground?: boolean;
+  mode?: "blocking" | "background";
   resume?: string;
 }
 
@@ -47,8 +49,11 @@ export interface DelegateResult {
   sessionId?: string;
   delegateAgent?: string;
   message?: string;
+  mode?: "blocking" | "background";
   running?: boolean;
   completed?: boolean;
+  /** Compact final response text. Returned in blocking mode instead of lastResponse/allResponses. */
+  result?: string;
   messageCount?: number;
   toolCallCount?: number;
   lastResponse?: string;

@@ -335,6 +335,22 @@ export function resolveSubagentCandidate(
 }
 
 // ---------------------------------------------------------------------------
+// Final response extractor (compact, for blocking mode)
+// ---------------------------------------------------------------------------
+
+/**
+ * Read the sub-agent's final assistant response from DB.
+ * Returns only the last assistant text — no intermediate previews or metadata.
+ */
+export async function extractFinalResponse(sessionId: string): Promise<string | undefined> {
+  const messages = await getMessages(sessionId);
+  const assistantMessages = messages.filter((m) => m.role === "assistant");
+  if (assistantMessages.length === 0) return undefined;
+  const last = assistantMessages[assistantMessages.length - 1];
+  return extractTextFromContent(last.content);
+}
+
+// ---------------------------------------------------------------------------
 // Background execution starter
 // ---------------------------------------------------------------------------
 

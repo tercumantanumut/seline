@@ -103,18 +103,17 @@ export function buildWorkflowPromptContext(input: WorkflowPromptContextInput): s
     lines.push(
       "",
       "## Initiator / Orchestrator Contract",
-      "- Delegate when work is multi-step, parallelizable, or requires specialized subagent purpose/capability.",
+      "- Delegate by calling start with a task. The call blocks and returns the subagent's final result directly.",
+      "- Launch multiple start calls in parallel for concurrent subagent work — all block independently, all results arrive together.",
       "- Do work directly when the task is simple, single-step, or faster to complete in current context.",
       "- Choose target subagent from directory by explicit purpose match before starting delegation.",
-      "- Required execution sequence: delegateToSubagent list -> start -> observe(waitSeconds) -> continue or stop.",
+      "- Integrate and synthesize subagent results back to the user with clear decisions and next actions.",
       "- Avoid duplicate work: if a delegation to the same subagent is already active, reuse it via observe/continue/stop.",
-      "- Integrate and summarize subagent outputs back to the user with clear decisions and next actions.",
       "",
-      "## Compatibility Mapping",
-      "- runInBackground: start is background by default in Selene. For near-foreground behavior, call observe with waitSeconds (for example 30, 60, 600).",
+      "## Background Mode (optional)",
+      "- Use mode='background' on start when you need interactive management (observe/continue/stop).",
+      "- Background mode returns immediately with a delegationId. Use observe(waitSeconds) to check progress.",
       "- resume: map to continue using delegationId to preserve delegation context.",
-      "- For long-running executeCommand jobs (for example npm install/build), prefer background: true and avoid tight status polling loops.",
-      "- When waiting on background jobs, use paced observe/status checks (for example every 30-120s) or a sleep command (for example bash -lc 'sleep 45') between checks.",
     );
 
     const activeDelegations = input.activeDelegations ?? [];
