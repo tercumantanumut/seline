@@ -76,7 +76,7 @@ export const ClaudeWebFetchToolUI: ToolCallContentPartComponent = ({ args, resul
         {!StatusIcon && <div className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-terminal-muted animate-pulse" />}
         <GlobeIcon className="h-3 w-3 shrink-0 text-terminal-muted" />
         <span className="text-terminal-muted">{isRunning ? "Fetching..." : hasError ? "Fetch failed" : "Fetched"}</span>
-        <span className="font-medium text-terminal-dark truncate">{domain}</span>
+        <span className="font-medium text-terminal-dark truncate min-w-0 flex-1" title={domain}>{domain}</span>
 
         {content && !hasError && (
           <span className="text-terminal-muted ml-auto shrink-0">

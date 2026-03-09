@@ -343,7 +343,10 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         <div className={cn("mt-2 space-y-2 border-t pt-2", isGlass ? "border-white/10" : "border-terminal-dark/10")}>
           {summaryItems.map((item) => {
             if (item.phase === "error") return null;
-            const previewText = item.detail ?? item.inputPreview ?? item.outputPreview;
+            const previewText = item.detail
+              ?? (item.phase === "completed"
+                ? item.outputPreview ?? item.inputPreview
+                : item.inputPreview ?? item.outputPreview);
             if (!previewText) return null;
 
             return (
@@ -415,7 +418,10 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
                   </div>
                   {(item.detail || item.inputPreview || item.outputPreview) && (
                     <p className="mt-1 text-sm leading-relaxed [overflow-wrap:anywhere]">
-                      {item.detail ?? item.inputPreview ?? item.outputPreview}
+                      {item.detail
+                        ?? (item.phase === "completed"
+                          ? item.outputPreview ?? item.inputPreview
+                          : item.inputPreview ?? item.outputPreview)}
                     </p>
                   )}
                 </div>

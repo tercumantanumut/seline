@@ -82,7 +82,7 @@ export const ClaudeNotebookEditToolUI: ToolCallContentPartComponent = ({ args, r
         <span className="text-terminal-muted">
           {isRunning ? `${actionLabel}...` : hasError ? `${actionLabel} failed` : actionLabel}
         </span>
-        <span className="font-medium text-terminal-dark truncate">{fileName}</span>
+        <span className="font-medium text-terminal-dark truncate min-w-0 flex-1" title={fileName}>{fileName}</span>
 
         {cellType && (
           <span className="text-[10px] text-terminal-muted shrink-0 bg-terminal-dark/5 rounded px-1 py-0.5">
