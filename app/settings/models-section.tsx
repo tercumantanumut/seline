@@ -190,7 +190,7 @@ export function ModelsSection({ formState, updateField }: ModelsSectionProps) {
           formState={formState}
           updateField={updateField}
           antigravityDefault="claude-sonnet-4-5"
-          codexDefault="gpt-5.1-codex"
+          codexDefault="gpt-5.4"
           claudecodeDefault="claude-sonnet-4-5-20250929"
           kimiDefault="kimi-k2.5"
           minimaxDefault="MiniMax-M2.1"
@@ -207,7 +207,7 @@ export function ModelsSection({ formState, updateField }: ModelsSectionProps) {
           formState={formState}
           updateField={updateField}
           antigravityDefault="gemini-3-pro-high"
-          codexDefault="gpt-5.1-codex"
+          codexDefault="gpt-5.4"
           claudecodeDefault="claude-opus-4-6"
           kimiDefault="kimi-k2-thinking"
           minimaxDefault="MiniMax-M2.1"
@@ -224,7 +224,7 @@ export function ModelsSection({ formState, updateField }: ModelsSectionProps) {
           formState={formState}
           updateField={updateField}
           antigravityDefault="gemini-3-pro-low"
-          codexDefault="gpt-5.1-codex"
+          codexDefault="gpt-5.4"
           claudecodeDefault="claude-sonnet-4-5-20250929"
           kimiDefault="kimi-k2.5"
           minimaxDefault="MiniMax-M2.1"
@@ -241,7 +241,7 @@ export function ModelsSection({ formState, updateField }: ModelsSectionProps) {
           formState={formState}
           updateField={updateField}
           antigravityDefault="gemini-3-flash"
-          codexDefault="gpt-5.1-codex-mini"
+          codexDefault="gpt-5.4-low"
           claudecodeDefault="claude-haiku-4-5-20251001"
           kimiDefault="kimi-k2-turbo-preview"
           minimaxDefault="MiniMax-M2.1-lightning"

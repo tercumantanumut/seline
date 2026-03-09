@@ -83,7 +83,7 @@ export const ClaudeGrepToolUI: ToolCallContentPartComponent = ({ args, result })
         {!StatusIcon && <div className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-terminal-muted animate-pulse" />}
         <SearchIcon className="h-3 w-3 shrink-0 text-terminal-muted" />
         <span className="text-terminal-muted">{isRunning ? "Searching..." : hasError ? "Search failed" : "Search"}</span>
-        <span className="font-medium text-terminal-dark truncate">
+        <span className="font-medium text-terminal-dark truncate min-w-0 flex-1" title={`${pattern}${scopeLabel ? ` in ${scopeLabel}` : ""}`}>
           {pattern}
           {scopeLabel && <span className="text-terminal-muted font-normal"> in {scopeLabel}</span>}
         </span>

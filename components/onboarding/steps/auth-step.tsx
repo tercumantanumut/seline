@@ -25,26 +25,53 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
     const [error, setError] = useState<string | null>(null);
     const [claudeCodePasteMode, setClaudeCodePasteMode] = useState(false);
     const [claudeCodePasteValue, setClaudeCodePasteValue] = useState("");
+    const [claudeCodeAutoChecking, setClaudeCodeAutoChecking] = useState(false);
 
     // Check if already authenticated for OAuth providers
     useEffect(() => {
         if (provider === "antigravity") {
-            checkOAuthAuth("/api/auth/antigravity");
+            void checkOAuthAuth("/api/auth/antigravity");
         } else if (provider === "codex") {
-            checkOAuthAuth("/api/auth/codex");
+            void checkOAuthAuth("/api/auth/codex");
         } else if (provider === "claudecode") {
-            checkOAuthAuth("/api/auth/claudecode");
+            void checkOAuthAuth("/api/auth/claudecode", { forceRefresh: true });
         }
     }, [provider]);
 
-    const checkOAuthAuth = async (endpoint: string) => {
+    const checkOAuthAuth = async (endpoint: string, options: { forceRefresh?: boolean } = {}) => {
         try {
-            const { data } = await resilientFetch<{ authenticated: boolean }>(`${endpoint}?t=${Date.now()}`, { retries: 0 });
+            const separator = endpoint.includes("?") ? "&" : "?";
+            const refreshSuffix = options.forceRefresh ? `${separator}refresh=1` : "";
+            const { data } = await resilientFetch<{ authenticated: boolean }>(`${endpoint}${refreshSuffix}${refreshSuffix ? "&" : separator}t=${Date.now()}`, { retries: 0 });
             if (data?.authenticated) {
                 setIsAuthenticated(true);
+                setClaudeCodePasteMode(false);
+                setClaudeCodePasteValue("");
             }
+            return !!data?.authenticated;
         } catch (err) {
             console.error(`Failed to check auth for ${endpoint}:`, err);
+            return false;
+        }
+    };
+
+    const waitForClaudeCodeAuthentication = async (attempts = 12, delayMs = 1000) => {
+        setClaudeCodeAutoChecking(true);
+        try {
+            for (let attempt = 0; attempt < attempts; attempt += 1) {
+                const authenticated = await checkOAuthAuth("/api/auth/claudecode", { forceRefresh: true });
+                if (authenticated) {
+                    return true;
+                }
+
+                if (attempt < attempts - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, delayMs));
+                }
+            }
+
+            return false;
+        } finally {
+            setClaudeCodeAutoChecking(false);
         }
     };
 
@@ -272,6 +299,14 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 throw new Error(authData.error || "Failed to initialize authentication");
             }
 
+            if (authData.authenticated) {
+                setIsAuthenticated(true);
+                setClaudeCodePasteMode(false);
+                setClaudeCodePasteValue("");
+                setLoading(false);
+                return;
+            }
+
             if (authData.url) {
                 if (isElectron && electronAPI?.shell?.openExternal) {
                     await electronAPI.shell.openExternal(authData.url);
@@ -280,7 +315,13 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 }
             }
 
-            // Show paste-code UI so user can submit the auth code.
+            const authenticated = await waitForClaudeCodeAuthentication();
+            if (authenticated) {
+                setLoading(false);
+                return;
+            }
+
+            // Fall back to manual code entry only when the SDK has not completed the login yet.
             setClaudeCodePasteMode(true);
             setLoading(false);
         } catch (err) {
@@ -479,13 +520,13 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                             <>
                                 <Button
                                     onClick={provider === "antigravity" ? handleAntigravityLogin : provider === "codex" ? handleCodexLogin : handleClaudeCodeLogin}
-                                    disabled={loading}
+                                    disabled={loading || claudeCodeAutoChecking}
                                     className="w-full gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono py-6"
                                 >
-                                    {loading ? (
+                                    {loading || claudeCodeAutoChecking ? (
                                         <>
                                             <Loader2 className="w-5 h-5 animate-spin" />
-                                            {t("connecting")}
+                                            {claudeCodeAutoChecking && provider === "claudecode" ? t("verifying") : t("connecting")}
                                         </>
                                     ) : provider === "codex" ? (
                                         t("signInOpenAI")

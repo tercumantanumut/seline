@@ -80,7 +80,7 @@ export const ClaudeAgentToolUI: ToolCallContentPartComponent = ({ args, result }
         <span className="text-terminal-muted">
           {isRunning ? "Running agent..." : hasError ? "Agent failed" : "Agent"}
         </span>
-        <span className="font-medium text-terminal-dark truncate">{description}</span>
+        <span className="font-medium text-terminal-dark truncate min-w-0 flex-1" title={description}>{description}</span>
 
         {subagentType && (
           <span className="text-[10px] text-terminal-muted shrink-0 bg-terminal-dark/5 rounded px-1 py-0.5">

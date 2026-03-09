@@ -159,6 +159,15 @@ export function getPendingInteractivePrompt(
   return entry?.questions;
 }
 
+export function hasPendingInteractiveWait(sessionId: string): boolean {
+  for (const key of pendingWaits.keys()) {
+    if (key.startsWith(`${sessionId}__`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // User answer store — keyed the same way
 // After the PreToolUse hook resolves, we store the user's answers here so

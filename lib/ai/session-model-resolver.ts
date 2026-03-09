@@ -55,9 +55,8 @@ export function getSessionModelId(
   if (config?.sessionChatModel) {
     return config.sessionChatModel;
   }
-  // Fall back to global settings
-  const settings = loadSettings();
-  return settings.chatModel || "claude-sonnet-4-5-20250929";
+  // Fall back to the effective global model so provider defaults stay in sync.
+  return getConfiguredModel();
 }
 
 /**

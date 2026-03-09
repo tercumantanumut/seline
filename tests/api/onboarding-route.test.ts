@@ -28,6 +28,11 @@ const providersMocks = vi.hoisted(() => ({
   invalidateProviderCache: vi.fn(),
 }));
 
+const claudecodeAuthMocks = vi.hoisted(() => ({
+  getClaudeCodeAuthState: vi.fn(() => ({ isAuthenticated: false })),
+  getClaudeCodeAuthStatus: vi.fn().mockResolvedValue({ authenticated: false }),
+}));
+
 vi.mock("@/lib/settings/settings-manager", () => ({
   loadSettings: settingsMocks.loadSettings,
   saveSettings: settingsMocks.saveSettings,
@@ -36,6 +41,11 @@ vi.mock("@/lib/settings/settings-manager", () => ({
 
 vi.mock("@/lib/ai/providers", () => ({
   invalidateProviderCache: providersMocks.invalidateProviderCache,
+}));
+
+vi.mock("@/lib/auth/claudecode-auth", () => ({
+  getClaudeCodeAuthState: claudecodeAuthMocks.getClaudeCodeAuthState,
+  getClaudeCodeAuthStatus: claudecodeAuthMocks.getClaudeCodeAuthStatus,
 }));
 
 import { GET, POST } from "@/app/api/onboarding/route";
@@ -62,6 +72,8 @@ describe("/api/onboarding route", () => {
     vi.clearAllMocks();
     settingsMocks.state.settings = buildSettings();
     settingsMocks.state.hasRequiredApiKeys = true;
+    claudecodeAuthMocks.getClaudeCodeAuthState.mockReturnValue({ isAuthenticated: false });
+    claudecodeAuthMocks.getClaudeCodeAuthStatus.mockResolvedValue({ authenticated: false });
   });
 
   it("GET reports Claude Code as missing when required auth is not configured", async () => {
@@ -76,6 +88,42 @@ describe("/api/onboarding route", () => {
       hasRequiredKeys: false,
       missingProvider: "claudecode",
     });
+  });
+
+  it("GET trusts cached Claude Code auth during onboarding", async () => {
+    settingsMocks.state.settings = buildSettings({
+      llmProvider: "claudecode",
+      claudecodeAuth: { isAuthenticated: false },
+    });
+    settingsMocks.state.hasRequiredApiKeys = false;
+    claudecodeAuthMocks.getClaudeCodeAuthState.mockReturnValue({ isAuthenticated: true });
+
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(payload).toMatchObject({
+      hasRequiredKeys: true,
+      missingProvider: null,
+    });
+    expect(claudecodeAuthMocks.getClaudeCodeAuthStatus).not.toHaveBeenCalled();
+  });
+
+  it("GET refreshes Claude Code auth from the SDK before marking it missing", async () => {
+    settingsMocks.state.settings = buildSettings({
+      llmProvider: "claudecode",
+      claudecodeAuth: { isAuthenticated: false },
+    });
+    settingsMocks.state.hasRequiredApiKeys = false;
+    claudecodeAuthMocks.getClaudeCodeAuthStatus.mockResolvedValue({ authenticated: true });
+
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(payload).toMatchObject({
+      hasRequiredKeys: true,
+      missingProvider: null,
+    });
+    expect(claudecodeAuthMocks.getClaudeCodeAuthStatus).toHaveBeenCalledTimes(1);
   });
 
   it("GET treats ollama as ready even when key checks fail", async () => {
@@ -123,10 +171,10 @@ describe("/api/onboarding route", () => {
   it("POST does not clear model fields or invalidate cache when provider is unchanged", async () => {
     settingsMocks.state.settings = buildSettings({
       llmProvider: "codex",
-      chatModel: "gpt-5.1-codex",
-      researchModel: "gpt-5.1-codex-mini",
-      visionModel: "gpt-5.1-codex",
-      utilityModel: "gpt-5.1-codex-mini",
+      chatModel: "gpt-5.4",
+      researchModel: "gpt-5.4",
+      visionModel: "gpt-5.4",
+      utilityModel: "gpt-5.4-low",
     });
 
     await POST(new Request("http://localhost/api/onboarding", {
@@ -136,10 +184,10 @@ describe("/api/onboarding route", () => {
     }));
 
     expect(settingsMocks.state.settings.llmProvider).toBe("codex");
-    expect(settingsMocks.state.settings.chatModel).toBe("gpt-5.1-codex");
-    expect(settingsMocks.state.settings.researchModel).toBe("gpt-5.1-codex-mini");
-    expect(settingsMocks.state.settings.visionModel).toBe("gpt-5.1-codex");
-    expect(settingsMocks.state.settings.utilityModel).toBe("gpt-5.1-codex-mini");
+    expect(settingsMocks.state.settings.chatModel).toBe("gpt-5.4");
+    expect(settingsMocks.state.settings.researchModel).toBe("gpt-5.4");
+    expect(settingsMocks.state.settings.visionModel).toBe("gpt-5.4");
+    expect(settingsMocks.state.settings.utilityModel).toBe("gpt-5.4-low");
     expect(providersMocks.invalidateProviderCache).not.toHaveBeenCalled();
   });
 

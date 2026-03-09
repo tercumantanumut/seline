@@ -118,6 +118,20 @@ export const PREBUILT_TEMPLATES: MCPTemplate[] = [
     requiredEnv: [],
   },
   {
+    id: "coda",
+    name: "Coda",
+    description: "Create and manage Coda docs, pages, and tables",
+    config: {
+      command: "npx",
+      args: ["-y", "coda-mcp@latest"],
+      env: { API_KEY: "" },
+    },
+    requiredEnv: ["API_KEY"],
+    setupInstructions:
+      "Get your API key from https://coda.io/account → API settings.",
+    difficulty: "Easy",
+  },
+  {
     id: "everything",
     name: "Everything",
     description: "Sample server with many example tools",

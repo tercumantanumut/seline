@@ -202,7 +202,7 @@ function createCodexFetch(): typeof fetch {
     headers.set("Content-Type", "application/json");
 
     // ── Try WebSocket transport first (matches official Codex CLI) ───────
-    if (originalStream && !isWebSocketDisabled()) {
+    if (!isWebSocketDisabled()) {
       try {
         // Convert Headers to plain object for the WS handshake
         const headersObj: Record<string, string> = {};
@@ -224,6 +224,11 @@ function createCodexFetch(): typeof fetch {
         const wsTurn = getWsTurnState();
         if (wsTurn) codexTurnState = wsTurn;
 
+        // For non-streaming callers (e.g. generateText), convert SSE → JSON
+        if (!originalStream) {
+          const responseHeaders = ensureContentType(wsResponse.headers);
+          return await convertSseToJson(wsResponse, responseHeaders);
+        }
         return wsResponse;
       } catch (wsError) {
         // Sync turn-state even on failure (WS module may have captured it)

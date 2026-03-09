@@ -97,7 +97,7 @@ function CompactToolCard({
         <Icon className="h-3 w-3 shrink-0 text-terminal-muted" />
         <span className="text-terminal-muted">{label}</span>
         {detail && (
-          <span className="font-medium text-terminal-dark truncate">{detail}</span>
+          <span className="font-medium text-terminal-dark truncate min-w-0 flex-1" title={detail}>{detail}</span>
         )}
         {hasExpandable && (
           expanded ? (

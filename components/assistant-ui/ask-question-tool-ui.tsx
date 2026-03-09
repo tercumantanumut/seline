@@ -59,7 +59,10 @@ function normalizeArgs(
 function getQuestions(args: AskFollowupQuestionArgs | undefined): Question[] {
   if (!args) return [];
   if (Array.isArray(args.questions) && args.questions.length > 0) {
-    return args.questions;
+    return args.questions.map((q) => ({
+      ...q,
+      options: Array.isArray(q.options) ? q.options : [],
+    }));
   }
   // Flat single-question format
   if (args.question && Array.isArray(args.options)) {
