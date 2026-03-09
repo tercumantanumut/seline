@@ -301,6 +301,19 @@ export function summarizeToolOutputByName(toolName: string, value: unknown): str
   const record = value as Record<string, unknown>;
   const MAX = 140;
 
+  // Don't emit success copy for failed tool results
+  const status = typeof record.status === "string" ? record.status.toLowerCase() : "";
+  if (
+    record.isError === true ||
+    status === "error" ||
+    status === "failed" ||
+    status === "denied" ||
+    typeof record.error === "string" ||
+    typeof record.errorText === "string"
+  ) {
+    return summarizeToolOutput(value);
+  }
+
   switch (toolName) {
     case "Read":
     case "readFile": {
