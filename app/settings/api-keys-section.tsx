@@ -320,6 +320,9 @@ export function ApiKeysSection({
               <Info className="w-3 h-3" />
               {t("api.auth.claudecodeWarning")}
             </p>
+            <p className="mt-1 font-mono text-xs text-amber-600">
+              {t("api.auth.claudecodeLoginHint")}
+            </p>
             {claudecodeAuth?.isAuthenticated && claudecodeAuth.email && (
               <p className="mt-1 font-mono text-xs text-terminal-green">
                 {t("api.auth.signedIn", { email: claudecodeAuth.email })}

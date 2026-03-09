@@ -4,6 +4,7 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { CheckCircleIcon, XCircleIcon, PlusIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToolExpansion } from "../tool-expansion-context";
+import { parseTextResult } from "./parse-text-result";
 
 type ToolCallContentPartComponent = FC<{
   toolName: string;
@@ -15,24 +16,6 @@ type ToolCallContentPartComponent = FC<{
   result?: unknown;
 }>;
 
-function parseResultText(result: unknown): string | undefined {
-  if (!result) return undefined;
-  if (typeof result === "string") return result;
-  if (typeof result === "object") {
-    const r = result as Record<string, unknown>;
-    if (Array.isArray(r.content)) {
-      const textItem = r.content.find(
-        (item: unknown) =>
-          item && typeof item === "object" && (item as { type?: string }).type === "text"
-      ) as { text?: string } | undefined;
-      if (textItem?.text) return textItem.text;
-    }
-    if (typeof r.text === "string") return r.text;
-    if (typeof r.message === "string") return r.message;
-  }
-  return undefined;
-}
-
 function isErrorResult(result: unknown): boolean {
   if (!result) return false;
   if (typeof result === "object") {
@@ -41,7 +24,7 @@ function isErrorResult(result: unknown): boolean {
     const status = typeof r.status === "string" ? r.status.toLowerCase() : "";
     if (status === "error" || status === "failed" || status === "denied") return true;
   }
-  const text = parseResultText(result);
+  const text = parseTextResult(result);
   if (text && /^(error|failed|permission denied)/im.test(text.slice(0, 200))) return true;
   return false;
 }
@@ -138,7 +121,7 @@ export const ClaudeWriteToolUI: ToolCallContentPartComponent = ({ args, result }
 
           {result !== undefined && (
             <div className={cn("text-[11px]", statusColor)}>
-              {parseResultText(result) || (hasError ? "Write failed" : "File written")}
+              {parseTextResult(result) || (hasError ? "Write failed" : "File written")}
             </div>
           )}
 
