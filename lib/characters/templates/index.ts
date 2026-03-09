@@ -2,7 +2,7 @@ import { resolve } from "path";
 import type { AgentTemplate } from "./types";
 import { SELENE_DEFAULT_TEMPLATE } from "./selene-default";
 import { SYSTEM_AGENT_TEMPLATES } from "./system-agents";
-import { resolveSeleneTemplateTools, type ToolResolutionResult } from "./resolve-tools";
+import { resolveSeleneTemplateTools, DEFAULT_ENABLED_TOOLS, type ToolResolutionResult } from "./resolve-tools";
 import {
   createCharacter,
   getUserCharacters,
@@ -66,11 +66,44 @@ function resolvePathVariable(pathVar: string): string {
   return pathVar;
 }
 
+/**
+ * Migrate an existing default agent's enabled tools to include any
+ * newly-required tools from DEFAULT_ENABLED_TOOLS.
+ *
+ * Runs on every ensureDefaultAgentExists fast-path hit so existing
+ * users pick up tools added after their agent was created.
+ */
+async function migrateDefaultAgentTools(
+  agent: { id: string; metadata: unknown }
+): Promise<void> {
+  try {
+    const meta = (agent.metadata ?? {}) as Record<string, unknown>;
+    const currentTools = Array.isArray(meta.enabledTools) ? (meta.enabledTools as string[]) : [];
+    if (currentTools.length === 0) return;
+
+    const missingTools = DEFAULT_ENABLED_TOOLS.filter((t) => !currentTools.includes(t));
+    if (missingTools.length === 0) return;
+
+    const updatedTools = [...currentTools, ...missingTools];
+    await updateCharacter(agent.id, {
+      metadata: { ...meta, enabledTools: updatedTools },
+    });
+
+    console.log(
+      `[Templates] Migrated default agent ${agent.id}: added ${missingTools.length} tool(s): ${missingTools.join(", ")}`
+    );
+  } catch (error) {
+    console.warn("[Templates] Failed to migrate default agent tools:", error);
+  }
+}
+
 export async function ensureDefaultAgentExists(userId: string): Promise<string | null> {
   try {
     // First check if default already exists (fast path)
     const existingDefault = await getUserDefaultCharacter(userId);
     if (existingDefault) {
+      // Migrate existing default agent to include any newly-required tools
+      await migrateDefaultAgentTools(existingDefault);
       // Ensure sub-agents/workflow are ready before first characters response.
       await ensureSystemAgentsExist(userId, existingDefault.id);
       return existingDefault.id;

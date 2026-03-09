@@ -115,6 +115,7 @@
       "connecting": "Connecting...",
       "signInOpenAI": "Sign in with OpenAI",
       "signInAnthropic": "Sign in with Anthropic",
+      "claudecodeLoginHint": "Make sure you are logged into Claude Code on your device before signing in here.",
       "apiKeySaved": "API Key saved!",
       "saving": "Saving...",
       "saveApiKey": "Save API Key",
@@ -923,6 +924,7 @@
     },
     "queue": {
       "messagesQueued": "{count} message{count, plural, one {} other {s}} queued",
+      "messagesInjected": "{count} message{count, plural, one {} other {s}} injected",
       "backgroundHint": "Queued until the background task completes"
     },
     "enhance": {
@@ -2007,6 +2009,7 @@
         "claudecodeTitle": "Claude Code",
         "claudecodeDesc": "Connect your Anthropic account to use Claude Code models.",
         "claudecodeWarning": "Personal use only — not for commercial use",
+        "claudecodeLoginHint": "Make sure you are logged into Claude Code on your device before signing in here.",
         "signInAnthropic": "Sign in with Anthropic",
         "authFlowTitle": "Complete Authentication",
         "authStep1": "A browser window has opened with the Anthropic authentication page",

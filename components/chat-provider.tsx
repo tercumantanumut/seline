@@ -72,6 +72,8 @@ function isRecoverableStreamingError(error: Error): boolean {
   if (msg.includes("Cannot read properties of undefined")) return true;
   if (msg.includes("Cannot read property") && msg.includes("undefined")) return true;
   if (msg.includes("Cannot read properties of null")) return true;
+  // assistant-ui store: index out of bounds during streaming state updates
+  if (msg.includes("out of bounds")) return true;
   // Fetch/network errors from early abort (before response arrives)
   if (msg.includes("Failed to fetch")) return true;
   if (msg.includes("Load failed")) return true; // Safari variant

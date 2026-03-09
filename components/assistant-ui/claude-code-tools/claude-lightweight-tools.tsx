@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToolExpansion } from "../tool-expansion-context";
+import { parseTextResult } from "./parse-text-result";
 
 // Shared type
 type ToolCallContentPartComponent = FC<{
@@ -31,25 +32,6 @@ type ToolCallContentPartComponent = FC<{
   args?: Record<string, unknown>;
   result?: unknown;
 }>;
-
-// Shared helpers
-function parseTextResult(result: unknown): string | undefined {
-  if (!result) return undefined;
-  if (typeof result === "string") return result;
-  if (typeof result === "object") {
-    const r = result as Record<string, unknown>;
-    if (Array.isArray(r.content)) {
-      const textItem = r.content.find(
-        (item: unknown) =>
-          item && typeof item === "object" && (item as { type?: string }).type === "text"
-      ) as { text?: string } | undefined;
-      if (textItem?.text) return textItem.text;
-    }
-    if (typeof r.text === "string") return r.text;
-    if (typeof r.message === "string") return r.message;
-  }
-  return undefined;
-}
 
 function isErrorResult(result: unknown): boolean {
   if (!result) return false;

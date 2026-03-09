@@ -21,7 +21,7 @@ import type { WorkspaceInfo, WorkspaceStatus } from "@/lib/workspace/types";
 import { AvatarPipWidget } from "@/components/avatar-3d/avatar-pip-widget";
 import type { Avatar3DConfig, Avatar3DRef } from "@/components/avatar-3d/types";
 import { useOptionalVoice } from "@/components/assistant-ui/voice-context";
-import { SentenceSplitter, StreamingTTSQueue } from "@/lib/voice/streaming-tts";
+import { SentenceSplitter, StableStreamingLifecycle, StreamingTTSQueue } from "@/lib/voice/streaming-tts";
 import type { UIMessage } from "ai";
 import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupResponse } from "@/components/chat/chat-interface-types";
 import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
@@ -145,20 +145,29 @@ const StreamingAutoSpeakBridge: FC<{
     const threadMessages = useThread((thread) => thread.messages);
     const splitterRef = useRef<SentenceSplitter | null>(null);
     const queueRef = useRef<StreamingTTSQueue | null>(null);
+    const lifecycleRef = useRef<StableStreamingLifecycle | null>(null);
     const lastFullTextRef = useRef("");
+    const latestAssistantTextRef = useRef("");
+    const latestAssistantMessageIdRef = useRef<string | null>(null);
+    const activeAssistantMessageIdRef = useRef<string | null>(null);
     const activeRef = useRef(false);
     const bridgePlaybackRef = useRef(false);
-    const wasRunningRef = useRef(false);
     const queuedAudioRef = useRef(false);
 
-    const getLastAssistantText = useCallback(() => {
+    const getLastAssistantSnapshot = useCallback(() => {
         const lastMsg = [...threadMessages].reverse().find((message) => message.role === "assistant");
-        if (!lastMsg) return "";
-        return lastMsg.content
-            .filter((part): part is { type: "text"; text: string } => part.type === "text")
-            .map((part) => part.text)
-            .join("\n")
-            .trim();
+        if (!lastMsg) {
+            return { messageId: null, text: "" };
+        }
+
+        return {
+            messageId: typeof lastMsg.id === "string" && lastMsg.id.length > 0 ? lastMsg.id : null,
+            text: lastMsg.content
+                .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                .map((part) => part.text)
+                .join("\n")
+                .trim(),
+        };
     }, [threadMessages]);
 
     // Initialize splitter + queue once per stable playback callback
@@ -184,37 +193,74 @@ const StreamingAutoSpeakBridge: FC<{
             }
         });
 
+        const lifecycle = new StableStreamingLifecycle({
+            onStart: () => {
+                const nextAssistantMessageId = latestAssistantMessageIdRef.current;
+                const isResumingSameAssistantMessage = Boolean(
+                    activeAssistantMessageIdRef.current &&
+                    nextAssistantMessageId &&
+                    activeAssistantMessageIdRef.current === nextAssistantMessageId,
+                );
+
+                activeRef.current = true;
+                if (isResumingSameAssistantMessage) {
+                    return;
+                }
+
+                activeAssistantMessageIdRef.current = nextAssistantMessageId;
+                queuedAudioRef.current = false;
+                lastFullTextRef.current = "";
+                splitter.reset();
+                queue.reset();
+                cancelAudio?.();
+            },
+            onStableEnd: () => {
+                if (!activeRef.current) {
+                    return;
+                }
+
+                splitter.flush();
+
+                const fullText = latestAssistantTextRef.current;
+                if (!queuedAudioRef.current && fullText.length > 0) {
+                    queuedAudioRef.current = true;
+                    queue.enqueue(fullText);
+                }
+
+                activeRef.current = false;
+            },
+        });
+
         queueRef.current = queue;
         splitterRef.current = splitter;
+        lifecycleRef.current = lifecycle;
 
         return () => {
+            lifecycle.cancel();
+            lifecycleRef.current = null;
+            cancelAudio?.();
             queue.cancel();
+            queueRef.current = null;
             splitter.reset();
+            splitterRef.current = null;
             bridgePlaybackRef.current = false;
         };
-    }, [playAudio, mutedRef]);
+    }, [cancelAudio, playAudio, mutedRef]);
 
     useEffect(() => {
         const shouldSpeak = ttsAutoMode === "always" && ttsEnabled && !muted;
-        if (!shouldSpeak || !splitterRef.current) {
-            wasRunningRef.current = isRunning;
+        const assistantSnapshot = getLastAssistantSnapshot();
+        latestAssistantTextRef.current = assistantSnapshot.text;
+        latestAssistantMessageIdRef.current = assistantSnapshot.messageId;
+
+        if (!shouldSpeak || !splitterRef.current || !lifecycleRef.current) {
             return;
         }
 
-        const started = isRunning && !wasRunningRef.current;
-        const ended = !isRunning && wasRunningRef.current;
-        const fullText = getLastAssistantText();
+        lifecycleRef.current.update(isRunning);
 
-        if (started) {
-            activeRef.current = true;
-            queuedAudioRef.current = false;
-            lastFullTextRef.current = "";
-            splitterRef.current.reset();
-            queueRef.current?.reset();
-            cancelAudio?.();
-        }
-
-        if (isRunning && activeRef.current && fullText.length > 0) {
+        const fullText = assistantSnapshot.text;
+        if (activeRef.current && fullText.length > 0) {
             if (!fullText.startsWith(lastFullTextRef.current)) {
                 // Some providers rewrite the partial assistant message instead of append-only updates.
                 splitterRef.current.reset();
@@ -228,20 +274,7 @@ const StreamingAutoSpeakBridge: FC<{
                 splitterRef.current.feed(delta);
             }
         }
-
-        if (ended && activeRef.current) {
-            splitterRef.current.flush();
-
-            if (!queuedAudioRef.current && fullText.length > 0) {
-                queuedAudioRef.current = true;
-                queueRef.current?.enqueue(fullText);
-            }
-
-            activeRef.current = false;
-        }
-
-        wasRunningRef.current = isRunning;
-    }, [cancelAudio, getLastAssistantText, isRunning, muted, threadMessages, ttsAutoMode, ttsEnabled]);
+    }, [getLastAssistantSnapshot, isRunning, muted, ttsAutoMode, ttsEnabled]);
 
     useEffect(() => {
         const shouldSpeak = ttsAutoMode === "always" && ttsEnabled && !muted;
@@ -255,11 +288,14 @@ const StreamingAutoSpeakBridge: FC<{
         bridgePlaybackRef.current = false;
         queuedAudioRef.current = false;
         lastFullTextRef.current = "";
-        wasRunningRef.current = isRunning;
+        latestAssistantTextRef.current = "";
+        latestAssistantMessageIdRef.current = null;
+        activeAssistantMessageIdRef.current = null;
+        lifecycleRef.current?.cancel();
         splitterRef.current?.reset();
         queueRef.current?.cancel();
         cancelAudio?.();
-    }, [cancelAudio, isRunning, muted, ttsAutoMode, ttsEnabled]);
+    }, [cancelAudio, muted, ttsAutoMode, ttsEnabled]);
 
     return null;
 };

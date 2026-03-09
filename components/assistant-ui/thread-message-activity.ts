@@ -2,7 +2,7 @@ import type { LiveToolStatus } from "./tool-live-status";
 import {
   getFallbackToolPhase,
   summarizeToolInput,
-  summarizeToolOutput,
+  summarizeToolOutputByName,
 } from "./tool-live-status";
 import { getCanonicalToolName } from "./tool-name-utils";
 
@@ -113,7 +113,7 @@ export function getVisibleToolSignature(
         liveStatus?.argsPreview ??
         summarizeToolInput(part.input ?? part.args ?? part.argsText) ??
         "";
-      const outputPreview = liveStatus?.outputPreview ?? summarizeToolOutput(part.result) ?? "";
+      const outputPreview = liveStatus?.outputPreview ?? summarizeToolOutputByName(canonicalToolName, part.result) ?? "";
       const count = getResultCount(part.result);
 
       return [

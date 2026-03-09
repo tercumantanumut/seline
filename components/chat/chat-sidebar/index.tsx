@@ -127,7 +127,7 @@ export function CharacterSidebar({
     characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
   const t = useTranslations("chat");
   const tPicker = useTranslations("picker");
-  const tDeps = useTranslations("toolDependencies");
+  const tDeps = useTranslations("picker.toolEditor.dependencyWarnings");
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [archivedSessions, setArchivedSessions] = useState<SessionInfo[]>([]);
   const [loadingArchived, setLoadingArchived] = useState(false);
