@@ -15,6 +15,11 @@ import {
   shouldRetry,
   sleepWithAbort,
 } from "@/lib/ai/retry/stream-recovery";
+import {
+  isWebSocketDisabled,
+  sendViaWebSocket,
+  getWsTurnState,
+} from "./codex-websocket";
 
 const DUMMY_API_KEY = "chatgpt-oauth";
 const CODEX_MAX_RETRY_ATTEMPTS = 5;
@@ -58,6 +63,16 @@ async function readRequestBody(body: BodyInit): Promise<string> {
   throw new Error("Unsupported request body type for Codex request");
 }
 
+// Sticky routing token: replayed on subsequent requests within the same
+// session so the server can route to the same backend instance.
+let codexTurnState: string | null = null;
+
+function getCodexUserAgent(): string {
+  const platform = process.platform === "darwin" ? "Mac OS" : process.platform === "win32" ? "Windows" : "Linux";
+  const arch = process.arch === "arm64" ? "arm64" : "x86_64";
+  return `codex_cli_rs/0.1.0 (${platform}; ${arch})`;
+}
+
 function createCodexHeaders(
   init: RequestInit | undefined,
   accountId: string,
@@ -67,17 +82,20 @@ function createCodexHeaders(
   const headers = new Headers(init?.headers ?? {});
   headers.delete("x-api-key");
   headers.set("Authorization", `Bearer ${accessToken}`);
-  headers.set("chatgpt-account-id", accountId);
-  headers.set("OpenAI-Beta", CODEX_CONFIG.HEADERS["OpenAI-Beta"]);
+  headers.set("ChatGPT-Account-ID", accountId);
   headers.set("originator", CODEX_CONFIG.HEADERS.originator);
+  headers.set("User-Agent", getCodexUserAgent());
   headers.set("Accept", "text/event-stream");
 
   if (opts?.promptCacheKey) {
-    headers.set("conversation_id", opts.promptCacheKey);
     headers.set("session_id", opts.promptCacheKey);
   } else {
-    headers.delete("conversation_id");
     headers.delete("session_id");
+  }
+
+  // Sticky routing: replay the turn-state token from a previous response
+  if (codexTurnState) {
+    headers.set("x-codex-turn-state", codexTurnState);
   }
 
   return headers;
@@ -183,6 +201,44 @@ function createCodexFetch(): typeof fetch {
     const headers = createCodexHeaders(updatedInit, accountId, accessToken, { promptCacheKey });
     headers.set("Content-Type", "application/json");
 
+    // ── Try WebSocket transport first (matches official Codex CLI) ───────
+    if (originalStream && !isWebSocketDisabled()) {
+      try {
+        // Convert Headers to plain object for the WS handshake
+        const headersObj: Record<string, string> = {};
+        headers.forEach((value, key) => { headersObj[key] = value; });
+
+        // Parse the transformed body so we can send it as JSON over WS
+        const wsBody = JSON.parse(updatedInit?.body as string ?? "{}") as Record<string, unknown>;
+
+        console.log("[Codex] Attempting WebSocket transport");
+        const wsResponse = await sendViaWebSocket(
+          rewriteCodexUrl(url),
+          wsBody,
+          headersObj,
+          init?.signal ?? undefined,
+        );
+        console.log("[Codex] WebSocket transport established");
+
+        // Sync turn-state from WS module back to HTTP fallback state
+        const wsTurn = getWsTurnState();
+        if (wsTurn) codexTurnState = wsTurn;
+
+        return wsResponse;
+      } catch (wsError) {
+        // Sync turn-state even on failure (WS module may have captured it)
+        const wsTurn = getWsTurnState();
+        if (wsTurn) codexTurnState = wsTurn;
+
+        console.warn(
+          "[Codex] WebSocket failed, falling back to HTTP SSE:",
+          wsError instanceof Error ? wsError.message : String(wsError),
+        );
+        // Fall through to HTTP transport below
+      }
+    }
+
+    // ── HTTP SSE transport (fallback) ────────────────────────────────────
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
       try {
@@ -250,6 +306,12 @@ function createCodexFetch(): typeof fetch {
         return effectiveResponse;
       }
 
+      // Capture sticky routing token for subsequent requests
+      const turnState = effectiveResponse.headers.get("x-codex-turn-state");
+      if (turnState) {
+        codexTurnState = turnState;
+      }
+
       if (!originalStream) {
         const responseHeaders = ensureContentType(effectiveResponse.headers);
         return await convertSseToJson(effectiveResponse, responseHeaders);
@@ -261,10 +323,11 @@ function createCodexFetch(): typeof fetch {
         let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
         const wrappedBody = effectiveResponse.body.pipeThrough(
           new TransformStream<Uint8Array, Uint8Array>({
-            start() {
-              // Initial timer — if first chunk never arrives
+            start(controller) {
+              // Initial timer — if first chunk never arrives, abort the stream
               inactivityTimer = setTimeout(() => {
                 console.warn("[Codex] Inactivity timeout — no data for", CODEX_INACTIVITY_TIMEOUT_MS / 1000, "seconds");
+                controller.error(new Error(`Codex stream inactivity timeout (${CODEX_INACTIVITY_TIMEOUT_MS / 1000}s) — no first chunk`));
               }, CODEX_INACTIVITY_TIMEOUT_MS);
             },
             transform(chunk, controller) {
