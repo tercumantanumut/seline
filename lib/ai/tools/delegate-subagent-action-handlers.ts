@@ -26,6 +26,7 @@ import {
   buildDelegationsSummary,
   startBackgroundExecution,
   extractTextFromContent,
+  extractFinalResponse,
   sleep,
   validateObserveWaitSeconds,
   truncateObservePreview,
@@ -44,6 +45,22 @@ import {
 // ---------------------------------------------------------------------------
 // Action handlers
 // ---------------------------------------------------------------------------
+
+/** Default blocking timeout in seconds (5 minutes). */
+const DEFAULT_BLOCKING_TIMEOUT_SECONDS = 600;
+
+/**
+ * Resolve the effective execution mode from input parameters.
+ * Priority: explicit mode > legacy runInBackground > default (blocking).
+ */
+function resolveExecutionMode(input: DelegateToSubagentInput): "blocking" | "background" {
+  if (input.mode === "background") return "background";
+  if (input.mode === "blocking") return "blocking";
+  // Legacy compat: runInBackground=true -> background
+  if (input.runInBackground === true) return "background";
+  // Default: blocking
+  return "blocking";
+}
 
 export async function handleStartAction(
   input: DelegateToSubagentInput,
@@ -70,31 +87,65 @@ export async function handleStartAction(
     );
   }
 
+  const mode = resolveExecutionMode(input);
   const startResult = await handleStart(input, userId, characterId);
-  if (!startResult.success || input.runInBackground !== false || !startResult.delegationId) {
+
+  if (!startResult.success || !startResult.delegationId) {
     return startResult;
   }
 
-  const observeResult = await handleObserve(
-    {
-      action: "observe",
-      delegationId: startResult.delegationId,
-      waitSeconds: input.waitSeconds ?? 120,
-    },
-    characterId,
-  );
-
-  if (!observeResult.success) {
-    return observeResult;
+  // ── Background mode: return immediately ──────────────────────────────────
+  if (mode === "background") {
+    return {
+      ...startResult,
+      mode: "background",
+      message:
+        `Delegation started in background (${startResult.delegationId}). ` +
+        "Use observe/continue/stop with this delegationId to manage it.",
+    };
   }
 
-  return {
-    ...observeResult,
-    availableAgents: startResult.availableAgents ?? observeResult.availableAgents,
-    message:
-      "runInBackground=false requested. Delegation was started and observed in one call. " +
-      "Use continue/observe with this delegationId for further work.",
+  // ── Blocking mode (default): await completion, return compact result ─────
+  const delegation = activeDelegations.get(startResult.delegationId);
+  if (!delegation) {
+    return startResult;
+  }
+
+  const maxWaitMs = (input.waitSeconds ?? DEFAULT_BLOCKING_TIMEOUT_SECONDS) * 1000;
+
+  await Promise.race([
+    delegation.streamPromise,
+    sleep(maxWaitMs),
+  ]);
+
+  // Read the final response compactly — just the last assistant text
+  const result = await extractFinalResponse(delegation.sessionId);
+  const completed = delegation.settled;
+
+  // Build compact result — no allResponses, no preview counts, no observe noise
+  const compactResult: DelegateResult = {
+    success: true,
+    delegationId: startResult.delegationId,
+    sessionId: delegation.sessionId,
+    delegateAgent: delegation.delegateName,
+    mode: "blocking",
+    completed,
+    result,
+    elapsed: Date.now() - delegation.startedAt,
+    availableAgents: startResult.availableAgents,
   };
+
+  if (delegation.error) {
+    compactResult.error = `Delegation failed: ${delegation.error}`;
+  }
+
+  if (!completed) {
+    compactResult.message =
+      "Sub-agent did not finish within the wait timeout. " +
+      "Use observe(delegationId) to check later, or stop(delegationId) to cancel.";
+  }
+
+  return compactResult;
 }
 
 async function handleStart(
@@ -241,12 +292,7 @@ async function handleStart(
     delegationId,
     sessionId: session.id,
     delegateAgent: delegation.delegateName,
-    message:
-      `IMPORTANT: Save this delegationId (${delegationId}) — required for observe/continue/stop. ` +
-      "Delegation started. A real chat session has been created for the sub-agent. " +
-      "Use 'observe' with the delegationId to check progress and read the full response. " +
-      "Set observe.waitSeconds (for example 30, 60, or 600) to wait intentionally instead of re-checking too frequently. " +
-      "Use runInBackground=false on start if you want a start+observe wait in one call. Use 'continue' to send follow-up messages (or use resume as a compatibility alias), or navigate to the sub-agent's chat to see it live.",
+    message: `Delegation ${delegationId} created for sub-agent "${delegation.delegateName}".`,
     availableAgents,
     delegations: buildDelegationsSummary(characterId),
   };
