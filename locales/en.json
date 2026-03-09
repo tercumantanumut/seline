@@ -2227,10 +2227,31 @@
           "name": "Assistant UI Docs",
           "description": "Search Assistant UI documentation"
         },
+        "coda": {
+          "name": "Coda",
+          "description": "Create and manage Coda docs, pages, and tables",
+          "setup": "Get your API key from https://coda.io/account → API settings."
+        },
         "everything": {
           "name": "Everything",
           "description": "Sample server with many example tools"
         }
+      },
+      "templateAlreadyInstalled": "{name} is already installed. Reinstall with default settings?",
+      "installedBadge": "Installed",
+      "envDialog": {
+        "title": "Configure {name}",
+        "description": "Paste your API credentials below. These are stored locally and used to authenticate with the service.",
+        "envLabel": "Required credentials",
+        "placeholder": "Paste your {key} here",
+        "existingPlaceholder": "Leave blank to keep current value",
+        "alreadyConfigured": "already configured",
+        "getKey": "Get key",
+        "setupHint": "Setup:",
+        "install": "Install & Connect",
+        "cancel": "Cancel",
+        "missingValues": "Fill in all required values to continue.",
+        "allFilled": "Ready to install."
       }
     },
     "models": {

@@ -16,8 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
     Loader2, Check, X, RefreshCw, Plus, Trash2, Plug,
-    Terminal, Globe, AlertCircle, Play, Square, Info,
-    PlusCircle, AlertTriangle, ChevronDown, Edit2, Key
+    Terminal, Globe, AlertCircle, Info, Edit2, Key
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resilientFetch, resilientPut, resilientPost } from "@/lib/utils/resilient-fetch";
@@ -28,6 +27,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { MCPServerForm } from "@/components/settings/mcp-server-form";
+import { MCPTemplateEnvDialog } from "@/components/settings/mcp-template-env-dialog";
 import { PREBUILT_TEMPLATES, type MCPTemplate } from "@/components/settings/mcp-settings-constants";
 
 interface MCPServerStatus {
@@ -56,6 +56,9 @@ export function MCPSettings() {
     // Env Vars
     const [newEnvKey, setNewEnvKey] = useState("");
     const [showNewEnvInput, setShowNewEnvInput] = useState(false);
+
+    // Template env dialog -- opened when a template with requiredEnv is clicked
+    const [pendingTemplate, setPendingTemplate] = useState<MCPTemplate | null>(null);
 
     // Synced folders for path preview/documentation
     const [syncedFolders, setSyncedFolders] = useState<Array<{ folderPath: string, isPrimary: boolean, characterId: string }>>([]);
@@ -155,26 +158,42 @@ export function MCPSettings() {
     };
 
     const handleApplyTemplate = async (template: MCPTemplate) => {
-        // Check if env vars needed and add them
-        if (template.requiredEnv && template.requiredEnv.length > 0) {
-            const newEnv = { ...environment };
-            let changed = false;
-            template.requiredEnv.forEach(key => {
-                if (!newEnv[key]) {
-                    newEnv[key] = "";
-                    changed = true;
-                }
+        // Guard: if this template is already installed, warn before overwriting
+        if (mcpServers[template.id]) {
+            if (!confirm(t("templateAlreadyInstalled", { name: template.name }))) return;
+        }
+
+        // If template needs env vars, open dialog to collect them first
+        if (template.requiredEnv.length > 0) {
+            // Check if all required vars already have non-masked values
+            const allExist = template.requiredEnv.every((k) => {
+                const v = environment[k]?.trim();
+                return v && !v.includes("\u2022");
             });
-            if (changed) {
-                setEnvironment(newEnv);
-                await saveAll(mcpServers, newEnv);
-                toast.info(t("envVarsAdded", { count: template.requiredEnv.length }));
+            if (!allExist) {
+                setPendingTemplate(template);
+                return;
             }
         }
 
-        // Add server directly from template
+        // No env vars needed (or all already filled) -- install directly
         const updatedServers = { ...mcpServers, [template.id]: template.config };
         await saveAll(updatedServers);
+        toast.success(t("templateAdded", { name: template.name }));
+    };
+
+    /** Called by the env dialog after the user fills in credentials */
+    const handleTemplateEnvInstall = async (
+        template: MCPTemplate,
+        envValues: Record<string, string>,
+    ) => {
+        // Merge collected env values into environment
+        const updatedEnv = { ...environment, ...envValues };
+        // Add server config
+        const updatedServers = { ...mcpServers, [template.id]: template.config };
+        // Save both at once
+        await saveAll(updatedServers, updatedEnv);
+        setPendingTemplate(null);
         toast.success(t("templateAdded", { name: template.name }));
     };
 
@@ -237,14 +256,19 @@ export function MCPSettings() {
                     {t("recommendedServers")}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {PREBUILT_TEMPLATES.map(template => (
+                    {PREBUILT_TEMPLATES.map(template => {
+                        const isInstalled = !!mcpServers[template.id];
+                        return (
                         <div
                             key={template.id}
                             role="button"
                             tabIndex={0}
                             onClick={() => handleApplyTemplate(template)}
                             onKeyDown={(e) => e.key === "Enter" && handleApplyTemplate(template)}
-                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 hover:border-terminal-green hover:shadow-sm transition-all text-left cursor-pointer"
+                            className={cn(
+                                "flex flex-col items-start p-3 rounded-md border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 hover:border-terminal-green hover:shadow-sm transition-all text-left cursor-pointer",
+                                isInstalled ? "border-terminal-green/50" : "border-terminal-border"
+                            )}
                         >
                             <div className="flex items-center justify-between w-full gap-2">
                                 <div className="flex items-center gap-2">
@@ -257,12 +281,20 @@ export function MCPSettings() {
                                     </div>
                                     <span className="font-mono font-medium text-sm">{t(`templates.${template.id}.name`)}</span>
                                 </div>
-                                {template.requiredEnv.length > 0 && (
-                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200 shrink-0">
-                                        <Key className="h-3 w-3 mr-1" />
-                                        {t("authBadge")}
-                                    </Badge>
-                                )}
+                                <div className="flex items-center gap-1 shrink-0">
+                                    {isInstalled && (
+                                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-terminal-green/10 text-terminal-green border-terminal-green/30">
+                                            <Check className="h-3 w-3 mr-1" />
+                                            {t("installedBadge")}
+                                        </Badge>
+                                    )}
+                                    {template.requiredEnv.length > 0 && !isInstalled && (
+                                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200">
+                                            <Key className="h-3 w-3 mr-1" />
+                                            {t("authBadge")}
+                                        </Badge>
+                                    )}
+                                </div>
                             </div>
                             <p className="font-mono text-xs text-terminal-muted mt-1 line-clamp-1">{t(`templates.${template.id}.description`)}</p>
                             <div className="flex items-center gap-2 mt-2">
@@ -301,7 +333,8 @@ export function MCPSettings() {
                                 )}
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -575,6 +608,14 @@ export function MCPSettings() {
                     </div>
                 )}
             </div>
+
+            {/* Env var collection dialog for templates that need credentials */}
+            <MCPTemplateEnvDialog
+                template={pendingTemplate}
+                existingEnv={environment}
+                onInstall={handleTemplateEnvInstall}
+                onCancel={() => setPendingTemplate(null)}
+            />
 
         </div>
     );
