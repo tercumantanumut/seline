@@ -134,23 +134,70 @@ export function useBackgroundProcessing({
     const refreshMessagesRef = useRef(refreshMessages);
     useEffect(() => { refreshMessagesRef.current = refreshMessages; }, [refreshMessages]);
 
+    const pollingStartTimeRef = useRef<number>(0);
+    const consecutiveErrorsRef = useRef<number>(0);
+
     const startPollingForCompletion = useCallback((runId: string) => {
         isRunActiveRef.current = true;
         if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
         }
         setIsZombieRun(false);
+        pollingStartTimeRef.current = Date.now();
+        consecutiveErrorsRef.current = 0;
+
         const pollIntervalMs = 2000;
+        // Safety valve: stop polling after 5 minutes of continuous polling
+        // without completion. At that point the run is either stuck or the
+        // status endpoint is returning stale data.
+        const MAX_POLL_DURATION_MS = 5 * 60 * 1000;
+        const MAX_CONSECUTIVE_ERRORS = 10;
+
         pollingIntervalRef.current = setInterval(async () => {
+            // ── Timeout safety valve ──────────────────────────────────────
+            const elapsed = Date.now() - pollingStartTimeRef.current;
+            if (elapsed > MAX_POLL_DURATION_MS) {
+                console.warn(`[Background Processing] Polling timeout after ${Math.round(elapsed / 1000)}s — force-clearing`);
+                if (pollingIntervalRef.current) {
+                    clearInterval(pollingIntervalRef.current);
+                    pollingIntervalRef.current = null;
+                }
+                setIsProcessingInBackground(false);
+                setProcessingRunId(null);
+                setIsZombieRun(false);
+                isRunActiveRef.current = false;
+                await refreshMessagesRef.current();
+                return;
+            }
+
             try {
                 const { data, error } = await resilientFetch<{ status: string; isZombie?: boolean }>(
                     `/api/agent-runs/${runId}/status`,
                     { retries: 0 }
                 );
                 if (error || !data) {
-                    console.error("[Background Processing] Polling error:", error);
+                    consecutiveErrorsRef.current += 1;
+                    console.error("[Background Processing] Polling error:", error, `(${consecutiveErrorsRef.current}/${MAX_CONSECUTIVE_ERRORS})`);
+
+                    // Too many consecutive errors — run may have been deleted or server is unhealthy
+                    if (consecutiveErrorsRef.current >= MAX_CONSECUTIVE_ERRORS) {
+                        console.warn("[Background Processing] Too many consecutive polling errors — force-clearing");
+                        if (pollingIntervalRef.current) {
+                            clearInterval(pollingIntervalRef.current);
+                            pollingIntervalRef.current = null;
+                        }
+                        setIsProcessingInBackground(false);
+                        setProcessingRunId(null);
+                        setIsZombieRun(false);
+                        isRunActiveRef.current = false;
+                        await refreshMessagesRef.current();
+                    }
                     return;
                 }
+
+                // Reset error counter on successful response
+                consecutiveErrorsRef.current = 0;
+
                 if (data.status === "running") {
                     setIsZombieRun(Boolean(data.isZombie));
                     if (data.isZombie) {
@@ -176,6 +223,7 @@ export function useBackgroundProcessing({
                 isRunActiveRef.current = false;
                 await refreshMessagesRef.current();
             } catch (error) {
+                consecutiveErrorsRef.current += 1;
                 console.error("[Background Processing] Polling error:", error);
             }
         }, pollIntervalMs);
