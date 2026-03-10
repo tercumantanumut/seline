@@ -9,7 +9,7 @@ import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/messa
 import { ContextWindowManager, isDelegatedToolName } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
-import { createSession, createMessage, updateMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn, getInjectedMessageIds } from "@/lib/db/queries";
+import { createSession, createMessage, updateMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn, getInjectedMessageIds, getSessionWithMessages } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
@@ -28,14 +28,15 @@ import {
 import { combineAbortSignals } from "@/lib/utils/abort";
 import { createHeartbeatStream } from "@/lib/utils/heartbeat-stream";
 import {
-  classifyRecoverability,
-  getBackoffDelayMs,
-  shouldRetry,
-  sleepWithAbort,
+    classifyRecoverability,
+    getBackoffDelayMs,
+    normalizeStreamError,
+    shouldRetry,
+    sleepWithAbort,
 } from "@/lib/ai/retry/stream-recovery";
 import type { ChatTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
-import type { DBToolCallPart } from "@/lib/messages/converter";
+import { convertDBMessagesToUIMessages, type DBToolCallPart } from "@/lib/messages/converter";
 import type { FrontendMessage } from "@/lib/messages/tool-enhancement";
 import { MAX_STREAM_TOOL_RESULT_TOKENS } from "@/lib/ai/tool-result-stream-guard";
 import {
@@ -469,15 +470,32 @@ export async function POST(req: Request) {
     }
 
     // ── Prepare messages (HYBRID approach) ────────────────────────────────────
-    console.debug(`[CHAT API] Using HYBRID approach: ${messages.length} frontend messages`);
+    let requestMessages = messages as FrontendMessage[];
+    let sessionSummaryForRequest: string | null | undefined;
+
+    if (contextCheck.compactionResult?.success) {
+      const refreshedSession = await getSessionWithMessages(sessionId);
+      if (refreshedSession) {
+        requestMessages = convertDBMessagesToUIMessages(
+          refreshedSession.messages.filter((message) => !message.isCompacted) as any,
+        ) as FrontendMessage[];
+        sessionSummaryForRequest = refreshedSession.session.summary;
+        console.debug(
+          `[CHAT API] Rebuilt request messages from compacted DB state: ${requestMessages.length} active messages`,
+        );
+      }
+    }
+
+    console.debug(`[CHAT API] Using HYBRID approach: ${requestMessages.length} frontend messages`);
     const { coreMessages, enhancedMessages } = await prepareMessagesForRequest({
-      messages: messages as FrontendMessage[],
+      messages: requestMessages,
       sessionId,
       userId: dbUser.id,
       characterId,
       sessionMetadata,
       currentModelId,
       currentProvider,
+      sessionSummary: sessionSummaryForRequest,
     });
 
     // ── Plugin / workflow scope ────────────────────────────────────────────────
@@ -971,7 +989,7 @@ export async function POST(req: Request) {
             return null;
           },
           onError: async ({ error }) => {
-            const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            const errorMessage = normalizeStreamError(error).message;
             // Always log the full error so it's visible in debug.log — prevents
             // silent swallowing that previously made failures impossible to diagnose.
             console.error(`[CHAT API] Stream onError: ${errorMessage}`, {
@@ -1134,7 +1152,7 @@ export async function POST(req: Request) {
         consumeStream({
           stream,
           onError: (error) => {
-            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorMessage = normalizeStreamError(error).message;
             if (provider === "claudecode" && isNonFatalToolError(error)) {
               console.warn(`[CHAT API] Non-fatal tool error in Claude Code SSE stream (skipping finalization): ${errorMessage}`);
               return;
@@ -1143,13 +1161,13 @@ export async function POST(req: Request) {
           },
         }),
       onError: (error) => {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = normalizeStreamError(error).message;
         if (provider === "claudecode" && isNonFatalToolError(error)) {
           console.warn(`[CHAT API] Non-fatal tool error in Claude Code UI stream (skipping finalization): ${errorMessage}`);
           return "Non-fatal tool error — agent is self-correcting.";
         }
         void finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
-        return "Streaming interrupted. The run was marked accordingly.";
+        return `Streaming interrupted: ${errorMessage}`;
       },
       messageMetadata: ({ part }) => {
         if (part.type === 'finish-step' && part.usage) {

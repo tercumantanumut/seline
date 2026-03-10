@@ -131,6 +131,10 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
 let _antigravityProvider: ReturnType<typeof createAntigravityProvider> | null = null;
 let _antigravityProviderToken: string | undefined = undefined;
 
+// Codex provider is cached — per-session state (turnState, wsDisabledUntil)
+// lives in the CodexSessionStore (keyed by sessionId from AsyncLocalStorage),
+// and WS concurrency is controlled by the CodexWsGate singleton.
+// The fetch function reads session context dynamically on each invocation.
 let _codexProvider: ReturnType<typeof createCodexProvider> | null = null;
 
 let _claudecodeProvider: ReturnType<typeof createClaudeCodeProvider> | null = null;

@@ -28,6 +28,7 @@ const TRANSIENT_PAYLOAD_PATTERNS = [
   /UND_ERR_SOCKET/i,
   /broken pipe/i,
   /failed to pipe/i,
+  /server_error/i,
 ];
 
 const TERMINAL_PAYLOAD_PATTERNS = [

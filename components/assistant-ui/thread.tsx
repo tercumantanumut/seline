@@ -44,6 +44,7 @@ import {
 import { Composer } from "./thread-composer";
 import { BrowserBackdrop } from "./browser-backdrop";
 import { useTheme } from "@/components/theme/theme-provider";
+import { useChatTransportError } from "@/components/chat-provider";
 
 interface ThreadProps {
   onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
@@ -201,6 +202,25 @@ export const Thread: FC<ThreadProps> = ({
   // Blocked banner state — set when a 413 error is received
   const [blockedPayload, setBlockedPayload] =
     useState<ContextWindowBlockedPayload | null>(null);
+  const transportErrorState = useChatTransportError();
+
+  useEffect(() => {
+    const transportError = transportErrorState?.error;
+    if (!transportError) return;
+
+    if (transportError.httpStatus === 413) {
+      setBlockedPayload({
+        message: transportError.message,
+        details: transportError.details,
+        status: transportError.status,
+        recovery: transportError.recovery,
+        compactionResult: transportError.compactionResult,
+      });
+      return;
+    }
+
+    setBlockedPayload(null);
+  }, [transportErrorState?.error]);
 
   // Refresh context status after each session activity (message sent/received)
   const wrappedOnSessionActivity = useCallback(

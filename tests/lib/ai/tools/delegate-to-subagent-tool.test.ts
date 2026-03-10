@@ -198,7 +198,11 @@ describe("delegate-to-subagent-tool", () => {
       action: "start",
       agentName: "Research Analyst",
       task: "Investigate build regressions",
+      mode: "background",
     });
+
+    expect(start.success).toBe(true);
+    expect(start.mode).toBe("background");
 
     const immediateObserve = await (tool as any).execute({
       action: "observe",
@@ -218,7 +222,7 @@ describe("delegate-to-subagent-tool", () => {
     expect((waitedObserve.waitedMs as number) >= 150).toBe(true);
   });
 
-  it("start supports runInBackground=false by performing start+observe wait", async () => {
+  it("start supports runInBackground=false by returning the blocking result shape", async () => {
     const tool = makeTool();
     const result = await (tool as any).execute({
       action: "start",
@@ -230,9 +234,11 @@ describe("delegate-to-subagent-tool", () => {
 
     expect(result.success).toBe(true);
     expect(typeof result.delegationId).toBe("string");
-    expect(result.running).toBe(false);
+    expect(result.mode).toBe("blocking");
     expect(result.completed).toBe(true);
-    expect(String(result.message || "")).toContain("runInBackground=false");
+    expect(result.result).toBe("done");
+    expect(result.running).toBeUndefined();
+    expect(result.message).toBeUndefined();
   });
 
   it("start supports resume alias by mapping to continue semantics", async () => {

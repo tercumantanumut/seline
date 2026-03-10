@@ -29,6 +29,7 @@ import {
   shouldRunForTrigger,
 } from "./sync-mode-resolver";
 import { onFolderChange, notifyFolderChange, type FolderChangeEvent } from "./folder-events";
+import { resolveRegistryPath, getSubscriberCount } from "./shared-folder-registry";
 export { onFolderChange, notifyFolderChange };
 export type { FolderChangeEvent };
 
@@ -85,6 +86,7 @@ import {
   isSyncing,
   isSyncingPath,
   cancelSyncByPath,
+  cancelSyncById,
 } from "./sync-scheduler";
 
 /**
@@ -105,13 +107,13 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
   const wasPrimary = folder.isPrimary;
   const characterId = folder.characterId;
 
-  if (isSyncingPath(folder.folderPath)) {
-    console.log(`[SyncService] Cancelling running sync for folder: ${folder.folderPath}`);
-    await cancelSyncByPath(folder.folderPath);
+  if (isSyncing(folderId)) {
+    console.log(`[SyncService] Cancelling running sync for folder: ${folderId}`);
+    await cancelSyncById(folderId);
   }
 
   if (isWatching(folderId)) {
-    stopWatching(folderId);
+    await stopWatching(folderId);
   }
 
   // Delete child file rows first to prevent FK violations from concurrent syncs,
@@ -238,16 +240,9 @@ export async function syncFolder(
     return result;
   }
 
-  if (syncingPaths.has(folderPath)) {
-    const existingSync = syncingPaths.get(folderPath)!;
-    if (existingSync.folderId !== folderId) {
-      console.log(
-        `[SyncService] Path ${folderPath} is already being synced by folder ${existingSync.folderId}, cancelling old sync`
-      );
-      existingSync.abortController.abort();
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-  }
+  // Note: we don't block cross-folder syncs for the same physical path.
+  // Each folder writes to its own DB rows (agentSyncFiles keyed by folderId)
+  // and may have different filter/indexing config, so both syncs are legitimate.
 
   const syncAbortController = new AbortController();
   syncingFolders.add(folderId);
@@ -603,7 +598,7 @@ export async function pauseSyncFolder(folderId: string): Promise<void> {
 
   // Cancel any running sync first
   if (isSyncing(folderId)) {
-    await cancelSyncByPath(folder.folderPath);
+    await cancelSyncById(folderId);
   }
 
   // Stop watcher if active

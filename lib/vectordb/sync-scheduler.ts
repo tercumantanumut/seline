@@ -12,6 +12,7 @@ import { startWatching, isWatching } from "./file-watcher";
 import { normalizeFolderPath, validateSyncFolderPath } from "./path-validation";
 import { resolveFolderSyncBehavior, shouldRunForTrigger, type SyncMode } from "./sync-mode-resolver";
 import { parseJsonArray, normalizeExtensions } from "./sync-helpers";
+import { resolveRegistryPath, resolveRegistryPathAsync, getSubscriberCount } from "./shared-folder-registry";
 import type { SyncTracking } from "./sync-types";
 
 // ---------------------------------------------------------------------------
@@ -312,30 +313,66 @@ export async function getStaleFolders(maxAgeMs: number = 60 * 60 * 1000): Promis
 }
 
 /**
- * Restart file watchers for all synced folders (called on app startup)
+ * Restart file watchers for all synced folders (called on app startup).
+ *
+ * Groups folders by resolved physical path so that folders sharing the
+ * same directory reuse a single chokidar watcher via the shared registry.
  */
 export async function restartAllWatchers(): Promise<void> {
   console.log("[SyncService] Restarting file watchers for synced folders...");
 
   const foldersToWatch = await getSyncedFoldersNeedingWatch();
 
+  // Group by resolved path to log sharing stats
+  const byPath = new Map<string, typeof foldersToWatch>();
   for (const folder of foldersToWatch) {
-    if (!isWatching(folder.folderId)) {
-      try {
-        await startWatching({
-          folderId: folder.folderId,
-          characterId: folder.characterId,
-          folderPath: folder.folderPath,
-          recursive: folder.recursive,
-          includeExtensions: folder.includeExtensions,
-          excludePatterns: folder.excludePatterns,
-        });
-        console.log(`[SyncService] Restarted watcher for ${folder.folderPath}`);
-      } catch (error) {
-        console.error(`[SyncService] Failed to restart watcher for ${folder.folderPath}:`, error);
+    const resolved = await resolveRegistryPathAsync(folder.folderPath);
+    let group = byPath.get(resolved);
+    if (!group) {
+      group = [];
+      byPath.set(resolved, group);
+    }
+    group.push(folder);
+  }
+
+  let watchersCreated = 0;
+  let subscribersAdded = 0;
+
+  for (const [resolvedPath, group] of byPath.entries()) {
+    if (group.length > 1) {
+      console.log(
+        `[SyncService] Path ${resolvedPath} shared by ${group.length} folders: ` +
+        group.map(f => f.folderId).join(", ")
+      );
+    }
+
+    for (const folder of group) {
+      if (!isWatching(folder.folderId)) {
+        try {
+          await startWatching({
+            folderId: folder.folderId,
+            characterId: folder.characterId,
+            folderPath: folder.folderPath,
+            recursive: folder.recursive,
+            includeExtensions: folder.includeExtensions,
+            excludePatterns: folder.excludePatterns,
+          });
+
+          const subCount = getSubscriberCount(folder.folderPath);
+          if (subCount > 1) {
+            subscribersAdded++;
+          } else {
+            watchersCreated++;
+          }
+        } catch (error) {
+          console.error(`[SyncService] Failed to restart watcher for ${folder.folderPath}:`, error);
+        }
       }
     }
   }
 
-  console.log(`[SyncService] Restarted ${foldersToWatch.length} file watchers`);
+  console.log(
+    `[SyncService] Watcher restart complete: ${watchersCreated} new watcher(s), ` +
+    `${subscribersAdded} shared subscriber(s), ${foldersToWatch.length} total folders`
+  );
 }

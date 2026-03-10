@@ -41,6 +41,7 @@ interface UseActionIndicatorsOptions {
 interface UseActionIndicatorsReturn {
   indicators: ActionIndicator[];
   addAction: (data: ActionSSEData) => void;
+  clearIndicators: () => void;
 }
 
 // ─── Duration map ─────────────────────────────────────────────────────────────
@@ -99,19 +100,25 @@ export function useActionIndicators({
   const [indicators, setIndicators] = useState<ActionIndicator[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  const clearIndicators = useCallback(() => {
+    for (const timer of timersRef.current.values()) {
+      clearTimeout(timer);
+    }
+    timersRef.current.clear();
+    setIndicators([]);
+  }, []);
+
   // M4: Use a ref for enabled so addAction never holds a stale closure
   const enabledRef = useRef(enabled);
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
   // Cleanup all timers on unmount
+  useEffect(() => clearIndicators, [clearIndicators]);
+
   useEffect(() => {
-    return () => {
-      for (const timer of timersRef.current.values()) {
-        clearTimeout(timer);
-      }
-      timersRef.current.clear();
-    };
-  }, []);
+    if (enabled) return;
+    clearIndicators();
+  }, [enabled, clearIndicators]);
 
   const addAction = useCallback(
     (data: ActionSSEData) => {
@@ -175,5 +182,5 @@ export function useActionIndicators({
     [imgRef]
   );
 
-  return { indicators, addAction };
+  return { indicators, addAction, clearIndicators };
 }

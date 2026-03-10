@@ -3,6 +3,10 @@
  *
  * Uses chokidar to watch folders for changes and trigger incremental sync.
  * Implements debouncing to avoid excessive re-indexing.
+ *
+ * Shared watcher architecture: a single chokidar instance per physical path,
+ * with fan-out to all subscriber folders (agents) on file change events.
+ * Managed via the shared-folder-registry.
  */
 
 import chokidar, { FSWatcher } from "chokidar";
@@ -25,26 +29,43 @@ import {
   isProjectRootDirectory,
   processWithConcurrency,
 } from "./file-watcher-utils";
+import {
+  registerFolder,
+  unregisterFolder,
+  setWatcherOwner,
+  getWatcherOwner,
+  getSubscribers,
+  getPathForFolder,
+  isRegistered,
+  clearRegistry,
+  getSubscriberCount,
+  resolveRegistryPath,
+  resolveRegistryPathAsync,
+} from "./shared-folder-registry";
 
+// ---------------------------------------------------------------------------
 // Global state that persists across hot reloads (dev mode)
+// ---------------------------------------------------------------------------
+
 const globalForWatchers = globalThis as unknown as {
-  fileWatchers?: Map<string, FSWatcher>;
+  // resolvedPath → chokidar instance (ONE watcher per physical path)
+  pathWatchers?: Map<string, FSWatcher>;
+  // folderId → set of pending file changes
   folderQueues?: Map<string, Set<string>>;
+  // folderId → set of deferred file changes (deferred while chat is active)
   deferredQueues?: Map<string, Set<string>>;
+  // folderId → batch processor info
   folderProcessors?: Map<string, {
     processBatch: () => Promise<void>;
     characterId: string;
     folderPath: string;
   }>;
-  // Maps resolved physical path → folderId that owns the watcher.
-  // Used as a synchronous lock to prevent duplicate chokidar instances
-  // when multiple folder IDs point to the same directory (workflow inheritance).
-  watchingPaths?: Map<string, string>;
+  // folderId → subscriber filter/config for fan-out
+  folderSubscribers?: Map<string, FolderSubscriber>;
 };
 
-// Initialize global state if not already present
-if (!globalForWatchers.fileWatchers) {
-  globalForWatchers.fileWatchers = new Map();
+if (!globalForWatchers.pathWatchers) {
+  globalForWatchers.pathWatchers = new Map();
 }
 if (!globalForWatchers.folderQueues) {
   globalForWatchers.folderQueues = new Map();
@@ -55,39 +76,49 @@ if (!globalForWatchers.deferredQueues) {
 if (!globalForWatchers.folderProcessors) {
   globalForWatchers.folderProcessors = new Map();
 }
-if (!globalForWatchers.watchingPaths) {
-  globalForWatchers.watchingPaths = new Map();
+if (!globalForWatchers.folderSubscribers) {
+  globalForWatchers.folderSubscribers = new Map();
 }
 
-// Map of folder ID to watcher instance (use global in dev mode to persist across hot reloads)
-const watchers = globalForWatchers.fileWatchers;
+/**
+ * Per-folder subscriber info used for fan-out filtering.
+ * Each subscriber has its own extension filters and ignore patterns.
+ */
+interface FolderSubscriber {
+  folderId: string;
+  characterId: string;
+  folderPath: string;
+  resolvedPath: string;
+  normalizedExts: string[];
+  shouldIgnore: (filePath: string) => boolean;
+}
 
-// Track which watchers are using polling mode
-const pollingModeWatchers = new Set<string>();
-
-// Map of folder ID to set of changed file paths
+// Alias for readability
+const pathWatchers = globalForWatchers.pathWatchers;
 const folderQueues = globalForWatchers.folderQueues;
 const deferredQueues = globalForWatchers.deferredQueues;
-
 const folderProcessors = globalForWatchers.folderProcessors;
-const watchingPaths = globalForWatchers.watchingPaths;
+const folderSubscribers = globalForWatchers.folderSubscribers;
+
+// Track which paths are using polling mode
+const pollingModePaths = new Set<string>();
 
 const activeBatchProcessing = new Set<string>();
 const pendingBatchRun = new Map<string, boolean>();
 
-// Track EACCES / EPERM errors per folder.  After the threshold the watcher is
-// stopped and the folder is marked as errored so we don't spam the console.
+// Track EACCES / EPERM errors per path. After the threshold the watcher is
+// stopped and all subscriber folders are marked as errored.
 const permissionErrorCounts = new Map<string, number>();
 const PERMISSION_ERROR_THRESHOLD = 10;
 
 const activeChatRunsByCharacter = new Map<string, number>();
 let registryListenerInitialized = false;
 
-// Debounce timers for folders
+// Debounce timers per folder
 const folderTimers = new Map<string, NodeJS.Timeout>();
-const DEBOUNCE_MS = 1000; // Wait 1 second after last change before processing batch
+const DEBOUNCE_MS = 1000;
 
-interface WatcherConfig {
+export interface WatcherConfig {
   folderId: string;
   characterId: string;
   folderPath: string;
@@ -97,10 +128,14 @@ interface WatcherConfig {
   forcePolling?: boolean;
 }
 
-// Track EMFILE retry attempts per folder to prevent infinite restart loops
+// Track EMFILE retry attempts per path to prevent infinite restart loops
 const emfileRetryCounts = new Map<string, number>();
 const MAX_EMFILE_RETRIES = 3;
-const EMFILE_BACKOFF_MS = [3000, 10000, 30000]; // Exponential backoff
+const EMFILE_BACKOFF_MS = [3000, 10000, 30000];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 async function pauseFolderWithError(folderId: string, lastError: string): Promise<void> {
   await db
@@ -114,19 +149,53 @@ async function pauseFolderWithError(folderId: string, lastError: string): Promis
 }
 
 /**
- * Safely close a watcher, even when file descriptors are exhausted.
- * Always removes the watcher from the map regardless of close() success.
+ * Safely close a path watcher, even when file descriptors are exhausted.
  */
-async function safeCloseWatcher(folderId: string): Promise<void> {
-  const watcher = watchers.get(folderId);
+async function safeClosePathWatcher(resolvedPath: string): Promise<void> {
+  const watcher = pathWatchers.get(resolvedPath);
   if (!watcher) return;
   try {
     await watcher.close();
   } catch (err) {
-    console.error(`[FileWatcher] Error closing watcher for ${folderId}, force-removing:`, err);
+    console.error(`[FileWatcher] Error closing watcher for ${resolvedPath}, force-removing:`, err);
   }
-  watchers.delete(folderId);
+  pathWatchers.delete(resolvedPath);
 }
+
+/**
+ * Completely tear down a path's watcher and all subscriber state due to a fatal error.
+ *
+ * Closes the chokidar watcher, pauses all subscriber folders in DB, clears all
+ * in-memory state, and removes all registry entries. Only call this for
+ * unrecoverable errors (permission threshold, EMFILE exhaustion, FD budget exceeded).
+ *
+ * Returns the list of affected folder IDs (useful for retry logic).
+ */
+async function teardownPathFatally(resolvedPath: string, errorMsg: string): Promise<string[]> {
+  // Snapshot subscriber IDs before mutation (getSubscribers returns a copy)
+  const affectedFolderIds = getSubscribers(resolvedPath);
+
+  // Close the chokidar watcher
+  await safeClosePathWatcher(resolvedPath);
+
+  // Pause each subscriber in DB and clean up all in-memory state
+  for (const subId of affectedFolderIds) {
+    await pauseFolderWithError(subId, errorMsg);
+    await cleanupFolderSubscriber(subId);
+    unregisterFolder(resolvedPath, subId);
+  }
+
+  // Clear path-level state
+  pollingModePaths.delete(resolvedPath);
+  permissionErrorCounts.delete(resolvedPath);
+  emfileRetryCounts.delete(resolvedPath);
+
+  return affectedFolderIds;
+}
+
+// ---------------------------------------------------------------------------
+// Chat-run deferral (unchanged logic, per-character)
+// ---------------------------------------------------------------------------
 
 function seedActiveChatRuns(): void {
   activeChatRunsByCharacter.clear();
@@ -200,35 +269,111 @@ async function flushDeferredForFolder(folderId: string): Promise<void> {
   await processor.processBatch();
 }
 
+// ---------------------------------------------------------------------------
+// Per-folder batch scheduling (called during fan-out)
+// ---------------------------------------------------------------------------
+
+function scheduleBatchForFolder(folderId: string, filePath: string): void {
+  const processor = folderProcessors.get(folderId);
+  if (!processor) return;
+
+  if (shouldDeferIndexing(processor.characterId)) {
+    const deferred = deferredQueues.get(folderId);
+    if (deferred && !deferred.has(filePath)) {
+      deferred.add(filePath);
+      if (deferred.size === 1) {
+        console.log(
+          `[FileWatcher] Deferring indexing while chat run is active for ${processor.folderPath}`
+        );
+      }
+    }
+    return;
+  }
+
+  const queue = folderQueues.get(folderId);
+  if (!queue) return;
+
+  queue.add(filePath);
+
+  // Reset debounce timer
+  if (folderTimers.has(folderId)) {
+    clearTimeout(folderTimers.get(folderId)!);
+  }
+
+  folderTimers.set(
+    folderId,
+    setTimeout(processor.processBatch, DEBOUNCE_MS)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// startWatching
+// ---------------------------------------------------------------------------
+
 /**
- * Start watching a folder for changes
+ * Start watching a folder for changes.
+ *
+ * If the physical path is already being watched by another folder,
+ * this folder is registered as an additional subscriber and receives
+ * file change events via fan-out. No duplicate chokidar instance is created.
  */
 export async function startWatching(config: WatcherConfig): Promise<void> {
-  // Note: We allow watching even when VectorDB is disabled, as folders can be in "files-only" mode
-  // The indexing mode will be checked during file processing
-
   initializeRegistryListener();
 
-  // Stop existing watcher if any
-  await stopWatching(config.folderId);
-
   let { folderId, characterId, folderPath, recursive, includeExtensions, excludePatterns, forcePolling: configForcePolling } = config;
+  const resolvedPath = await resolveRegistryPathAsync(folderPath);
 
-  // Deduplicate: if another watcher has already claimed the same physical path,
-  // skip creating a new chokidar instance. This happens when multiple agents share
-  // the same folder via workflow inheritance. One chokidar watcher per path is enough;
-  // running multiple watchers on the same path causes duplicate batch processing with
-  // synchronous SQLite ops that can block the Node.js event loop.
-  //
-  // This check is synchronous to prevent races when multiple startWatching() calls
-  // are fire-and-forget from syncFolder() — the async watchers/folderProcessors maps
-  // aren't populated until later, but watchingPaths is claimed immediately.
-  const resolvedPath = resolve(folderPath);
-  const existingClaimant = watchingPaths.get(resolvedPath);
-  if (existingClaimant && existingClaimant !== folderId) {
+  // --- 1. Clean up any previous state for this specific folderId ---
+  // Unregister from old path first to prevent phantom registry entries
+  const oldPath = getPathForFolder(folderId);
+  await cleanupFolderSubscriber(folderId);
+  if (oldPath && oldPath !== resolvedPath) {
+    const noMoreSubs = unregisterFolder(oldPath, folderId);
+    if (noMoreSubs) {
+      await safeClosePathWatcher(oldPath);
+      pollingModePaths.delete(oldPath);
+      permissionErrorCounts.delete(oldPath);
+    }
+  } else if (oldPath) {
+    unregisterFolder(oldPath, folderId);
+  }
+
+  // --- 2. Register in shared registry ---
+  registerFolder(folderPath, folderId);
+
+  // --- 3. Set up per-folder processor state ---
+  folderQueues.set(folderId, new Set());
+  deferredQueues.set(folderId, new Set());
+
+  const mergedExcludePatterns = Array.from(
+    new Set([...DEFAULT_IGNORE_PATTERNS, ...excludePatterns])
+  );
+  const shouldIgnore = createIgnoreMatcher(mergedExcludePatterns, folderPath);
+  const normalizedExts = includeExtensions.map((e) =>
+    e.startsWith(".") ? e.slice(1).toLowerCase() : e.toLowerCase()
+  );
+
+  // Store subscriber info for fan-out filtering
+  folderSubscribers.set(folderId, {
+    folderId,
+    characterId,
+    folderPath,
+    resolvedPath,
+    normalizedExts,
+    shouldIgnore,
+  });
+
+  // Create the batch processor for this folder (reads its own DB config)
+  const processBatch = createBatchProcessor(folderId, characterId, folderPath, includeExtensions);
+  folderProcessors.set(folderId, { processBatch, characterId, folderPath });
+
+  // --- 4. Check if a watcher already exists for this physical path ---
+  const existingOwner = getWatcherOwner(folderPath);
+  if (existingOwner && existingOwner !== folderId && pathWatchers.has(resolvedPath)) {
+    const subscriberCount = getSubscriberCount(folderPath);
     console.log(
-      `[FileWatcher] Path ${folderPath} already claimed by folder ${existingClaimant}, ` +
-      `skipping duplicate watcher for ${folderId}`
+      `[FileWatcher] Path ${folderPath} already watched by ${existingOwner}, ` +
+      `added ${folderId} as subscriber #${subscriberCount} (shared watcher)`
     );
     await db
       .update(agentSyncFolders)
@@ -236,12 +381,12 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
       .where(eq(agentSyncFolders.id, folderId));
     return;
   }
-  // Claim this path synchronously before any async operations
-  watchingPaths.set(resolvedPath, folderId);
 
-  console.log(`[FileWatcher] Starting watch for folder: ${folderPath}`);
+  // --- 5. This folder will own the watcher for this path ---
+  setWatcherOwner(folderPath, folderId);
 
-  // Warn if watching project root (common source of FD exhaustion)
+  console.log(`[FileWatcher] Starting watch for folder: ${folderPath} (owner: ${folderId})`);
+
   if (folderPath === process.cwd()) {
     console.warn(
       `[FileWatcher] WARNING: Watching entire project directory (${folderPath}). ` +
@@ -250,6 +395,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     );
   }
 
+  // --- 6. FD budget check ---
   const fdBudget = getWatcherFdBudget();
   const fdWarnThreshold = getWatcherFdWarnThreshold(fdBudget);
   const openFdCount = await getOpenFileDescriptorCount();
@@ -259,8 +405,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
         `Paused: this sync would exceed the watcher file descriptor budget (${openFdCount}/${fdBudget} open). ` +
         `Exclude virtualenvs, caches, node_modules, and large asset folders, or sync a smaller subfolder.`;
       console.error(`[FileWatcher] ${lastError} Folder: ${folderPath}`);
-      watchingPaths.delete(resolvedPath);
-      await pauseFolderWithError(folderId, lastError);
+      await teardownPathFatally(resolvedPath, lastError);
       return;
     }
 
@@ -273,9 +418,227 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     }
   }
 
-  // Initialize queue for this folder
-  folderQueues.set(folderId, new Set());
-  deferredQueues.set(folderId, new Set());
+  // --- 7. Create chokidar watcher ---
+  const aggressiveIgnore = createAggressiveIgnore(mergedExcludePatterns, folderPath, includeExtensions);
+
+  const isProjectRoot = process.platform !== "win32" && await isProjectRootDirectory(folderPath);
+  const forcedPolling = pollingModePaths.has(resolvedPath);
+  const usePolling = isProjectRoot || forcedPolling || configForcePolling === true;
+
+  if (usePolling) {
+    console.log(
+      `[FileWatcher] Using polling mode for large codebase: ${folderPath} ` +
+      `(prevents file descriptor exhaustion)`
+    );
+  }
+
+  const watcher = chokidar.watch(folderPath, {
+    persistent: true,
+    ignoreInitial: true,
+    depth: recursive ? undefined : 0,
+    ignored: aggressiveIgnore,
+    awaitWriteFinish: {
+      stabilityThreshold: 200,
+      pollInterval: 100,
+    },
+    usePolling,
+    interval: usePolling ? 2000 : undefined,
+    binaryInterval: usePolling ? 5000 : undefined,
+  });
+
+  // --- 8. Fan-out event handlers ---
+  // These handlers broadcast to ALL subscriber folders for this path.
+
+  const handleFileChange = (filePath: string) => {
+    const subscribers = getSubscribers(resolvedPath);
+    for (const subFolderId of subscribers) {
+      const sub = folderSubscribers.get(subFolderId);
+      if (!sub) continue;
+
+      // Apply per-subscriber filtering
+      if (sub.shouldIgnore(filePath)) continue;
+      const ext = extname(filePath).slice(1).toLowerCase();
+      if (sub.normalizedExts.length > 0 && !sub.normalizedExts.includes(ext)) continue;
+
+      scheduleBatchForFolder(subFolderId, filePath);
+    }
+  };
+
+  const handleFileRemove = async (filePath: string) => {
+    const subscribers = getSubscribers(resolvedPath);
+    for (const subFolderId of subscribers) {
+      const sub = folderSubscribers.get(subFolderId);
+      if (!sub) continue;
+
+      try {
+        // Remove from pending queue
+        const queue = folderQueues.get(subFolderId);
+        if (queue && queue.has(filePath)) {
+          queue.delete(filePath);
+        }
+
+        // Look up the file record for this specific folder
+        const [fileRecord] = await db
+          .select()
+          .from(agentSyncFiles)
+          .where(and(
+            eq(agentSyncFiles.folderId, subFolderId),
+            eq(agentSyncFiles.filePath, filePath)
+          ));
+
+        if (fileRecord) {
+          let pointIds: string[] = [];
+          if (Array.isArray(fileRecord.vectorPointIds)) {
+            pointIds = fileRecord.vectorPointIds;
+          } else if (typeof fileRecord.vectorPointIds === "string") {
+            try {
+              const parsed = JSON.parse(fileRecord.vectorPointIds);
+              pointIds = Array.isArray(parsed) ? parsed : [];
+            } catch {
+              pointIds = [];
+            }
+          }
+
+          if (pointIds.length > 0) {
+            await removeFileFromVectorDB({
+              characterId: sub.characterId,
+              pointIds,
+            });
+          }
+
+          await db.delete(agentSyncFiles).where(eq(agentSyncFiles.id, fileRecord.id));
+          console.log(`[FileWatcher] Removed ${pointIds.length} vectors for deleted file: ${filePath} (folder: ${subFolderId})`);
+        }
+      } catch (error) {
+        console.error(`[FileWatcher] Error removing file ${filePath} for folder ${subFolderId}:`, error);
+      }
+    }
+  };
+
+  watcher
+    .on("add", handleFileChange)
+    .on("change", handleFileChange)
+    .on("unlink", handleFileRemove)
+    .on("error", async (error: any) => {
+      // --- Permission errors (EACCES / EPERM) ---
+      if (error?.code === 'EACCES' || error?.code === 'EPERM') {
+        const count = (permissionErrorCounts.get(resolvedPath) ?? 0) + 1;
+        permissionErrorCounts.set(resolvedPath, count);
+
+        if (count === 1) {
+          console.warn(
+            `[FileWatcher] Permission error watching ${folderPath}: ${error.path || error.message}. ` +
+            `Will stop watcher if errors persist.`
+          );
+        }
+
+        if (count >= PERMISSION_ERROR_THRESHOLD) {
+          console.error(
+            `[FileWatcher] ${PERMISSION_ERROR_THRESHOLD} permission errors for ${folderPath}. ` +
+            `Stopping watcher and marking all subscriber folders as errored.`
+          );
+          const errorMsg =
+            `Paused: repeated permission errors watching ${folderPath}. ` +
+            `This directory likely contains paths the app cannot access. Pick a more specific folder.`;
+          await teardownPathFatally(resolvedPath, errorMsg);
+        }
+        return;
+      }
+
+      console.error(`[FileWatcher] Error watching ${folderPath}:`, error);
+
+      // --- File-descriptor exhaustion (EMFILE / EBADF) ---
+      if (error?.code === 'EMFILE' || error?.code === 'EBADF') {
+        const retryCount = (emfileRetryCounts.get(resolvedPath) ?? 0) + 1;
+        emfileRetryCounts.set(resolvedPath, retryCount);
+
+        pollingModePaths.add(resolvedPath);
+
+        if (retryCount > MAX_EMFILE_RETRIES) {
+          console.error(
+            `[FileWatcher] EMFILE recovery exhausted (${MAX_EMFILE_RETRIES} retries) for ${folderPath}. ` +
+            `Pausing all subscriber folders to prevent app hang.`
+          );
+          const errorMsg =
+            `Paused: file descriptor limit reached after ${MAX_EMFILE_RETRIES} retries while watching ${folderPath}. ` +
+            `Exclude virtualenvs, caches, and large asset folders, or sync a smaller subfolder.`;
+          await teardownPathFatally(resolvedPath, errorMsg);
+          return;
+        }
+
+        // Capture ALL affected subscriber IDs before cleanup so we can re-subscribe them all
+        const affectedFolderIds = getSubscribers(resolvedPath);
+
+        // Close watcher and clean all in-memory state (but don't pause in DB — we'll retry)
+        await safeClosePathWatcher(resolvedPath);
+        for (const subId of affectedFolderIds) {
+          await cleanupFolderSubscriber(subId);
+          unregisterFolder(resolvedPath, subId);
+        }
+
+        const backoffMs = EMFILE_BACKOFF_MS[retryCount - 1] ?? EMFILE_BACKOFF_MS[EMFILE_BACKOFF_MS.length - 1];
+        console.warn(
+          `[FileWatcher] Hit file descriptor limit for ${folderPath} (attempt ${retryCount}/${MAX_EMFILE_RETRIES}), ` +
+          `will retry in polling mode after ${backoffMs / 1000}s...`
+        );
+
+        setTimeout(async () => {
+          console.log(
+            `[FileWatcher] Restarting watcher for ${folderPath} in polling mode ` +
+            `(attempt ${retryCount}, ${affectedFolderIds.length} subscriber(s))...`
+          );
+          // Re-subscribe ALL affected folders, not just the original owner
+          for (const subFolderId of affectedFolderIds) {
+            try {
+              const [folder] = await db
+                .select()
+                .from(agentSyncFolders)
+                .where(eq(agentSyncFolders.id, subFolderId));
+              if (!folder || folder.status === "paused") continue;
+
+              const subIncludeExts = normalizeExtensions(parseJsonArray(folder.includeExtensions));
+              const subFileTypeFilters = normalizeExtensions(parseJsonArray(folder.fileTypeFilters));
+
+              await startWatching({
+                folderId: folder.id,
+                characterId: folder.characterId,
+                folderPath: folder.folderPath,
+                recursive: folder.recursive,
+                includeExtensions: subFileTypeFilters.length > 0 ? subFileTypeFilters : subIncludeExts,
+                excludePatterns: parseJsonArray(folder.excludePatterns),
+                forcePolling: true,
+              });
+            } catch (err) {
+              console.error(`[FileWatcher] Failed to restart watcher for subscriber ${subFolderId} in polling mode:`, err);
+            }
+          }
+        }, backoffMs);
+      }
+    });
+
+  pathWatchers.set(resolvedPath, watcher);
+
+  // Watcher started successfully — reset EMFILE retry state
+  emfileRetryCounts.delete(resolvedPath);
+
+  // Update folder status
+  await db
+    .update(agentSyncFolders)
+    .set({ status: "synced", lastError: null })
+    .where(eq(agentSyncFolders.id, folderId));
+}
+
+// ---------------------------------------------------------------------------
+// Batch processor factory (per-folder, reads own DB config)
+// ---------------------------------------------------------------------------
+
+function createBatchProcessor(
+  folderId: string,
+  characterId: string,
+  folderPath: string,
+  initialIncludeExtensions: string[],
+): () => Promise<void> {
+  let includeExtensions = initialIncludeExtensions;
 
   const processBatch = async () => {
     if (activeBatchProcessing.has(folderId)) {
@@ -290,14 +653,12 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
       return;
     }
 
-    // Create a snapshot of current files to process and clear the queue
     const filesToProcess = Array.from(queue);
     queue.clear();
     folderTimers.delete(folderId);
 
-    console.log(`[FileWatcher] Processing batch of ${filesToProcess.length} files for ${folderPath}`);
+    console.log(`[FileWatcher] Processing batch of ${filesToProcess.length} files for ${folderPath} (folder: ${folderId})`);
 
-    // Get folder config to check indexing mode
     const [folder] = await db
       .select()
       .from(agentSyncFolders)
@@ -324,6 +685,14 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
       ? fileTypeFilters
       : normalizeExtensions(parseJsonArray(folder.includeExtensions));
     includeExtensions = effectiveIncludeExtensions;
+
+    // Update subscriber filter with latest extensions from DB
+    const sub = folderSubscribers.get(folderId);
+    if (sub) {
+      sub.normalizedExts = includeExtensions.map((e) =>
+        e.startsWith(".") ? e.slice(1).toLowerCase() : e.toLowerCase()
+      );
+    }
 
     if (!shouldRunForTrigger(behavior, "triggered")) {
       console.log(`[FileWatcher] Folder ${folderId} ignores trigger runs in ${behavior.syncMode} mode`);
@@ -365,10 +734,8 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
                 : undefined,
             });
           } else {
-            // FILES-ONLY MODE: Just update the file tracking in the database without creating embeddings
             console.log(`[FileWatcher] Tracking changed file (files-only mode): ${filePath}`);
 
-            // Get file metadata
             const { stat } = await import("fs/promises");
             const { createHash } = await import("crypto");
             const { readFile: readFileContent } = await import("fs/promises");
@@ -377,7 +744,6 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
             const content = await readFileContent(filePath);
             const fileHash = createHash("md5").update(content).digest("hex");
 
-            // Check if file exists in database
             const [existing] = await db
               .select()
               .from(agentSyncFiles)
@@ -387,7 +753,6 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
               ));
 
             if (existing) {
-              // Update existing file record
               await db
                 .update(agentSyncFiles)
                 .set({
@@ -395,14 +760,13 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
                   sizeBytes: fileStat.size,
                   modifiedAt: fileStat.mtime.toISOString(),
                   status: "indexed",
-                  vectorPointIds: [], // No embeddings in files-only mode
+                  vectorPointIds: [],
                   chunkCount: 0,
                   lastIndexedAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 })
                 .where(eq(agentSyncFiles.id, existing.id));
             } else {
-              // Insert new file record
               await db.insert(agentSyncFiles).values({
                 folderId,
                 characterId,
@@ -424,7 +788,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
       });
     } finally {
       activeBatchProcessing.delete(folderId);
-      console.log(`[FileWatcher] Batch processing complete for ${folderPath}`);
+      console.log(`[FileWatcher] Batch processing complete for ${folderPath} (folder: ${folderId})`);
 
       if (pendingBatchRun.get(folderId)) {
         pendingBatchRun.delete(folderId);
@@ -435,349 +799,106 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     }
   };
 
-  const scheduleBatch = (filePath: string) => {
-    if (shouldDeferIndexing(characterId)) {
-      const deferred = deferredQueues.get(folderId);
-      if (deferred && !deferred.has(filePath)) {
-        deferred.add(filePath);
-        if (deferred.size === 1) {
-          console.log(
-            `[FileWatcher] Deferring indexing while chat run is active for ${folderPath}`
-          );
-        }
-      }
-      return;
-    }
-
-    const queue = folderQueues.get(folderId);
-    if (!queue) return;
-
-    queue.add(filePath);
-
-    // Reset debounce timer
-    if (folderTimers.has(folderId)) {
-      clearTimeout(folderTimers.get(folderId)!);
-    }
-
-    folderTimers.set(
-      folderId,
-      setTimeout(processBatch, DEBOUNCE_MS)
-    );
-  };
-
-  const mergedExcludePatterns = Array.from(
-    new Set([...DEFAULT_IGNORE_PATTERNS, ...excludePatterns])
-  );
-  const aggressiveIgnore = createAggressiveIgnore(mergedExcludePatterns, folderPath, includeExtensions);
-
-  // For large codebases (project root), folders with many files, or folders that
-  // previously hit EMFILE, use polling mode to prevent file descriptor exhaustion.
-  // macOS is explicitly included here because Electron utilityProcess has lower
-  // tolerance for FD pressure and chokidar can still burn through descriptors.
-  // Windows keeps the native watcher path because ReadDirectoryChangesW handles
-  // recursion without the same FD explosion pattern.
-  const isProjectRoot = process.platform !== "win32" && await isProjectRootDirectory(folderPath);
-  const forcedPolling = pollingModeWatchers.has(folderId);
-  const usePolling = isProjectRoot || forcedPolling || configForcePolling === true;
-
-  if (usePolling) {
-    console.log(
-      `[FileWatcher] Using polling mode for large codebase: ${folderPath} ` +
-      `(prevents file descriptor exhaustion)`
-    );
-  }
-
-  const shouldIgnore = createIgnoreMatcher(mergedExcludePatterns, folderPath);
-
-  const watcher = chokidar.watch(folderPath, {
-    persistent: true,
-    ignoreInitial: true, // Don't trigger on existing files
-    depth: recursive ? undefined : 0,
-    ignored: aggressiveIgnore, // Use function-based ignore for max efficiency
-    // Use atomic writes to reduce file descriptor churn
-    awaitWriteFinish: {
-      stabilityThreshold: 200,
-      pollInterval: 100,
-    },
-    // Use polling for large codebases to prevent EMFILE errors
-    usePolling,
-    interval: usePolling ? 2000 : undefined, // Check every 2 seconds in polling mode
-    binaryInterval: usePolling ? 5000 : undefined, // Check binary files every 5 seconds
-  });
-
-  // Handle file add/change
-  const handleFileChange = async (filePath: string) => {
-    if (shouldIgnore(filePath)) {
-      return;
-    }
-    // Get extension without the leading dot for comparison
-    const ext = extname(filePath).slice(1).toLowerCase();
-    // Normalize include extensions by removing any leading dots
-    const normalizedExts = includeExtensions.map((e) =>
-      e.startsWith(".") ? e.slice(1).toLowerCase() : e.toLowerCase()
-    );
-    if (normalizedExts.length > 0 && !normalizedExts.includes(ext)) {
-      return; // Skip files with non-matching extensions
-    }
-
-    scheduleBatch(filePath);
-  };
-
-  // Handle file removal - process immediately as it's fast and important to keep index clean
-  const handleFileRemove = async (filePath: string) => {
-    try {
-      console.log(`[FileWatcher] Removing deleted file from index: ${filePath}`);
-
-      // Also remove from pending queue if it was waiting to be processed
-      const queue = folderQueues.get(folderId);
-      if (queue && queue.has(filePath)) {
-        queue.delete(filePath);
-      }
-
-      // Look up the file record in the database
-      const [fileRecord] = await db
-        .select()
-        .from(agentSyncFiles)
-        .where(and(
-          eq(agentSyncFiles.folderId, folderId),
-          eq(agentSyncFiles.filePath, filePath)
-        ));
-
-      if (fileRecord) {
-        // Parse vectorPointIds - handle both arrays and double-stringified data
-        let pointIds: string[] = [];
-        if (Array.isArray(fileRecord.vectorPointIds)) {
-          pointIds = fileRecord.vectorPointIds;
-        } else if (typeof fileRecord.vectorPointIds === "string") {
-          try {
-            const parsed = JSON.parse(fileRecord.vectorPointIds);
-            pointIds = Array.isArray(parsed) ? parsed : [];
-          } catch {
-            pointIds = [];
-          }
-        }
-
-        // Remove from vector DB
-        if (pointIds.length > 0) {
-          await removeFileFromVectorDB({
-            characterId,
-            pointIds,
-          });
-        }
-
-        // Remove from database
-        await db.delete(agentSyncFiles).where(eq(agentSyncFiles.id, fileRecord.id));
-        console.log(`[FileWatcher] Removed ${pointIds.length} vectors for deleted file: ${filePath}`);
-      }
-    } catch (error) {
-      console.error(`[FileWatcher] Error removing file ${filePath}:`, error);
-    }
-  };
-
-  watcher
-    .on("add", handleFileChange)
-    .on("change", handleFileChange)
-    .on("unlink", handleFileRemove)
-    .on("error", async (error: any) => {
-      // --- Permission errors (EACCES / EPERM) ---
-      // These fire continuously for paths the process can't access (e.g. "/" on macOS).
-      // Count them; after the threshold stop the watcher and mark the folder errored.
-      if (error?.code === 'EACCES' || error?.code === 'EPERM') {
-        const count = (permissionErrorCounts.get(folderId) ?? 0) + 1;
-        permissionErrorCounts.set(folderId, count);
-
-        if (count === 1) {
-          console.warn(
-            `[FileWatcher] Permission error watching ${folderPath}: ${error.path || error.message}. ` +
-            `Will stop watcher if errors persist.`
-          );
-        }
-
-        if (count >= PERMISSION_ERROR_THRESHOLD) {
-          console.error(
-            `[FileWatcher] ${PERMISSION_ERROR_THRESHOLD} permission errors for ${folderPath}. ` +
-            `Stopping watcher and marking folder as errored.`
-          );
-          permissionErrorCounts.delete(folderId);
-
-          try {
-            await watcher.close();
-            watchers.delete(folderId);
-          } catch (closeError) {
-            console.error(`[FileWatcher] Error closing watcher:`, closeError);
-          }
-
-          // Mark folder as paused in the database
-          await pauseFolderWithError(
-            folderId,
-            `Paused: repeated permission errors watching ${folderPath}. ` +
-              `This directory likely contains paths the app cannot access. Pick a more specific folder.`
-          );
-        }
-        // Silently drop subsequent errors until we hit the threshold
-        return;
-      }
-
-      console.error(`[FileWatcher] Error watching ${folderPath}:`, error);
-
-      // --- File-descriptor exhaustion (EMFILE / EBADF) ---
-      // Restart the watcher in polling mode which uses stat() instead of native watches.
-      // Uses exponential backoff and a retry limit to prevent infinite restart loops
-      // that would starve the entire Node.js process of file descriptors.
-      if (error?.code === 'EMFILE' || error?.code === 'EBADF') {
-        const retryCount = (emfileRetryCounts.get(folderId) ?? 0) + 1;
-        emfileRetryCounts.set(folderId, retryCount);
-
-        // Always mark for polling mode on first EMFILE
-        pollingModeWatchers.add(folderId);
-
-        // Safe close — won't throw even if FDs are exhausted
-        await safeCloseWatcher(folderId);
-
-        if (retryCount > MAX_EMFILE_RETRIES) {
-          console.error(
-            `[FileWatcher] EMFILE recovery exhausted (${MAX_EMFILE_RETRIES} retries) for ${folderPath}. ` +
-            `Pausing folder to prevent app hang.`
-          );
-          emfileRetryCounts.delete(folderId);
-
-          // Mark folder as paused so the UI shows the issue clearly
-          await pauseFolderWithError(
-            folderId,
-            `Paused: file descriptor limit reached after ${MAX_EMFILE_RETRIES} retries while watching ${folderPath}. ` +
-              `Exclude virtualenvs, caches, and large asset folders, or sync a smaller subfolder.`
-          );
-          return;
-        }
-
-        const backoffMs = EMFILE_BACKOFF_MS[retryCount - 1] ?? EMFILE_BACKOFF_MS[EMFILE_BACKOFF_MS.length - 1];
-        console.warn(
-          `[FileWatcher] Hit file descriptor limit for ${folderPath} (attempt ${retryCount}/${MAX_EMFILE_RETRIES}), ` +
-          `will retry in polling mode after ${backoffMs / 1000}s...`
-        );
-
-        setTimeout(() => {
-          console.log(`[FileWatcher] Restarting watcher for ${folderPath} in polling mode (attempt ${retryCount})...`);
-          startWatching({ ...config, forcePolling: true }).catch(err => {
-            console.error(`[FileWatcher] Failed to restart watcher in polling mode:`, err);
-          });
-        }, backoffMs);
-      }
-    });
-
-  watchers.set(folderId, watcher);
-
-  // Watcher started successfully — reset any EMFILE retry state
-  emfileRetryCounts.delete(folderId);
-
-  folderProcessors.set(folderId, {
-    processBatch,
-    characterId,
-    folderPath,
-  });
-
-  // Update folder status
-  await db
-    .update(agentSyncFolders)
-    .set({ status: "synced", lastError: null })
-    .where(eq(agentSyncFolders.id, folderId));
+  return processBatch;
 }
 
+// ---------------------------------------------------------------------------
+// stopWatching
+// ---------------------------------------------------------------------------
+
 /**
- * Stop watching a folder
+ * Clean up a folder's subscriber state without affecting the shared watcher.
  */
-export async function stopWatching(folderId: string): Promise<void> {
-  // Check if another non-paused folder shares the same resolved path.
-  // If so, keep the watcher alive and transfer ownership instead of killing it.
-  let keepWatcherAlive = false;
-  let claimedPath: string | undefined;
-
-  for (const [p, id] of watchingPaths.entries()) {
-    if (id === folderId) {
-      claimedPath = p;
-      break;
-    }
-  }
-
-  if (claimedPath && watchers.has(folderId)) {
-    // Query DB for other folders on the same resolved path that are not paused
-    const otherFolders = await db
-      .select({ id: agentSyncFolders.id })
-      .from(agentSyncFolders)
-      .where(
-        and(
-          eq(agentSyncFolders.folderPath, claimedPath),
-          eq(agentSyncFolders.status, "synced")
-        )
-      );
-
-    const otherActive = otherFolders.filter(f => f.id !== folderId);
-    if (otherActive.length > 0) {
-      // Transfer path ownership to another active folder
-      watchingPaths.set(claimedPath, otherActive[0].id);
-      keepWatcherAlive = true;
-      console.log(
-        `[FileWatcher] Keeping watcher alive for ${claimedPath}, ` +
-        `transferred ownership from ${folderId} to ${otherActive[0].id}`
-      );
-    }
-  }
-
-  if (!keepWatcherAlive && watchers.has(folderId)) {
-    await safeCloseWatcher(folderId);
-    console.log(`[FileWatcher] Stopped watching folder: ${folderId}`);
-  }
-
-  // Clear any pending queue and timer for this folder
+async function cleanupFolderSubscriber(folderId: string): Promise<void> {
   if (folderTimers.has(folderId)) {
     clearTimeout(folderTimers.get(folderId)!);
     folderTimers.delete(folderId);
   }
-
-  if (folderQueues.has(folderId)) {
-    folderQueues.delete(folderId);
-  }
-
-  if (deferredQueues.has(folderId)) {
-    deferredQueues.delete(folderId);
-  }
-
-  if (folderProcessors.has(folderId)) {
-    folderProcessors.delete(folderId);
-  }
-
-  // Release path claim (unless we transferred ownership above)
-  if (!keepWatcherAlive && claimedPath) {
-    watchingPaths.delete(claimedPath);
-  }
-
+  folderQueues.delete(folderId);
+  deferredQueues.delete(folderId);
+  folderProcessors.delete(folderId);
+  folderSubscribers.delete(folderId);
   pendingBatchRun.delete(folderId);
   activeBatchProcessing.delete(folderId);
-  pollingModeWatchers.delete(folderId);
-  permissionErrorCounts.delete(folderId);
-  // Do not clear emfileRetryCounts here so retries can escalate across restarts
-  // emfileRetryCounts.delete(folderId);
 }
 
 /**
- * Stop all watchers
+ * Stop watching a folder.
+ *
+ * Unregisters this folder from the shared registry. If other folders
+ * still reference the same path, the chokidar watcher is kept alive.
+ * Only destroys the watcher when the last subscriber is removed.
  */
-export async function stopAllWatchers(): Promise<void> {
-  for (const folderId of watchers.keys()) {
-    await stopWatching(folderId);
+export async function stopWatching(folderId: string): Promise<void> {
+  const registeredPath = getPathForFolder(folderId);
+
+  // Clean up per-folder state
+  await cleanupFolderSubscriber(folderId);
+
+  if (!registeredPath) {
+    // Not registered — nothing else to do
+    return;
+  }
+
+  // Unregister from the shared registry
+  const noMoreSubscribers = unregisterFolder(registeredPath, folderId);
+
+  if (noMoreSubscribers) {
+    // Last subscriber — destroy the chokidar watcher
+    await safeClosePathWatcher(registeredPath);
+    pollingModePaths.delete(registeredPath);
+    permissionErrorCounts.delete(registeredPath);
+    console.log(`[FileWatcher] Stopped last watcher for path: ${registeredPath} (was folder: ${folderId})`);
+  } else {
+    // Other subscribers remain. The registry's unregisterFolder already
+    // transferred ownership if this was the owner. Log the transfer.
+    const newOwner = getWatcherOwner(registeredPath);
+    const remainingCount = getSubscriberCount(registeredPath);
+    console.log(
+      `[FileWatcher] Removed subscriber ${folderId} from ${registeredPath}. ` +
+      `${remainingCount} subscriber(s) remain, owner: ${newOwner}`
+    );
   }
 }
 
 /**
- * Get list of currently watched folders
+ * Stop all watchers and clear all state.
  */
-export function getWatchedFolders(): string[] {
-  return Array.from(watchers.keys());
+export async function stopAllWatchers(): Promise<void> {
+  // Close all chokidar instances
+  for (const [resolvedPath, watcher] of pathWatchers.entries()) {
+    try {
+      await watcher.close();
+    } catch (err) {
+      console.error(`[FileWatcher] Error closing watcher for ${resolvedPath}:`, err);
+    }
+  }
+  pathWatchers.clear();
+
+  // Clear all per-folder state (snapshot keys to avoid mutation during iteration)
+  for (const folderId of Array.from(folderSubscribers.keys())) {
+    await cleanupFolderSubscriber(folderId);
+  }
+
+  // Clear the shared registry
+  clearRegistry();
+
+  // Clear path-level state
+  pollingModePaths.clear();
+  permissionErrorCounts.clear();
+  emfileRetryCounts.clear();
 }
 
 /**
- * Check if a folder is being watched
+ * Get list of currently watched folder IDs (all subscribers, not just owners).
+ */
+export function getWatchedFolders(): string[] {
+  return Array.from(folderSubscribers.keys());
+}
+
+/**
+ * Check if a folder is being watched (either as owner or subscriber).
  */
 export function isWatching(folderId: string): boolean {
-  return watchers.has(folderId);
+  return folderSubscribers.has(folderId);
 }
