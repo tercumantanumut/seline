@@ -334,12 +334,38 @@ export function useThreadDropHandler({
     t,
   ]);
 
+  // ── Window blur / dragend safety: force-reset drag state ────────────────
+  // When the window loses focus during a drag (e.g. alt-tab in Electron),
+  // the browser may never fire dragleave/drop, leaving the overlay stuck.
+  const resetDragState = useCallback(() => {
+    dragCounter.current = 0;
+    setIsDragging(false);
+  }, []);
+
+  const dragoverActivityRef = useRef<number>(0);
+  const dragSafetyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     // Keep mount flag accurate in React Strict Mode dev remount cycles.
     isMountedRef.current = true;
 
+    // Force-clear on window blur — covers alt-tab, Electron focus loss
+    const handleBlur = () => {
+      resetDragState();
+    };
+
+    // dragend fires when the drag operation finishes for any reason
+    const handleDragEnd = () => {
+      resetDragState();
+    };
+
+    window.addEventListener("blur", handleBlur);
+    document.addEventListener("dragend", handleDragEnd);
+
     return () => {
       isMountedRef.current = false;
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("dragend", handleDragEnd);
       importAbortControllerRef.current?.abort();
       importAbortControllerRef.current = null;
       comfyImportAbortControllerRef.current?.abort();
@@ -356,13 +382,19 @@ export function useThreadDropHandler({
         clearTimeout(comfyImportTimeoutRef.current);
         comfyImportTimeoutRef.current = null;
       }
+      if (dragSafetyTimerRef.current) {
+        clearInterval(dragSafetyTimerRef.current);
+        dragSafetyTimerRef.current = null;
+      }
     };
-  }, []);
+  }, [resetDragState]);
 
   // ── Drag-and-drop handlers (full-page drop zone) ──────────────────────
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // Track last dragover timestamp for safety timeout
+    dragoverActivityRef.current = Date.now();
   }, []);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -373,15 +405,33 @@ export function useThreadDropHandler({
       dragCounter.current += 1;
       if (dragCounter.current === 1) {
         setIsDragging(true);
+        dragoverActivityRef.current = Date.now();
+
+        // Safety timeout: if no dragover fires for 3s, the drag was
+        // probably abandoned (alt-tab, Electron focus loss, etc.)
+        if (dragSafetyTimerRef.current) clearInterval(dragSafetyTimerRef.current);
+        dragSafetyTimerRef.current = setInterval(() => {
+          if (Date.now() - dragoverActivityRef.current > 3000) {
+            resetDragState();
+            if (dragSafetyTimerRef.current) {
+              clearInterval(dragSafetyTimerRef.current);
+              dragSafetyTimerRef.current = null;
+            }
+          }
+        }, 1000);
       }
     }
-  }, []);
+  }, [resetDragState]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = Math.max(0, dragCounter.current - 1);
     if (dragCounter.current === 0) {
       setIsDragging(false);
+      if (dragSafetyTimerRef.current) {
+        clearInterval(dragSafetyTimerRef.current);
+        dragSafetyTimerRef.current = null;
+      }
     }
   }, []);
 
@@ -392,6 +442,10 @@ export function useThreadDropHandler({
       // Force-reset drag state to prevent stuck overlay
       dragCounter.current = 0;
       setIsDragging(false);
+      if (dragSafetyTimerRef.current) {
+        clearInterval(dragSafetyTimerRef.current);
+        dragSafetyTimerRef.current = null;
+      }
 
       // Block drops in deep research mode
       if (isDeepResearchMode) {

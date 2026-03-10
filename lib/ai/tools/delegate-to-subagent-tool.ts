@@ -10,6 +10,7 @@
  *   start    – create session, fire-and-forget chat API call, return immediately
  *   observe  – query DB for real message count, tool calls, last response content
  *   continue – send a follow-up message to an existing delegation session
+ *   answer   – forward an interactive answer to a waiting sub-agent
  *   stop     – abort the running delegation
  *   list     – list active delegations + available sub-agents for the calling agent
  */
@@ -29,6 +30,7 @@ import {
   handleStartAction,
   handleObserve,
   handleContinue,
+  handleAnswer,
   handleStop,
   handleList,
 } from "./delegate-to-subagent-handlers";
@@ -53,9 +55,9 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
   properties: {
     action: {
       type: "string",
-      enum: ["start", "observe", "continue", "stop", "list"],
+      enum: ["start", "observe", "continue", "answer", "stop", "list"],
       description:
-        "Action to perform: 'start' a new delegation (blocks by default), 'observe' progress of a background delegation, 'continue' with a follow-up message, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
+        "Action to perform: 'start' a new delegation (blocks by default), 'observe' progress of a background delegation, 'continue' with a follow-up message, 'answer' a pending interactive question from a sub-agent, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
     },
     agentId: {
       type: "string",
@@ -112,6 +114,17 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
       description:
         "Optional compatibility alias for delegationId. With action='start', resume maps to continue using this delegationId and task as the follow-up message.",
     },
+    toolUseId: {
+      type: "string",
+      description:
+        "The toolUseId from the pendingInteractivePrompts array. Required for 'answer' action.",
+    },
+    answers: {
+      type: "object",
+      additionalProperties: { type: "string" },
+      description:
+        "A Record<string, string> mapping question text to the chosen answer. Required for 'answer' action.",
+    },
   },
   required: ["action"],
   additionalProperties: false,
@@ -149,6 +162,8 @@ export function createDelegateToSubagentTool(
             },
             characterId
           );
+        case "answer":
+          return handleAnswer(normalizedInput, characterId);
         case "stop":
           return handleStop(normalizedInput, characterId);
         case "list":
@@ -156,7 +171,7 @@ export function createDelegateToSubagentTool(
         default:
           return {
             success: false,
-            error: `Unknown action: ${normalizedInput.action}. Use start, observe, continue, stop, or list.`,
+            error: `Unknown action: ${normalizedInput.action}. Use start, observe, continue, answer, stop, or list.`,
             delegations: buildDelegationsSummary(characterId),
           };
       }

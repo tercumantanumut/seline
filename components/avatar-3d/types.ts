@@ -112,6 +112,8 @@ export interface TalkingHeadInstance {
   ) => void;
   /** Stop any ongoing speech animation */
   stopSpeaking: () => void;
+  /** Stop the internal render/update loop if supported by the loaded version */
+  stop?: () => void;
   /** Set the avatar mood (affects idle animation style) */
   setMood: (mood: string) => void;
   /** Switch camera view (e.g. 'head', 'upper', 'mid', 'full') */
@@ -122,8 +124,8 @@ export interface TalkingHeadInstance {
   getAutoRotateSpeed: () => number;
   /** Load and display an avatar model */
   showAvatar: (options: TalkingHeadShowAvatarOptions) => Promise<void>;
-  /** Hide and unload the current avatar */
-  hideAvatar: () => void;
+  /** Hide and unload the current avatar if supported by the loaded version */
+  hideAvatar?: () => void;
   /** The internal AudioContext used for audio decoding */
   audioCtx: AudioContext;
   /** The Three.js armature object (root skeleton) */

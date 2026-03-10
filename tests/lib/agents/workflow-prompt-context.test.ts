@@ -25,15 +25,18 @@ describe("buildWorkflowPromptContext", () => {
     expect(prompt).toContain("Workflow: Product Ops Workflow");
     expect(prompt).toContain("Role: initiator");
     expect(prompt).toContain("## Initiator / Orchestrator Contract");
-    expect(prompt).toContain("list -> start -> observe(waitSeconds) -> continue or stop");
-    expect(prompt).toContain("runInBackground");
+    expect(prompt).toContain("Delegate by calling start with a task. The call blocks and returns the subagent's final result directly.");
+    expect(prompt).toContain("Launch multiple start calls in parallel for concurrent subagent work");
+    expect(prompt).toContain("Avoid duplicate work: if a delegation to the same subagent is already active, reuse it via observe/continue/stop.");
+    expect(prompt).toContain("## Background Mode (optional)");
+    expect(prompt).toContain("mode='background'");
+    expect(prompt).toContain("observe(waitSeconds)");
     expect(prompt).toContain("- resume: map to continue using delegationId");
     expect(prompt).not.toContain("run_in_background");
     expect(prompt).not.toContain("resume(agent_id)");
     expect(prompt).not.toContain("max_turns");
-    expect(prompt).toContain("prefer background: true");
-    expect(prompt).toContain("sleep 45");
     expect(prompt).toContain("Active delegations");
+    expect(prompt).toContain("running 45s");
     expect(prompt).toContain("del-123");
   });
 

@@ -13,7 +13,7 @@ if (process.env.NODE_ENV !== "production") {
   };
 }
 
-import { Component, createContext, type ErrorInfo, type FC, type MutableRefObject, type ReactNode, useContext, useEffect, useMemo, useRef } from "react";
+import { Component, createContext, type ErrorInfo, type FC, type MutableRefObject, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   AssistantRuntimeProvider,
   type AttachmentAdapter,
@@ -31,6 +31,12 @@ import { VoiceProvider } from "./assistant-ui/voice-context";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { classifyRecoverability } from "@/lib/ai/retry/stream-recovery";
+import {
+  type ChatTransportErrorPayload,
+  parseTransportErrorResponse,
+  shouldIgnoreUseChatError,
+} from "@/lib/chat/transport-errors";
+import { parseChatPreflightResponse } from "@/lib/chat/preflight";
 
 // ============================================================================
 // Error Boundary for Tool Streaming Errors
@@ -245,6 +251,13 @@ export const useChatSetMessages = () => useContext(ChatSetMessagesContext);
 
 const ChatSessionIdContext = createContext<string | undefined>(undefined);
 export const useChatSessionId = () => useContext(ChatSessionIdContext);
+
+const ChatTransportErrorContext = createContext<{
+  error: ChatTransportErrorPayload | null;
+  clearError: () => void;
+} | null>(null);
+
+export const useChatTransportError = () => useContext(ChatTransportErrorContext);
 
 // ============================================================================
 // Dynamic transport proxy (same as useChatRuntime does internally)
@@ -869,15 +882,72 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     // Ignore timezone detection failures in constrained runtimes.
   }
 
+  const [transportError, setTransportError] = useState<ChatTransportErrorPayload | null>(null);
+  const clearTransportError = () => setTransportError(null);
+
+  const transportFetch = useMemo(
+    () =>
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        setTransportError(null);
+
+        if (typeof input === "string" && input === "/api/chat") {
+          const preflightResponse = await fetch("/api/chat/preflight", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(init?.headers ? Object.fromEntries(new Headers(init.headers).entries()) : {}),
+            },
+            body: init?.body,
+            signal: init?.signal,
+          });
+          const preflightResult = parseChatPreflightResponse(await preflightResponse.text());
+          if (!preflightResult.ok) {
+            setTransportError({
+              httpStatus: preflightResult.httpStatus,
+              message: preflightResult.error,
+              details: preflightResult.details,
+              status: preflightResult.status,
+              recovery: preflightResult.recovery,
+              compactionResult: preflightResult.compactionResult,
+            });
+            return new Response(JSON.stringify({
+              error: preflightResult.error,
+              details: preflightResult.details,
+              status: preflightResult.status,
+              recovery: preflightResult.recovery,
+              compactionResult: preflightResult.compactionResult,
+            }), {
+              status: preflightResult.httpStatus ?? 500,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+        }
+
+        try {
+          const response = await fetch(input, init);
+          if (!response.ok) {
+            setTransportError(await parseTransportErrorResponse(response));
+          }
+          return response;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Request failed";
+          setTransportError({ message });
+          throw error;
+        }
+      },
+    [],
+  );
+
   const transport = useDynamicChatTransport(
     useMemo(
       () =>
         new BufferedAssistantChatTransport({
           api: "/api/chat",
           headers: Object.keys(headers).length > 0 ? headers : undefined,
+          fetch: transportFetch,
         }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [sessionId, characterId],
+      [sessionId, characterId, transportFetch],
     ),
   );
 
@@ -885,6 +955,8 @@ export const ChatProvider: FC<ChatProviderProps> = ({
   // persisted during Agent SDK streaming interruptions.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const safeMessages = useMemo(() => sanitizeMessagesForInit(initialMessages ?? []), [initialMessages]);
+
+  const chatStatusRef = useRef("ready");
 
   const chat = useChat({
     id: sessionId,
@@ -895,16 +967,14 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     // uuidRegex check, causing the server to assign new UUIDs — the resulting
     // ID mismatch creates phantom branches in assistant-ui's MessageRepository.
     generateId: () => crypto.randomUUID(),
-    // Suppress abort-related errors that escape when the user presses Stop
-    // before the stream is fully initialized. Without this, the error propagates
-    // as an unhandled rejection and crashes the error boundary.
+    // Suppress user-triggered abort noise, but surface request-start failures.
     onError: (error) => {
-      if (error.name === "AbortError") return;
-      const msg = error.message || "";
-      if (msg.includes("aborted")) return;
-      if (msg.includes("Failed to fetch") || msg.includes("Load failed")) return;
-      if (msg.includes("network") && error instanceof TypeError) return;
+      if (shouldIgnoreUseChatError(error, chatStatusRef.current)) {
+        return;
+      }
+
       console.error("[ChatProvider] useChat error:", error.message);
+      chat.clearError();
     },
   });
 
@@ -918,6 +988,10 @@ export const ChatProvider: FC<ChatProviderProps> = ({
       (transport as AssistantChatTransport<UIMessage>).setRuntime(runtime);
     }
   }, [transport, runtime]);
+
+  useEffect(() => {
+    chatStatusRef.current = chat.status;
+  }, [chat.status]);
 
   // Recovery callback: sanitize messages to clear broken tool-call state
   // so the error boundary can re-render without hitting the same error.
@@ -950,13 +1024,15 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     >
       <AssistantRuntimeProvider runtime={runtime}>
         <ChatSessionIdContext.Provider value={sessionId}>
-          <ChatSetMessagesContext.Provider value={chat.setMessages}>
-            <VoiceProvider>
-              <DeepResearchProvider sessionId={sessionId}>
-                {children}
-              </DeepResearchProvider>
-            </VoiceProvider>
-          </ChatSetMessagesContext.Provider>
+          <ChatTransportErrorContext.Provider value={{ error: transportError, clearError: clearTransportError }}>
+            <ChatSetMessagesContext.Provider value={chat.setMessages}>
+              <VoiceProvider>
+                <DeepResearchProvider sessionId={sessionId}>
+                  {children}
+                </DeepResearchProvider>
+              </VoiceProvider>
+            </ChatSetMessagesContext.Provider>
+          </ChatTransportErrorContext.Provider>
         </ChatSessionIdContext.Provider>
       </AssistantRuntimeProvider>
     </ChatErrorBoundary>

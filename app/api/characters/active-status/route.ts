@@ -4,6 +4,7 @@ import { listRunningRunsByCharacter, completeAgentRun } from "@/lib/observabilit
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { isStale } from "@/lib/utils/timestamp";
+import { hasPendingInteractiveWait } from "@/lib/interactive-tool-bridge";
 
 /**
  * GET /api/characters/active-status?ids=id1,id2,id3
@@ -33,11 +34,12 @@ export async function GET(req: Request) {
       ids.map(async (characterId) => {
         try {
           const runs = await listRunningRunsByCharacter(characterId);
+          const hasInteractiveWait = runs.some((run) => hasPendingInteractiveWait(run.sessionId));
           let hasRunning = false;
           let activeSessionId: string | null = null;
 
           for (const run of runs) {
-            if (isStale(run.updatedAt ?? run.startedAt, THIRTY_MINUTES)) {
+            if (!hasInteractiveWait && isStale(run.updatedAt ?? run.startedAt, THIRTY_MINUTES)) {
               await completeAgentRun(run.id, "failed", { error: "stale_run_cleanup" });
               continue;
             }

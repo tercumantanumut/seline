@@ -1,18 +1,17 @@
 "use client";
 
 /**
- * useBrowserInteraction — Manages interactive mode for the browser session viewer.
+ * useBrowserInteraction - Manages interactive mode for the browser session viewer.
  *
  * When interactive mode is enabled, user mouse/keyboard events on the screencast
  * image are captured, translated to viewport coordinates, and sent to the
  * interact API endpoint. This lets users directly control the browser the agent is using.
  *
- * Coordinate mapping: The screencast image is rendered with object-contain at
- * arbitrary display size, but the actual browser viewport is typically 1280×720.
- * We compute the mapping by comparing the image's natural size to its rendered size.
+ * Coordinate mapping: the screencast is rendered with object-contain at arbitrary
+ * display size, but the Playwright session always runs at a fixed 1280x720 viewport.
  */
 
-import { useCallback, useState, useEffect, type RefObject } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 
 interface InteractPayload {
   type: "click" | "type" | "keypress" | "scroll" | "navigate";
@@ -40,61 +39,52 @@ interface UseBrowserInteractionOptions {
 interface UseBrowserInteractionReturn {
   /** Attach to the screencast container's onMouseDown */
   handleMouseDown: (e: React.MouseEvent) => void;
-  /** Attach to the screencast container's onMouseMove */
-  handleMouseMove: (e: React.MouseEvent) => void;
-  /** Current cursor position in viewport coordinates (for overlay) */
-  cursorPos: { x: number; y: number } | null;
-  /** Cursor position in display coordinates (for cursor overlay rendering) */
-  displayCursorPos: { x: number; y: number } | null;
   /** Whether a request is in-flight */
   isSending: boolean;
   /** Navigate to a URL */
   navigate: (url: string) => Promise<void>;
 }
 
+const VIEWPORT_W = 1280;
+const VIEWPORT_H = 720;
+
+function getRenderedFrameMetrics(img: HTMLImageElement) {
+  const rect = img.getBoundingClientRect();
+  const scale = Math.min(rect.width / VIEWPORT_W, rect.height / VIEWPORT_H);
+  const renderedW = VIEWPORT_W * scale;
+  const renderedH = VIEWPORT_H * scale;
+  const offsetX = (rect.width - renderedW) / 2;
+  const offsetY = (rect.height - renderedH) / 2;
+
+  return { rect, renderedW, renderedH, offsetX, offsetY };
+}
+
 /**
- * Map a mouse event's position on the rendered <img> element to
- * the actual browser viewport coordinates.
+ * Map a pointer position on the rendered <img> element to browser viewport coordinates.
  *
- * The image uses `object-contain`, so it may have letterboxing.
- * We need to account for the offset and scale.
+ * The screencast can be emitted at HiDPI pixel sizes, so we map against the known
+ * Playwright viewport instead of img.naturalWidth/img.naturalHeight.
  */
-function mapToViewport(
-  e: React.MouseEvent | React.WheelEvent,
+function mapPointToViewport(
+  clientX: number,
+  clientY: number,
   img: HTMLImageElement
 ): { x: number; y: number } | null {
-  const rect = img.getBoundingClientRect();
-  const naturalW = img.naturalWidth;
-  const naturalH = img.naturalHeight;
+  const { rect, renderedW, renderedH, offsetX, offsetY } = getRenderedFrameMetrics(img);
+  const mouseX = clientX - rect.left;
+  const mouseY = clientY - rect.top;
 
-  if (!naturalW || !naturalH) return null;
-
-  // Calculate the rendered image dimensions within the container (object-contain)
-  const containerW = rect.width;
-  const containerH = rect.height;
-  const scale = Math.min(containerW / naturalW, containerH / naturalH);
-  const renderedW = naturalW * scale;
-  const renderedH = naturalH * scale;
-
-  // Offset from container top-left to image top-left (letterboxing)
-  const offsetX = (containerW - renderedW) / 2;
-  const offsetY = (containerH - renderedH) / 2;
-
-  // Mouse position relative to the container
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-
-  // Check if click is within the rendered image area
   if (
-    mouseX < offsetX || mouseX > offsetX + renderedW ||
-    mouseY < offsetY || mouseY > offsetY + renderedH
+    mouseX < offsetX ||
+    mouseX > offsetX + renderedW ||
+    mouseY < offsetY ||
+    mouseY > offsetY + renderedH
   ) {
-    return null; // Click is in the letterbox area
+    return null;
   }
 
-  // Map to viewport coordinates
-  const viewportX = ((mouseX - offsetX) / renderedW) * naturalW;
-  const viewportY = ((mouseY - offsetY) / renderedH) * naturalH;
+  const viewportX = ((mouseX - offsetX) / renderedW) * VIEWPORT_W;
+  const viewportY = ((mouseY - offsetY) / renderedH) * VIEWPORT_H;
 
   return { x: Math.round(viewportX), y: Math.round(viewportY) };
 }
@@ -105,11 +95,8 @@ export function useBrowserInteraction({
   enabled,
   containerRef,
 }: UseBrowserInteractionOptions): UseBrowserInteractionReturn {
-  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
-  const [displayCursorPos, setDisplayCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [isSending, setIsSending] = useState(false);
 
-  // H6: Fire-and-forget — each interaction sends independently, no abort logic.
   const sendInteraction = useCallback(async (payload: InteractPayload) => {
     if (!sessionId) return;
 
@@ -131,7 +118,7 @@ export function useBrowserInteraction({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!enabled || !imgRef.current) return;
 
-    const pos = mapToViewport(e, imgRef.current);
+    const pos = mapPointToViewport(e.clientX, e.clientY, imgRef.current);
     if (!pos) return;
 
     e.preventDefault();
@@ -146,21 +133,8 @@ export function useBrowserInteraction({
     });
   }, [enabled, imgRef, sendInteraction]);
 
-  // M7: Store both viewport coords and display coords for cursor overlay
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!enabled || !imgRef.current) return;
 
-    const pos = mapToViewport(e, imgRef.current);
-    setCursorPos(pos);
-    if (pos) {
-      const rect = imgRef.current.getBoundingClientRect();
-      setDisplayCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    } else {
-      setDisplayCursorPos(null);
-    }
-  }, [enabled, imgRef]);
-
-  // L8: Non-passive wheel listener attached via useEffect so preventDefault() works
+  // Non-passive wheel listener attached via useEffect so preventDefault() works.
   useEffect(() => {
     const el = containerRef?.current;
     if (!el || !enabled) return;
@@ -169,28 +143,17 @@ export function useBrowserInteraction({
       const img = imgRef.current;
       if (!img) return;
 
-      const rect = img.getBoundingClientRect();
-      const naturalW = img.naturalWidth;
-      const naturalH = img.naturalHeight;
-      if (!naturalW || !naturalH) return;
-
-      const containerW = rect.width;
-      const containerH = rect.height;
-      const scale = Math.min(containerW / naturalW, containerH / naturalH);
-      const renderedW = naturalW * scale;
-      const renderedH = naturalH * scale;
-      const offsetX = (containerW - renderedW) / 2;
-      const offsetY = (containerH - renderedH) / 2;
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-
-      if (mouseX < offsetX || mouseX > offsetX + renderedW || mouseY < offsetY || mouseY > offsetY + renderedH) return;
-
-      const viewportX = Math.round(((mouseX - offsetX) / renderedW) * naturalW);
-      const viewportY = Math.round(((mouseY - offsetY) / renderedH) * naturalH);
+      const pos = mapPointToViewport(e.clientX, e.clientY, img);
+      if (!pos) return;
 
       e.preventDefault();
-      void sendInteraction({ type: "scroll", x: viewportX, y: viewportY, deltaX: e.deltaX, deltaY: e.deltaY });
+      void sendInteraction({
+        type: "scroll",
+        x: pos.x,
+        y: pos.y,
+        deltaX: e.deltaX,
+        deltaY: e.deltaY,
+      });
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -199,16 +162,12 @@ export function useBrowserInteraction({
 
   const navigate = useCallback(async (url: string) => {
     if (!url) return;
-    // Auto-add protocol if missing
     const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
     await sendInteraction({ type: "navigate", url: normalizedUrl });
   }, [sendInteraction]);
 
   return {
     handleMouseDown,
-    handleMouseMove,
-    cursorPos,
-    displayCursorPos,
     isSending,
     navigate,
   };

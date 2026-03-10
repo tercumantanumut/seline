@@ -22,7 +22,6 @@ export interface AskUserQuestionArgs {
   questions: AskUserQuestionItem[];
 }
 
-const WAIT_TIMEOUT_MS = 300_000;
 const TIMEOUT_RESULT = { answers: {}, timedOut: true } as const;
 
 const askUserQuestionSchema = jsonSchema<AskUserQuestionArgs>({
@@ -88,32 +87,6 @@ function extractToolCallId(options?: ToolExecutionOptions): string {
   return "";
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
-  return new Promise((resolve) => {
-    let settled = false;
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      resolve(undefined);
-    }, timeoutMs);
-
-    promise
-      .then((value) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch(() => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(undefined);
-      });
-  });
-}
-
 async function executeAskUserQuestion(
   options: AskUserQuestionToolOptions,
   args: AskUserQuestionArgs,
@@ -129,14 +102,14 @@ async function executeAskUserQuestion(
     return TIMEOUT_RESULT;
   }
 
-  const waitPromise = registerInteractiveWait(
+  const waitResult = await registerInteractiveWait(
     options.sessionId,
     toolCallId,
     args.questions,
+    { abortSignal: toolCallOptions?.abortSignal },
   );
 
-  const waitResult = await withTimeout(waitPromise, WAIT_TIMEOUT_MS);
-  if (!waitResult || waitResult.kind !== "submitted") {
+  if (waitResult.kind !== "submitted") {
     return TIMEOUT_RESULT;
   }
 
@@ -154,7 +127,7 @@ export function createAskUserQuestionTool(options: AskUserQuestionToolOptions) {
   return tool({
     description: `Ask interactive multiple-choice questions to the user and wait for their response.
 
-This tool blocks until the user submits an answer through the UI (or until timeout).`,
+This tool blocks until the user submits an answer through the UI.`,
     inputSchema: askUserQuestionSchema,
     execute: executeWithLogging,
   });

@@ -1,11 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("interactive-tool-bridge", () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.useRealTimers();
     const bridge = await import("@/lib/interactive-tool-bridge");
-    bridge.cleanupStaleEntries();
+    bridge.cleanupStaleEntries(0);
+  });
+
+  afterEach(async () => {
+    const bridge = await import("@/lib/interactive-tool-bridge");
+    bridge.cleanupStaleEntries(0);
   });
 
   it("shares the same pending promise for duplicate registrations", async () => {
@@ -52,7 +57,7 @@ describe("interactive-tool-bridge", () => {
     const pending = bridge.registerInteractiveWait("sess-3", "tool-3", { prompt: "approve?" });
 
     vi.setSystemTime(new Date(now.getTime() + 10 * 60 * 1000 + 1));
-    bridge.cleanupStaleEntries();
+    bridge.cleanupStaleEntries(10 * 60 * 1000);
 
     await expect(pending).resolves.toEqual({
       kind: "interrupted",

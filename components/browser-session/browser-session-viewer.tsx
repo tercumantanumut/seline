@@ -143,9 +143,6 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
 
   const {
     handleMouseDown,
-    handleMouseMove,
-    cursorPos,
-    displayCursorPos,
     isSending,
     navigate,
   } = useBrowserInteraction({
@@ -157,9 +154,10 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
 
   const [showIndicators, setShowIndicators] = useState(true);
 
-  const { indicators, addAction } = useActionIndicators({
+  const { indicators, addAction, clearIndicators } = useActionIndicators({
     sessionId: activeSessionId,
     imgRef,
+    containerRef: interactionContainerRef,
     enabled: showIndicators,
   });
 
@@ -227,6 +225,7 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
     let mounted = true;
 
     // Reset frame state when switching sessions
+    clearIndicators();
     hasFrameRef.current = false;
     setHasFrame(false);
     setIsConnected(false);
@@ -370,10 +369,11 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
   }, [sessionId, history]);
 
   const handleBackToLive = useCallback(() => {
+    clearIndicators();
     setActiveSessionId(sessionId);
     setIsReplaying(false);
     originalHistoryRef.current = null;
-  }, [sessionId]);
+  }, [clearIndicators, sessionId]);
 
   const handleDownload = useCallback(async () => {
     await downloadRecording(`browser-session-${activeSessionId.slice(0, 8)}.webm`);
@@ -425,7 +425,6 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
       <div className="flex flex-1 min-h-0">
         {/* ── Screencast panel (left, dominant) ── */}
         <div
-          ref={interactionContainerRef}
           className={cn(
             "flex-1 relative flex flex-col bg-black",
             isInteractive && "cursor-crosshair"
@@ -457,9 +456,9 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
 
           {/* Screencast image with interaction overlay */}
           <div
+            ref={interactionContainerRef}
             className="flex-1 relative flex items-center justify-center"
             onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -481,17 +480,6 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
 
             {/* Hidden canvas for recording */}
             <canvas ref={canvasRef} className="hidden" />
-
-            {/* M7: Cursor position indicator — uses display-space coords */}
-            {isInteractive && displayCursorPos && hasFrame && (
-              <div
-                className="pointer-events-none absolute w-4 h-4 border-2 border-blue-400/60 rounded-full -translate-x-1/2 -translate-y-1/2"
-                style={{
-                  left: displayCursorPos.x,
-                  top: displayCursorPos.y,
-                }}
-              />
-            )}
 
             {/* Placeholder when no frames */}
             {!hasFrame && (

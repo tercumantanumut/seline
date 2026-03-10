@@ -21,6 +21,7 @@ import {
   type ActiveDelegation,
   type DelegateToSubagentInput,
   type DelegateResult,
+  type DelegationInteractivePrompt,
 } from "./delegate-to-subagent-types";
 import {
   buildDelegationsSummary,
@@ -41,6 +42,10 @@ import {
   hasStopIntent,
   sanitizeLivePromptContent,
 } from "@/lib/background-tasks/live-prompt-helpers";
+import {
+  getPendingInteractivePrompts,
+  resolveInteractiveWait,
+} from "@/lib/interactive-tool-bridge";
 
 // ---------------------------------------------------------------------------
 // Action handlers
@@ -60,6 +65,37 @@ function resolveExecutionMode(input: DelegateToSubagentInput): "blocking" | "bac
   if (input.runInBackground === true) return "background";
   // Default: blocking
   return "blocking";
+}
+
+function getDelegationPendingInteractivePrompts(
+  sessionId: string,
+): DelegationInteractivePrompt[] {
+  return getPendingInteractivePrompts(sessionId).map(({ toolUseId, questions, createdAt }) => ({
+    toolUseId,
+    questions,
+    createdAt,
+  }));
+}
+
+async function waitForDelegationPausePoint(
+  delegation: ActiveDelegation,
+  waitMs: number,
+): Promise<DelegationInteractivePrompt[]> {
+  const deadline = Date.now() + waitMs;
+
+  while (true) {
+    const pendingInteractivePrompts = getDelegationPendingInteractivePrompts(delegation.sessionId);
+    if (pendingInteractivePrompts.length > 0 || delegation.settled) {
+      return pendingInteractivePrompts;
+    }
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      return pendingInteractivePrompts;
+    }
+
+    await sleep(Math.min(200, remainingMs));
+  }
 }
 
 export async function handleStartAction(
@@ -112,11 +148,7 @@ export async function handleStartAction(
   }
 
   const maxWaitMs = (input.waitSeconds ?? DEFAULT_BLOCKING_TIMEOUT_SECONDS) * 1000;
-
-  await Promise.race([
-    delegation.streamPromise,
-    sleep(maxWaitMs),
-  ]);
+  const pendingInteractivePrompts = await waitForDelegationPausePoint(delegation, maxWaitMs);
 
   // Read the final response compactly — just the last assistant text
   const result = await extractFinalResponse(delegation.sessionId);
@@ -133,13 +165,18 @@ export async function handleStartAction(
     result,
     elapsed: Date.now() - delegation.startedAt,
     availableAgents: startResult.availableAgents,
+    ...(pendingInteractivePrompts.length > 0 ? { pendingInteractivePrompts } : {}),
   };
 
   if (delegation.error) {
     compactResult.error = `Delegation failed: ${delegation.error}`;
   }
 
-  if (!completed) {
+  if (pendingInteractivePrompts.length > 0) {
+    compactResult.message =
+      "Sub-agent is waiting for an interactive answer. " +
+      "Use delegateToSubagent action='answer' with the delegationId, toolUseId, and answers to continue.";
+  } else if (!completed) {
     compactResult.message =
       "Sub-agent did not finish within the wait timeout. " +
       "Use observe(delegationId) to check later, or stop(delegationId) to cancel.";
@@ -330,12 +367,9 @@ export async function handleObserve(
 
   const observeStart = Date.now();
 
-  if (!delegation.settled && waitValidation.waitMs > 0) {
-    await Promise.race([
-      delegation.streamPromise,
-      sleep(waitValidation.waitMs),
-    ]);
-  }
+  const pendingInteractivePrompts = !delegation.settled && waitValidation.waitMs > 0
+    ? await waitForDelegationPausePoint(delegation, waitValidation.waitMs)
+    : getDelegationPendingInteractivePrompts(delegation.sessionId);
 
   // If delegation failed, return the error immediately
   if (delegation.error) {
@@ -405,6 +439,85 @@ export async function handleObserve(
     responsePreviewCount: allResponses.length,
     responsePreviewOmittedCount,
     responsePreviewTruncatedCount,
+    ...(pendingInteractivePrompts.length > 0 ? { pendingInteractivePrompts } : {}),
+    ...(pendingInteractivePrompts.length > 0
+      ? {
+          message:
+            "Sub-agent is waiting for an interactive answer. " +
+            "Use delegateToSubagent action='answer' with the delegationId, toolUseId, and answers to continue.",
+        }
+      : {}),
+    delegations: buildDelegationsSummary(characterId),
+  };
+}
+
+export async function handleAnswer(
+  input: DelegateToSubagentInput,
+  characterId: string,
+): Promise<DelegateResult> {
+  const { delegationId, toolUseId, answers } = input;
+
+  if (!delegationId) {
+    return {
+      success: false,
+      error: "'delegationId' is required for the 'answer' action.",
+      delegations: buildDelegationsSummary(characterId),
+    };
+  }
+
+  if (!toolUseId) {
+    return {
+      success: false,
+      error: "'toolUseId' is required for the 'answer' action.",
+      delegations: buildDelegationsSummary(characterId),
+    };
+  }
+
+  if (
+    !answers ||
+    typeof answers !== "object" ||
+    Array.isArray(answers) ||
+    !Object.values(answers).every((value) => typeof value === "string")
+  ) {
+    return {
+      success: false,
+      error: "'answers' must be a Record<string, string> for the 'answer' action.",
+      delegations: buildDelegationsSummary(characterId),
+    };
+  }
+
+  const delegation = activeDelegations.get(delegationId);
+  if (!delegation) {
+    return {
+      success: false,
+      error: `Delegation ${delegationId} not found. It may have already completed and been cleaned up.`,
+      delegations: buildDelegationsSummary(characterId),
+    };
+  }
+
+  const resolved = resolveInteractiveWait(delegation.sessionId, toolUseId, answers);
+  if (!resolved) {
+    const pendingInteractivePrompts = getDelegationPendingInteractivePrompts(delegation.sessionId);
+    return {
+      success: false,
+      delegationId,
+      sessionId: delegation.sessionId,
+      delegateAgent: delegation.delegateName,
+      error:
+        `No pending interactive prompt found for toolUseId "${toolUseId}" in delegation ${delegationId}.`,
+      ...(pendingInteractivePrompts.length > 0 ? { pendingInteractivePrompts } : {}),
+      delegations: buildDelegationsSummary(characterId),
+    };
+  }
+
+  return {
+    success: true,
+    delegationId,
+    sessionId: delegation.sessionId,
+    delegateAgent: delegation.delegateName,
+    message:
+      "Interactive answer forwarded to the sub-agent. " +
+      "Use 'observe' to check progress and any follow-up prompts.",
     delegations: buildDelegationsSummary(characterId),
   };
 }

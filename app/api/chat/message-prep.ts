@@ -39,6 +39,7 @@ export interface MessagePrepArgs {
   sessionMetadata: Record<string, unknown>;
   currentModelId: string | undefined;
   currentProvider: string | undefined;
+  sessionSummary?: string | null;
 }
 
 export interface MessagePrepResult {
@@ -59,6 +60,7 @@ export async function prepareMessagesForRequest(
     sessionMetadata,
     currentModelId,
     currentProvider,
+    sessionSummary,
   } = args;
 
   // Build refetch tools for enhanceFrontendMessagesWithToolResults
@@ -160,6 +162,16 @@ export async function prepareMessagesForRequest(
   // that remain inline in assistant messages, causing "Tool results are missing"
   // errors on follow-up turns.
   coreMessages = splitToolResultsFromAssistantMessages(coreMessages);
+
+  if (sessionSummary?.trim()) {
+    coreMessages = [
+      {
+        role: "system",
+        content: `Previous conversation summary:\n${sessionSummary.trim()}`,
+      },
+      ...coreMessages,
+    ];
+  }
 
   // Log coreMessages structure after all sanitization
   console.log(

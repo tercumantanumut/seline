@@ -89,6 +89,7 @@ const ClickRipple: FC<{ indicator: ActionIndicator }> = ({ indicator }) => {
           border: `2px solid ${borderColor}`,
           animation: "action-ripple 700ms ease-out 50ms forwards",
           willChange: "transform, opacity",
+          pointerEvents: "none",
         }}
       />
     </>
@@ -114,6 +115,7 @@ const ScrollIndicator: FC<{ indicator: ActionIndicator }> = ({ indicator }) => {
         willChange: "opacity",
         lineHeight: 1,
         userSelect: "none",
+        pointerEvents: "none",
       }}
     >
       {isDown ? "▼" : "▲"}
@@ -143,6 +145,7 @@ const TypeIndicator: FC<{ indicator: ActionIndicator }> = ({ indicator }) => {
         whiteSpace: "pre",
         userSelect: "none",
         textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+        pointerEvents: "none",
       }}
     >
       {text.length > 20 ? text.slice(0, 20) + "\u2026" : text}
@@ -162,6 +165,7 @@ const NavigateIndicator: FC = () => {
         background: "linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.7), transparent)",
         animation: "action-nav-bar 700ms ease-out forwards",
         willChange: "width, opacity",
+        pointerEvents: "none",
       }}
     />
   );

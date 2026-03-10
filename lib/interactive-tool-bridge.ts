@@ -80,9 +80,6 @@ export function registerInteractiveWait(
 ): Promise<InteractiveWaitResult> {
   const key = makeKey(sessionId, toolUseId);
 
-  // Clean up stale entries opportunistically.
-  cleanupStaleEntries();
-
   // Duplicate registrations for the same tool call should share the same wait.
   // Resolving the previous waiter as an empty answer made ExitPlanMode look like
   // an explicit rejection, which caused the SDK to re-enter plan mode.
@@ -151,6 +148,13 @@ export function resolveInteractiveWait(
   return true;
 }
 
+export interface PendingInteractivePrompt {
+  sessionId: string;
+  toolUseId: string;
+  questions: unknown;
+  createdAt: number;
+}
+
 export function getPendingInteractivePrompt(
   sessionId: string,
   toolUseId: string,
@@ -159,13 +163,25 @@ export function getPendingInteractivePrompt(
   return entry?.questions;
 }
 
-export function hasPendingInteractiveWait(sessionId: string): boolean {
-  for (const key of pendingWaits.keys()) {
-    if (key.startsWith(`${sessionId}__`)) {
-      return true;
-    }
+export function getPendingInteractivePrompts(sessionId: string): PendingInteractivePrompt[] {
+  const pending: PendingInteractivePrompt[] = [];
+  const prefix = `${sessionId}__`;
+
+  for (const [key, entry] of pendingWaits.entries()) {
+    if (!key.startsWith(prefix)) continue;
+    pending.push({
+      sessionId,
+      toolUseId: key.slice(prefix.length),
+      questions: entry.questions,
+      createdAt: entry.createdAt,
+    });
   }
-  return false;
+
+  return pending.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export function hasPendingInteractiveWait(sessionId: string): boolean {
+  return getPendingInteractivePrompts(sessionId).length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,15 +215,18 @@ export function popUserAnswer(
 }
 
 // ---------------------------------------------------------------------------
-// Cleanup
+// Optional cleanup
 // ---------------------------------------------------------------------------
 
-const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+export function cleanupStaleEntries(maxAgeMs?: number): void {
+  if (!Number.isFinite(maxAgeMs)) {
+    return;
+  }
 
-export function cleanupStaleEntries(): void {
+  const thresholdMs = maxAgeMs as number;
   const now = Date.now();
   for (const [key, entry] of pendingWaits) {
-    if (now - entry.createdAt > STALE_THRESHOLD_MS) {
+    if (thresholdMs <= 0 || now - entry.createdAt > thresholdMs) {
       pendingWaits.delete(key);
       entry.resolve({ kind: "interrupted", reason: "stale" });
     }

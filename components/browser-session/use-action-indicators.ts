@@ -35,12 +35,14 @@ export interface ActionSSEData {
 interface UseActionIndicatorsOptions {
   sessionId: string;
   imgRef: RefObject<HTMLImageElement | null>;
+  containerRef: RefObject<HTMLElement | null>;
   enabled: boolean;
 }
 
 interface UseActionIndicatorsReturn {
   indicators: ActionIndicator[];
   addAction: (data: ActionSSEData) => void;
+  clearIndicators: () => void;
 }
 
 // ─── Duration map ─────────────────────────────────────────────────────────────
@@ -67,9 +69,11 @@ function getAnimationDuration(action: string): number {
 function viewportToDisplay(
   viewportX: number,
   viewportY: number,
-  img: HTMLImageElement
+  img: HTMLImageElement,
+  container: HTMLElement | null
 ): { x: number; y: number } | null {
   const rect = img.getBoundingClientRect();
+  const containerRect = container?.getBoundingClientRect();
   // Viewport is always 1280x720 as set in session-manager.ts.
   // Using naturalWidth/naturalHeight would be wrong on HiDPI/Retina
   // displays where the screencast frame is rendered at 2x pixel ratio.
@@ -81,9 +85,11 @@ function viewportToDisplay(
   const renderedH = VIEWPORT_H * scale;
   const offsetX = (rect.width - renderedW) / 2;
   const offsetY = (rect.height - renderedH) / 2;
+  const baseX = containerRect ? rect.left - containerRect.left : 0;
+  const baseY = containerRect ? rect.top - containerRect.top : 0;
 
-  const displayX = (viewportX / VIEWPORT_W) * renderedW + offsetX;
-  const displayY = (viewportY / VIEWPORT_H) * renderedH + offsetY;
+  const displayX = baseX + (viewportX / VIEWPORT_W) * renderedW + offsetX;
+  const displayY = baseY + (viewportY / VIEWPORT_H) * renderedH + offsetY;
 
   return { x: displayX, y: displayY };
 }
@@ -94,24 +100,31 @@ let indicatorCounter = 0;
 
 export function useActionIndicators({
   imgRef,
+  containerRef,
   enabled,
 }: UseActionIndicatorsOptions): UseActionIndicatorsReturn {
   const [indicators, setIndicators] = useState<ActionIndicator[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const clearIndicators = useCallback(() => {
+    for (const timer of timersRef.current.values()) {
+      clearTimeout(timer);
+    }
+    timersRef.current.clear();
+    setIndicators([]);
+  }, []);
 
   // M4: Use a ref for enabled so addAction never holds a stale closure
   const enabledRef = useRef(enabled);
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
   // Cleanup all timers on unmount
+  useEffect(() => clearIndicators, [clearIndicators]);
+
   useEffect(() => {
-    return () => {
-      for (const timer of timersRef.current.values()) {
-        clearTimeout(timer);
-      }
-      timersRef.current.clear();
-    };
-  }, []);
+    if (enabled) return;
+    clearIndicators();
+  }, [enabled, clearIndicators]);
 
   const addAction = useCallback(
     (data: ActionSSEData) => {
@@ -131,7 +144,7 @@ export function useActionIndicators({
       const inputY = data.input?.y;
 
       if (typeof inputX === "number" && typeof inputY === "number") {
-        const display = viewportToDisplay(inputX, inputY, img);
+        const display = viewportToDisplay(inputX, inputY, img, containerRef.current);
         if (display) {
           x = display.x;
           y = display.y;
@@ -142,8 +155,11 @@ export function useActionIndicators({
       if (data.action === "click" && x == null && y == null) {
         if (img) {
           const rect = img.getBoundingClientRect();
-          x = rect.width / 2;
-          y = rect.height / 2;
+          const containerRect = containerRef.current?.getBoundingClientRect();
+          const baseX = containerRect ? rect.left - containerRect.left : 0;
+          const baseY = containerRect ? rect.top - containerRect.top : 0;
+          x = baseX + rect.width / 2;
+          y = baseY + rect.height / 2;
         }
       }
 
@@ -172,8 +188,8 @@ export function useActionIndicators({
 
       timersRef.current.set(id, timer);
     },
-    [imgRef]
+    [containerRef, imgRef]
   );
 
-  return { indicators, addAction };
+  return { indicators, addAction, clearIndicators };
 }

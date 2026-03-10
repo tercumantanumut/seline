@@ -107,6 +107,8 @@ export interface ContextCheckResult {
     action: "compact" | "new_session";
     message: string;
   };
+  /** Milliseconds spent in synchronous preflight compaction. */
+  compactionDurationMs?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -303,11 +305,14 @@ export class ContextWindowManager {
 
       const config = getContextWindowConfig(modelId, provider);
       const targetTokensToFree = status.currentTokens - Math.floor(config.maxTokens * 0.7);
+      const compactionStartedAt = Date.now();
       const compactionResult = await CompactionService.compact(sessionId, {
         targetTokensToFree: Math.max(0, targetTokensToFree),
       });
 
       if (compactionResult.success) {
+        const compactionDurationMs = Date.now() - compactionStartedAt;
+
         // Re-check status after compaction
         let newStatus = await this.checkContextWindow(
           sessionId,
@@ -366,6 +371,7 @@ export class ContextWindowManager {
             canProceed: true,
             status: newStatus,
             compactionResult,
+            compactionDurationMs,
             error:
               `Warning: Context window at ${newStatus.formatted.percentage} after compaction. ` +
               `Consider starting a new conversation soon.`,
@@ -383,6 +389,7 @@ export class ContextWindowManager {
             canProceed: false,
             status: newStatus,
             compactionResult,
+            compactionDurationMs,
             error: "Context window still exceeded after compaction",
             recovery: {
               action: "new_session",
@@ -397,8 +404,11 @@ export class ContextWindowManager {
           canProceed: true,
           status: newStatus,
           compactionResult,
+          compactionDurationMs,
         };
       } else {
+        const compactionDurationMs = Date.now() - compactionStartedAt;
+
         // Compaction failed - implement graceful fallback
         console.error(
           `[ContextWindowManager] Compaction failed: ${compactionResult.error}`
@@ -419,6 +429,7 @@ export class ContextWindowManager {
             canProceed: true,
             status,
             compactionResult,
+            compactionDurationMs,
             error: `Warning: ${compactionResult.error}. Proceeding with caution.`,
           };
         }
@@ -428,6 +439,7 @@ export class ContextWindowManager {
           canProceed: false,
           status,
           compactionResult,
+          compactionDurationMs,
           error: `Compaction failed: ${compactionResult.error}`,
           recovery: {
             action: "new_session",

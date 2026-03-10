@@ -177,13 +177,19 @@ export async function register() {
     // Cleanup zombie runs after restart
     setTimeout(async () => {
       try {
+        const { hasPendingInteractiveWait } = await import("@/lib/interactive-tool-bridge");
         const { findZombieRuns, markRunAsCancelled } = await import("@/lib/observability");
         const zombies = await findZombieRuns(5);
+        let cancelledCount = 0;
         for (const run of zombies) {
+          if (hasPendingInteractiveWait(run.sessionId)) {
+            continue;
+          }
           await markRunAsCancelled(run.id, "server_restart_cleanup", { forceCancelled: true });
+          cancelledCount += 1;
         }
-        if (zombies.length > 0) {
-          console.warn(`[Instrumentation] Auto-cancelled ${zombies.length} zombie run(s) on startup`);
+        if (cancelledCount > 0) {
+          console.warn(`[Instrumentation] Auto-cancelled ${cancelledCount} zombie run(s) on startup`);
         }
       } catch (error) {
         console.error("[Instrumentation] Error cleaning up zombie runs:", error);

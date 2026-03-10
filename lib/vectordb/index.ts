@@ -61,3 +61,11 @@ export {
   initializeVectorSync,
   isVectorSyncInitialized,
 } from "./background-sync";
+export {
+  registerFolder as registerSharedFolder,
+  unregisterFolder as unregisterSharedFolder,
+  getSubscribers as getSharedFolderSubscribers,
+  getSubscriberCount as getSharedFolderSubscriberCount,
+  getWatcherOwner as getSharedFolderWatcherOwner,
+  getRegistrySnapshot as getSharedFolderRegistrySnapshot,
+} from "./shared-folder-registry";

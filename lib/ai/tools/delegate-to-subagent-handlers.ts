@@ -405,6 +405,7 @@ export {
   handleStartAction,
   handleObserve,
   handleContinue,
+  handleAnswer,
   handleStop,
   handleList,
 } from "./delegate-subagent-action-handlers";
