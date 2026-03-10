@@ -6,6 +6,7 @@ import { loadSettings } from "@/lib/settings/settings-manager";
 import { abortChatRun, removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
 import { isStale } from "@/lib/utils/timestamp";
 import { taskRegistry } from "@/lib/background-tasks/registry";
+import { hasPendingInteractiveWait } from "@/lib/interactive-tool-bridge";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -37,7 +38,8 @@ export async function POST(req: Request, { params }: RouteParams) {
     const aborted = abortChatRun(runId, "user_cancelled");
     if (!aborted) {
       const hasRegistryTask = Boolean(registryTask);
-      const isZombie = isStale(run.updatedAt ?? run.startedAt, 30 * 60 * 1000);
+      const hasInteractiveWait = hasPendingInteractiveWait(run.sessionId);
+      const isZombie = !hasInteractiveWait && isStale(run.updatedAt ?? run.startedAt, 30 * 60 * 1000);
       if (hasRegistryTask && !isZombie) {
         return NextResponse.json({ error: "Run is not cancellable" }, { status: 409 });
       }

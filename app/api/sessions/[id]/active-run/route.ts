@@ -37,9 +37,11 @@ export async function GET(req: Request, { params }: RouteParams) {
     const runs = await listAgentRunsBySession(sessionId);
     const THIRTY_MINUTES = 30 * 60 * 1000;
     const staleRunIds = new Set<string>();
+    const hasInteractiveWait = hasPendingInteractiveWait(sessionId);
 
     for (const run of runs) {
       if (run.status !== "running") continue;
+      if (hasInteractiveWait) continue;
       if (!isStale(run.updatedAt ?? run.startedAt, THIRTY_MINUTES)) continue;
       staleRunIds.add(run.id);
       await completeAgentRun(run.id, "failed", { error: "stale_run_cleanup" });
@@ -59,8 +61,6 @@ export async function GET(req: Request, { params }: RouteParams) {
     )
       ? latestDeepResearchRun.metadata as Record<string, unknown>
       : {};
-
-    const hasInteractiveWait = hasPendingInteractiveWait(sessionId);
 
     if (!activeForegroundChatRun) {
       return NextResponse.json({

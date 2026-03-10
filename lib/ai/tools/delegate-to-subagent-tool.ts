@@ -55,9 +55,9 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
   properties: {
     action: {
       type: "string",
-      enum: ["start", "observe", "continue", "stop", "list"],
+      enum: ["start", "observe", "continue", "answer", "stop", "list"],
       description:
-        "Action to perform: 'start' a new delegation (blocks by default), 'observe' progress of a background delegation, 'continue' with a follow-up message, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
+        "Action to perform: 'start' a new delegation (blocks by default), 'observe' progress of a background delegation, 'continue' with a follow-up message, 'answer' a pending interactive question from a sub-agent, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
     },
     agentId: {
       type: "string",
@@ -113,6 +113,17 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
       type: "string",
       description:
         "Optional compatibility alias for delegationId. With action='start', resume maps to continue using this delegationId and task as the follow-up message.",
+    },
+    toolUseId: {
+      type: "string",
+      description:
+        "The toolUseId from the pendingInteractivePrompts array. Required for 'answer' action.",
+    },
+    answers: {
+      type: "object",
+      additionalProperties: { type: "string" },
+      description:
+        "A Record<string, string> mapping question text to the chosen answer. Required for 'answer' action.",
     },
   },
   required: ["action"],

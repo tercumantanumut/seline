@@ -80,9 +80,6 @@ export function registerInteractiveWait(
 ): Promise<InteractiveWaitResult> {
   const key = makeKey(sessionId, toolUseId);
 
-  // Clean up stale entries opportunistically.
-  cleanupStaleEntries();
-
   // Duplicate registrations for the same tool call should share the same wait.
   // Resolving the previous waiter as an empty answer made ExitPlanMode look like
   // an explicit rejection, which caused the SDK to re-enter plan mode.
@@ -218,15 +215,18 @@ export function popUserAnswer(
 }
 
 // ---------------------------------------------------------------------------
-// Cleanup
+// Optional cleanup
 // ---------------------------------------------------------------------------
 
-const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+export function cleanupStaleEntries(maxAgeMs?: number): void {
+  if (!Number.isFinite(maxAgeMs)) {
+    return;
+  }
 
-export function cleanupStaleEntries(): void {
+  const thresholdMs = maxAgeMs as number;
   const now = Date.now();
   for (const [key, entry] of pendingWaits) {
-    if (now - entry.createdAt > STALE_THRESHOLD_MS) {
+    if (thresholdMs <= 0 || now - entry.createdAt > thresholdMs) {
       pendingWaits.delete(key);
       entry.resolve({ kind: "interrupted", reason: "stale" });
     }

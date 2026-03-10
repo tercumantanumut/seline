@@ -227,6 +227,28 @@ export function useAvatar(
     const container = containerRef.current;
     if (!container) return;
 
+    const cleanupHead = (instance: TalkingHeadInstance | null) => {
+      if (!instance) return;
+
+      try {
+        instance.stopSpeaking();
+      } catch {
+        // Best-effort cleanup
+      }
+
+      try {
+        instance.hideAvatar?.();
+      } catch {
+        // Older/newer TalkingHead builds may not expose hideAvatar
+      }
+
+      try {
+        instance.stop?.();
+      } catch {
+        // Best-effort cleanup for builds that expose an explicit stop API
+      }
+    };
+
     initCancelledRef.current = false;
     setState("loading");
 
@@ -258,7 +280,7 @@ export function useAvatar(
         });
 
         if (initCancelledRef.current) {
-          head.hideAvatar();
+          cleanupHead(head);
           return;
         }
 
@@ -270,7 +292,7 @@ export function useAvatar(
         });
 
         if (initCancelledRef.current) {
-          head.hideAvatar();
+          cleanupHead(head);
           return;
         }
 
@@ -298,22 +320,13 @@ export function useAvatar(
       resolvePendingSpeech();
 
       if (headRef.current) {
-        try {
-          headRef.current.stopSpeaking();
-          headRef.current.hideAvatar();
-        } catch {
-          // Best-effort cleanup
-        }
+        cleanupHead(headRef.current);
         headRef.current = null;
       }
 
       // Also clean up any head created during init that hasn't been assigned yet
       if (head && head !== headRef.current) {
-        try {
-          head.hideAvatar();
-        } catch {
-          // Best-effort cleanup
-        }
+        cleanupHead(head);
       }
     };
   }, [config.enabled, config.modelUrl, config.bodyType, config.cameraDistance, lipsyncLang, containerRef, resolvePendingSpeech]);

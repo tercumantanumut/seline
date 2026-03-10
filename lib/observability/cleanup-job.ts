@@ -5,7 +5,8 @@
  * Runs periodically to mark orphaned "running" runs as failed.
  */
 
-import { cleanupStaleRuns } from "./queries";
+import { hasPendingInteractiveWait } from "@/lib/interactive-tool-bridge";
+import { findStaleRuns, markRunAsTimedOut } from "./queries";
 
 // Default cleanup interval: 15 minutes
 const DEFAULT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
@@ -29,12 +30,21 @@ async function runCleanup(): Promise<void> {
   console.log("[ObservabilityCleanup] Starting stale run cleanup...");
 
   try {
-    const result = await cleanupStaleRuns(STALE_THRESHOLD_MINUTES);
+    const staleRuns = await findStaleRuns(STALE_THRESHOLD_MINUTES);
+    const runIds: string[] = [];
 
-    if (result.cleaned > 0) {
+    for (const run of staleRuns) {
+      if (hasPendingInteractiveWait(run.sessionId)) {
+        continue;
+      }
+      await markRunAsTimedOut(run.id, "background_cleanup");
+      runIds.push(run.id);
+    }
+
+    if (runIds.length > 0) {
       console.log(
-        `[ObservabilityCleanup] Cleaned ${result.cleaned} stale runs:`,
-        result.runIds
+        `[ObservabilityCleanup] Cleaned ${runIds.length} stale runs:`,
+        runIds,
       );
     } else {
       console.log("[ObservabilityCleanup] No stale runs found");
