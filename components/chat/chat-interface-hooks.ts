@@ -134,7 +134,6 @@ export function useBackgroundProcessing({
     const refreshMessagesRef = useRef(refreshMessages);
     useEffect(() => { refreshMessagesRef.current = refreshMessages; }, [refreshMessages]);
 
-    const pollingStartTimeRef = useRef<number>(0);
     const consecutiveErrorsRef = useRef<number>(0);
 
     const startPollingForCompletion = useCallback((runId: string) => {
@@ -143,33 +142,12 @@ export function useBackgroundProcessing({
             clearInterval(pollingIntervalRef.current);
         }
         setIsZombieRun(false);
-        pollingStartTimeRef.current = Date.now();
         consecutiveErrorsRef.current = 0;
 
         const pollIntervalMs = 2000;
-        // Safety valve: stop polling after 5 minutes of continuous polling
-        // without completion. At that point the run is either stuck or the
-        // status endpoint is returning stale data.
-        const MAX_POLL_DURATION_MS = 5 * 60 * 1000;
         const MAX_CONSECUTIVE_ERRORS = 10;
 
         pollingIntervalRef.current = setInterval(async () => {
-            // ── Timeout safety valve ──────────────────────────────────────
-            const elapsed = Date.now() - pollingStartTimeRef.current;
-            if (elapsed > MAX_POLL_DURATION_MS) {
-                console.warn(`[Background Processing] Polling timeout after ${Math.round(elapsed / 1000)}s — force-clearing`);
-                if (pollingIntervalRef.current) {
-                    clearInterval(pollingIntervalRef.current);
-                    pollingIntervalRef.current = null;
-                }
-                setIsProcessingInBackground(false);
-                setProcessingRunId(null);
-                setIsZombieRun(false);
-                isRunActiveRef.current = false;
-                await refreshMessagesRef.current();
-                return;
-            }
-
             try {
                 const { data, error } = await resilientFetch<{ status: string; isZombie?: boolean }>(
                     `/api/agent-runs/${runId}/status`,
