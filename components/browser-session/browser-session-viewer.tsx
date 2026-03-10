@@ -157,6 +157,7 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
   const { indicators, addAction, clearIndicators } = useActionIndicators({
     sessionId: activeSessionId,
     imgRef,
+    containerRef: interactionContainerRef,
     enabled: showIndicators,
   });
 
@@ -424,7 +425,6 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
       <div className="flex flex-1 min-h-0">
         {/* ── Screencast panel (left, dominant) ── */}
         <div
-          ref={interactionContainerRef}
           className={cn(
             "flex-1 relative flex flex-col bg-black",
             isInteractive && "cursor-crosshair"
@@ -456,6 +456,7 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
 
           {/* Screencast image with interaction overlay */}
           <div
+            ref={interactionContainerRef}
             className="flex-1 relative flex items-center justify-center"
             onMouseDown={handleMouseDown}
           >

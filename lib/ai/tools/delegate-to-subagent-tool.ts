@@ -10,6 +10,7 @@
  *   start    – create session, fire-and-forget chat API call, return immediately
  *   observe  – query DB for real message count, tool calls, last response content
  *   continue – send a follow-up message to an existing delegation session
+ *   answer   – forward an interactive answer to a waiting sub-agent
  *   stop     – abort the running delegation
  *   list     – list active delegations + available sub-agents for the calling agent
  */
@@ -29,6 +30,7 @@ import {
   handleStartAction,
   handleObserve,
   handleContinue,
+  handleAnswer,
   handleStop,
   handleList,
 } from "./delegate-to-subagent-handlers";
@@ -149,6 +151,8 @@ export function createDelegateToSubagentTool(
             },
             characterId
           );
+        case "answer":
+          return handleAnswer(normalizedInput, characterId);
         case "stop":
           return handleStop(normalizedInput, characterId);
         case "list":
@@ -156,7 +160,7 @@ export function createDelegateToSubagentTool(
         default:
           return {
             success: false,
-            error: `Unknown action: ${normalizedInput.action}. Use start, observe, continue, stop, or list.`,
+            error: `Unknown action: ${normalizedInput.action}. Use start, observe, continue, answer, stop, or list.`,
             delegations: buildDelegationsSummary(characterId),
           };
       }

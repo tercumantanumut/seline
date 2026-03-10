@@ -151,6 +151,13 @@ export function resolveInteractiveWait(
   return true;
 }
 
+export interface PendingInteractivePrompt {
+  sessionId: string;
+  toolUseId: string;
+  questions: unknown;
+  createdAt: number;
+}
+
 export function getPendingInteractivePrompt(
   sessionId: string,
   toolUseId: string,
@@ -159,13 +166,25 @@ export function getPendingInteractivePrompt(
   return entry?.questions;
 }
 
-export function hasPendingInteractiveWait(sessionId: string): boolean {
-  for (const key of pendingWaits.keys()) {
-    if (key.startsWith(`${sessionId}__`)) {
-      return true;
-    }
+export function getPendingInteractivePrompts(sessionId: string): PendingInteractivePrompt[] {
+  const pending: PendingInteractivePrompt[] = [];
+  const prefix = `${sessionId}__`;
+
+  for (const [key, entry] of pendingWaits.entries()) {
+    if (!key.startsWith(prefix)) continue;
+    pending.push({
+      sessionId,
+      toolUseId: key.slice(prefix.length),
+      questions: entry.questions,
+      createdAt: entry.createdAt,
+    });
   }
-  return false;
+
+  return pending.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export function hasPendingInteractiveWait(sessionId: string): boolean {
+  return getPendingInteractivePrompts(sessionId).length > 0;
 }
 
 // ---------------------------------------------------------------------------

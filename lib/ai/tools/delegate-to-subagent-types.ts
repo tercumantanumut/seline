@@ -17,7 +17,7 @@ export interface DelegateToSubagentToolOptions {
   characterId: string;
 }
 
-export type DelegateAction = "start" | "observe" | "continue" | "stop" | "list";
+export type DelegateAction = "start" | "observe" | "continue" | "answer" | "stop" | "list";
 
 export interface DelegateToSubagentInput {
   action: DelegateAction;
@@ -27,6 +27,8 @@ export interface DelegateToSubagentInput {
   context?: string;
   delegationId?: string;
   followUpMessage?: string;
+  toolUseId?: string;
+  answers?: Record<string, string>;
   waitSeconds?: number;
   /** @deprecated Use mode instead. Kept for backwards compatibility. */
   runInBackground?: boolean;
@@ -39,6 +41,12 @@ export interface AvailableSubagent {
   agentName: string;
   role: string;
   purpose: string;
+}
+
+export interface DelegationInteractivePrompt {
+  toolUseId: string;
+  questions: unknown;
+  createdAt: number;
 }
 
 export interface DelegateResult {
@@ -65,6 +73,7 @@ export interface DelegateResult {
   elapsed?: number;
   waitedMs?: number;
   waitTimedOut?: boolean;
+  pendingInteractivePrompts?: DelegationInteractivePrompt[];
   delegations?: Array<{
     delegationId: string;
     sessionId: string;

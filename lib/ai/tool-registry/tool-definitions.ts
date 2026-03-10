@@ -461,11 +461,12 @@ Required sequence:
 1) \`list\` - refresh available sub-agents and active delegations.
 2) \`start\` - target by \`agentId\` or \`agentName\`, send precise task.
 3) \`observe\` - check progress and collect response (prefer \`waitSeconds\` like 30/60/600).
-4) \`continue\` or \`stop\` - refine or cancel existing delegation.
+4) If \`observe\` reports \`pendingInteractivePrompts\`, use \`answer\` with the matching \`toolUseId\` and answers.
+5) \`continue\` or \`stop\` - refine or cancel existing delegation.
 
 Rules:
 - Do not start duplicate delegations to the same subagent while one is active.
-- Reuse existing \`delegationId\` with \`observe\` / \`continue\` / \`stop\`.
+- Reuse existing \`delegationId\` with \`observe\` / \`answer\` / \`continue\` / \`stop\`.
 - Include constraints and expected output format in task text.
 
 Compatibility options:
@@ -475,6 +476,7 @@ Compatibility options:
 Examples:
 - \`{ action: "start", agentName: "Research Analyst", task: "Summarize API docs changes with risks and next actions." }\`
 - \`{ action: "observe", delegationId: "del-123", waitSeconds: 60 }\`
+- \`{ action: "answer", delegationId: "del-123", toolUseId: "toolu_123", answers: { "Proceed?": "Continue and confirm generation" } }\`
 - \`{ action: "continue", delegationId: "del-123", followUpMessage: "Focus only on migration risks." }\``,
       loading: { deferLoading: true },
       requiresSession: true,

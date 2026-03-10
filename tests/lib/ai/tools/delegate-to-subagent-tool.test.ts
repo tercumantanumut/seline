@@ -22,6 +22,16 @@ vi.mock("@/lib/db/sqlite-queries", () => ({
   getMessages: mocks.getMessages,
 }));
 
+const bridgeMocks = vi.hoisted(() => ({
+  getPendingInteractivePrompts: vi.fn(),
+  resolveInteractiveWait: vi.fn(),
+}));
+
+vi.mock("@/lib/interactive-tool-bridge", () => ({
+  getPendingInteractivePrompts: bridgeMocks.getPendingInteractivePrompts,
+  resolveInteractiveWait: bridgeMocks.resolveInteractiveWait,
+}));
+
 import { createDelegateToSubagentTool } from "@/lib/ai/tools/delegate-to-subagent-tool";
 
 const fetchMock = vi.fn();
@@ -96,6 +106,8 @@ describe("delegate-to-subagent-tool", () => {
     mocks.getMessages.mockResolvedValue([
       { role: "assistant", content: [{ type: "text", text: "done" }] },
     ]);
+    bridgeMocks.getPendingInteractivePrompts.mockReturnValue([]);
+    bridgeMocks.resolveInteractiveWait.mockReturnValue(false);
 
     fetchMock.mockResolvedValue({
       ok: true,
@@ -241,6 +253,48 @@ describe("delegate-to-subagent-tool", () => {
     expect(result.message).toBeUndefined();
   });
 
+  it("start returns pending interactive prompts when a sub-agent asks a question", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: async () => {
+            await delay(40);
+            return { done: false, value: new Uint8Array([1]) };
+          },
+        }),
+      },
+      text: async () => "",
+    });
+
+    bridgeMocks.getPendingInteractivePrompts.mockImplementation(() => [
+      {
+        sessionId: "delegation-session-1",
+        toolUseId: "toolu_123",
+        questions: [{ question: "Proceed?", options: [] }],
+        createdAt: Date.now(),
+      },
+    ]);
+
+    const tool = makeTool();
+    const result = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Run QA check",
+      waitSeconds: 0.2,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.completed).toBe(false);
+    expect(result.pendingInteractivePrompts).toEqual([
+      expect.objectContaining({
+        toolUseId: "toolu_123",
+        questions: [{ question: "Proceed?", options: [] }],
+      }),
+    ]);
+    expect(String(result.message || "")).toContain("interactive answer");
+  });
+
   it("start supports resume alias by mapping to continue semantics", async () => {
     const tool = makeTool();
 
@@ -307,6 +361,32 @@ describe("delegate-to-subagent-tool", () => {
     expect(observed.completed).toBe(true);
     expect(observed.running).toBe(false);
     expect(String(observed.error || "")).toBe("");
+  });
+
+  it("answer forwards interactive responses into the delegation session", async () => {
+    const tool = makeTool();
+    const started = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Initial analysis",
+      mode: "background",
+    });
+
+    bridgeMocks.resolveInteractiveWait.mockReturnValueOnce(true);
+
+    const answered = await (tool as any).execute({
+      action: "answer",
+      delegationId: started.delegationId,
+      toolUseId: "toolu_123",
+      answers: { Proceed: "Continue and confirm generation" },
+    });
+
+    expect(answered.success).toBe(true);
+    expect(bridgeMocks.resolveInteractiveWait).toHaveBeenCalledWith(
+      "delegation-session-1",
+      "toolu_123",
+      { Proceed: "Continue and confirm generation" },
+    );
   });
 
   it("start ignores maxTurns and does not inject execution constraints", async () => {
