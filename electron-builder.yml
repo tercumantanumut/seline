@@ -131,7 +131,7 @@ extraResources:
 asar: true
 compression: "normal"
 
-# afterSign: "scripts/notarize.js"  # TEMPORARILY DISABLED
+afterSign: "scripts/notarize.js"
 
 # Disable npm rebuild - we handle this in electron:rebuild-standalone
 npmRebuild: false
@@ -139,8 +139,7 @@ npmRebuild: false
 # macOS specific configuration
 mac:
   category: "public.app-category.entertainment"
-  identity: null  # TEMPORARILY DISABLED - skip code signing
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: "build-resources/entitlements.mac.plist"
   entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
@@ -155,7 +154,7 @@ mac:
 
 # Windows specific configuration
 win:
-  signAndEditExecutable: false  # TEMPORARILY DISABLED
+  signAndEditExecutable: true
   target:
     - target: "nsis"
     - target: "portable"
@@ -176,7 +175,7 @@ nsis:
 # DMG settings for macOS
 dmg:
   title: "Selene"
-  sign: false  # TEMPORARILY DISABLED
+  sign: true
   contents:
     - x: 130
       y: 220

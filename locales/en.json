@@ -1950,7 +1950,10 @@
     "save": {
       "cta": "Save Changes",
       "saving": "Saving...",
-      "saved": "Saved!"
+      "saved": "Saved!",
+      "savedToast": "Settings saved",
+      "unsaved": "Unsaved changes",
+      "shortcut": "Press {shortcut} to save"
     },
     "nav": {
       "apiKeys": "AI Providers",
@@ -2604,6 +2607,7 @@
         "whisperModelLabel": "Whisper Model",
         "whisperDownloaded": "Downloaded",
         "whisperDownload": "Download",
+        "whisperDownloadInProgress": "Downloading...",
         "whisperSelectModel": "Select a model",
         "whisperMultilingual": " · Supports ~99 languages",
         "whisperEnglishOnly": " · English only",

@@ -70,6 +70,7 @@ export function WhisperModelSelector({ formState, updateField }: WhisperModelSel
       electronAPI?: {
         model?: {
           downloadFile?: (opts: { modelId: string; repo: string; filename: string }) => Promise<{ success: boolean; error?: string }>;
+          checkFileExists?: (opts: { modelId: string; filename: string }) => Promise<boolean>;
           onProgress?: (cb: (data: { modelId: string; status: string; progress?: number; error?: string }) => void) => void;
           removeProgressListener?: () => void;
         };
@@ -110,6 +111,17 @@ export function WhisperModelSelector({ formState, updateField }: WhisperModelSel
       });
       if (!result.success) {
         setDownloadError(result.error || "Download failed");
+        return;
+      }
+
+      const fileExists = await electronAPI.model.checkFileExists?.({
+        modelId,
+        filename: modelInfo.hfFile,
+      });
+
+      if (fileExists !== false) {
+        setDownloadProgress(100);
+        setModelStatus((prev) => ({ ...prev, [modelId]: true }));
       }
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : "Download failed");
@@ -150,7 +162,7 @@ export function WhisperModelSelector({ formState, updateField }: WhisperModelSel
               {downloading ? (
                 <>
                   <Loader2Icon className="size-4 animate-spin" />
-                  {downloadProgress}%
+                  {downloadProgress > 0 ? `${downloadProgress}%` : t("whisperDownloadInProgress")}
                 </>
               ) : modelStatus[selectedModel] ? (
                 <>

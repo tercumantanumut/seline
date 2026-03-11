@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, PlugIcon, Volume2Icon, PackageIcon } from "lucide-react";
@@ -24,6 +24,14 @@ export default function SettingsPage() {
 
   // Form state for editable fields
   const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
+  const [lastSavedState, setLastSavedState] = useState<FormState>(DEFAULT_FORM_STATE);
+  const saveResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasInitializedRef = useRef(false);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!hasInitializedRef.current) return false;
+    return JSON.stringify(formState) !== JSON.stringify(lastSavedState);
+  }, [formState, lastSavedState]);
 
   // Antigravity auth state (separate from form state, managed via OAuth)
   const [antigravityAuth, setAntigravityAuth] = useState<{
@@ -62,18 +70,21 @@ export default function SettingsPage() {
     loadClaudeCodeAuth({ forceRefresh: true });
   }, []);
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const response = await fetch("/api/settings");
       if (!response.ok) throw new Error(t("errors.load"));
       const data = await response.json();
-      setFormState(buildFormStateFromData(data));
+      const nextFormState = buildFormStateFromData(data);
+      setFormState(nextFormState);
+      setLastSavedState(nextFormState);
+      hasInitializedRef.current = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.load"));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   const loadAntigravityAuth = async (): Promise<boolean> => {
     try {
@@ -492,7 +503,7 @@ export default function SettingsPage() {
     }
   };
 
-  const saveSettings = async () => {
+  const saveSettings = useCallback(async () => {
     setSaving(true);
     setError(null);
     try {
@@ -529,16 +540,61 @@ export default function SettingsPage() {
           toast.warning(warning);
         }
       }
+      if (saveResetTimeoutRef.current) {
+        clearTimeout(saveResetTimeoutRef.current);
+      }
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      setLastSavedState(formState);
+      saveResetTimeoutRef.current = setTimeout(() => setSaved(false), 2000);
       setTheme(formState.theme);
+      toast.success(t("save.savedToast"));
       await loadSettings(); // Reload to get masked keys
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.save"));
     } finally {
       setSaving(false);
     }
-  };
+  }, [formState, loadSettings, setTheme, t]);
+
+  useEffect(() => {
+    return () => {
+      if (saveResetTimeoutRef.current) {
+        clearTimeout(saveResetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || saving) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges, saving]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || saving) return;
+
+    const isMac = navigator.platform.toLowerCase().includes("mac");
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const modifierKey = isMac ? event.metaKey : event.ctrlKey;
+      if (modifierKey && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void saveSettings();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [hasUnsavedChanges, saveSettings, saving]);
+
+  const saveShortcut = typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac")
+    ? "Cmd+S"
+    : "Ctrl+S";
 
   const sections = [
     { id: "api-keys" as const, label: t("nav.apiKeys"), icon: KeyIcon },
@@ -571,8 +627,14 @@ export default function SettingsPage() {
             <h1 className="font-mono text-xl font-bold text-terminal-dark">{t("title")}</h1>
             <p className="font-mono text-sm text-terminal-muted">{t("subtitle")}</p>
           </div>
-          <div className="ml-auto">
-            <Button onClick={saveSettings} disabled={saving} className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90">
+          <div className="ml-auto flex items-center gap-3">
+            {hasUnsavedChanges && !saving && (
+              <div className="text-right">
+                <p className="font-mono text-xs font-semibold text-amber-700">{t("save.unsaved")}</p>
+                <p className="font-mono text-[11px] text-terminal-muted">{t("save.shortcut", { shortcut: saveShortcut })}</p>
+              </div>
+            )}
+            <Button onClick={saveSettings} disabled={saving || !hasUnsavedChanges} className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 disabled:opacity-50">
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : saved ? <CheckIcon className="size-4" /> : <SaveIcon className="size-4" />}
               {saving ? t("save.saving") : saved ? t("save.saved") : t("save.cta")}
             </Button>

@@ -1927,7 +1927,10 @@
     "save": {
       "cta": "Değişiklikleri Kaydet",
       "saving": "Kaydediliyor...",
-      "saved": "Kaydedildi!"
+      "saved": "Kaydedildi!",
+      "savedToast": "Ayarlar kaydedildi",
+      "unsaved": "Kaydedilmemiş değişiklikler",
+      "shortcut": "Kaydetmek için {shortcut} tuşlarına basın"
     },
     "nav": {
       "apiKeys": "API Anahtarları",
@@ -2380,6 +2383,7 @@
         "whisperModelLabel": "Whisper Modeli",
         "whisperDownloaded": "İndirildi",
         "whisperDownload": "İndir",
+        "whisperDownloadInProgress": "İndiriliyor...",
         "whisperSelectModel": "Bir model seçin",
         "whisperMultilingual": " · ~99 dili destekler",
         "whisperEnglishOnly": " · Yalnızca İngilizce",
