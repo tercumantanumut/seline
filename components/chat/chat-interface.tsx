@@ -513,6 +513,30 @@ export default function ChatInterface({
     const lastSessionSignatureRef = useRef<string>(getMessagesSignature(initialMessages));
     const sessionListSignatureRef = useRef<string>(sm.sessions.map(getSessionSignature).join("||"));
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    const loadSessionsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const loadSessionsAbortRef = useRef<AbortController | null>(null);
+
+    /** Debounced loadSessions — collapses rapid-fire task:started/task:completed
+     *  events into a single fetch, preventing HTTP connection exhaustion when 5+
+     *  background tasks run concurrently. Also aborts any in-flight stale request
+     *  to free up connection slots immediately. */
+    const debouncedLoadSessions = useCallback(() => {
+        if (loadSessionsDebounceRef.current) clearTimeout(loadSessionsDebounceRef.current);
+        // Abort any in-flight session fetch to free the connection slot
+        if (loadSessionsAbortRef.current) loadSessionsAbortRef.current.abort();
+        loadSessionsDebounceRef.current = setTimeout(() => {
+            loadSessionsDebounceRef.current = null;
+            const controller = new AbortController();
+            loadSessionsAbortRef.current = controller;
+            void sm.loadSessions({ signal: controller.signal }).finally(() => {
+                // Clear ref only if this is still the active controller
+                if (loadSessionsAbortRef.current === controller) {
+                    loadSessionsAbortRef.current = null;
+                }
+            });
+        }, 500);
+    }, [sm]);
+
     const PROGRESS_THROTTLE_MS = 2500;
 
     // Sync server-provided initial data when props change
@@ -787,7 +811,7 @@ export default function ChatInterface({
                 });
             }
             if (detail.eventType === "task:completed" && detail.task.characterId === character.id) {
-                void sm.loadSessions();
+                debouncedLoadSessions();
             }
         };
 
@@ -803,7 +827,7 @@ export default function ChatInterface({
                 void reloadSessionMessages(sessionId, { force: true });
             }
             if (detail.eventType === "task:started" && detail.task.characterId === character.id) {
-                void sm.loadSessions();
+                debouncedLoadSessions();
             }
         };
 
@@ -814,8 +838,17 @@ export default function ChatInterface({
             window.removeEventListener("workspace-status-changed", handleWorkspaceStatusChanged);
             window.removeEventListener("background-task-completed", handleTaskCompleted);
             window.removeEventListener("background-task-started", handleTaskStarted);
+            // Clean up debounce timer and abort any in-flight request
+            if (loadSessionsDebounceRef.current) {
+                clearTimeout(loadSessionsDebounceRef.current);
+                loadSessionsDebounceRef.current = null;
+            }
+            if (loadSessionsAbortRef.current) {
+                loadSessionsAbortRef.current.abort();
+                loadSessionsAbortRef.current = null;
+            }
         };
-    }, [applyWorkspaceUpdate, character.id, currentWorkspaceInfo?.status, sm.loadSessions, reloadSessionMessages, sessionId, sm.userLoadedMoreRef]);
+    }, [applyWorkspaceUpdate, character.id, currentWorkspaceInfo?.status, debouncedLoadSessions, reloadSessionMessages, sessionId, sm.userLoadedMoreRef]);
 
     useEffect(() => {
         if (!sessionId) return;

@@ -6,7 +6,7 @@
 // this is only the right thing to do it will be funny.
 // — with love, Selene (https://github.com/tercumantanumut/selene)
 
-import { app } from "electron";
+import { app, session } from "electron";
 import * as path from "path";
 import * as fs from "fs";
 import { initializeRTK } from "../lib/rtk";
@@ -164,7 +164,10 @@ import {
   clearServerRestartTimer,
   waitForServerReady,
   PROD_SERVER_PORT,
+  NEXT_INTERNAL_PORT,
 } from "./next-server";
+import { ensureLocalCerts } from "./certs";
+import { startH2Proxy, stopH2Proxy } from "./h2-proxy";
 import { setupIpcHandlers, setupEmbeddingModelPaths } from "./ipc-handlers";
 import { registerVoiceHotkeyFromSettings } from "./hotkey-manager";
 import { cleanupAllVoiceProcesses } from "../lib/audio/transcription";
@@ -243,6 +246,33 @@ app.whenReady().then(async () => {
     debugError("[RTK] Initialization failed:", error);
   }
 
+  // ---------------------------------------------------------------------------
+  // HTTP/2 proxy — eliminates Chromium's 6-connection-per-origin limit.
+  // Self-signed certs + setCertificateVerifyProc must be ready BEFORE any
+  // HTTPS calls (health check, loadURL).
+  // ---------------------------------------------------------------------------
+
+  let localCerts: { cert: string; key: string } | null = null;
+  try {
+    localCerts = await ensureLocalCerts(userDataPath);
+    debugLog("[App] Self-signed localhost certs ready");
+  } catch (error) {
+    debugError("[App] Failed to generate localhost certs — falling back to HTTP:", error);
+  }
+
+  if (localCerts) {
+    // Trust our self-signed cert for both net.fetch (health check) and
+    // BrowserWindow.loadURL (renderer).
+    session.defaultSession.setCertificateVerifyProc((request, callback) => {
+      if (request.hostname === "localhost" || request.hostname === "127.0.0.1") {
+        callback(0); // Trust self-signed localhost cert
+      } else {
+        callback(-3); // Use default Chromium verification
+      }
+    });
+    debugLog("[App] Self-signed cert trust configured for localhost");
+  }
+
   // Start Next.js server in production
   if (!isDev) {
     debugLog("[App] Production mode - starting Next.js server...");
@@ -259,9 +289,46 @@ app.whenReady().then(async () => {
     } catch (error) {
       debugError("[App] Failed to start Next.js server:", error);
     }
+
+    // Start HTTP/2 proxy in front of Next.js
+    if (localCerts) {
+      try {
+        startH2Proxy({
+          cert: localCerts.cert,
+          key: localCerts.key,
+          listenPort: PROD_SERVER_PORT,
+          targetPort: NEXT_INTERNAL_PORT,
+        });
+        debugLog(`[App] HTTP/2 proxy started: https://localhost:${PROD_SERVER_PORT} → http://localhost:${NEXT_INTERNAL_PORT}`);
+      } catch (error) {
+        debugError("[App] Failed to start HTTP/2 proxy:", error);
+      }
+    }
   } else {
     debugLog("[App] Development mode - skipping embedded server");
+
+    // Start HTTP/2 proxy in dev too — same connection exhaustion applies.
+    // WebSocket upgrade is proxied for HMR compatibility.
+    if (localCerts) {
+      const DEV_PROXY_PORT = 3001;
+      const DEV_NEXT_PORT = 3000;
+      try {
+        startH2Proxy({
+          cert: localCerts.cert,
+          key: localCerts.key,
+          listenPort: DEV_PROXY_PORT,
+          targetPort: DEV_NEXT_PORT,
+        });
+        debugLog(`[App] HTTP/2 dev proxy started: https://localhost:${DEV_PROXY_PORT} → http://localhost:${DEV_NEXT_PORT}`);
+      } catch (error) {
+        debugError("[App] Failed to start dev HTTP/2 proxy:", error);
+      }
+    }
   }
+
+  // Determine the URL the renderer will load
+  const useH2 = localCerts != null;
+  const devProxyUrl = useH2 ? "https://localhost:3001" : "http://localhost:3000";
 
   debugLog("[App] Creating main window...");
   await createWindow({
@@ -269,8 +336,9 @@ app.whenReady().then(async () => {
     dataDir,
     mediaDir,
     prodServerPort: PROD_SERVER_PORT,
+    prodUseHttps: useH2,
     preloadPath: path.join(__dirname, "preload.js"),
-    devServerUrl: process.env.ELECTRON_DEV_URL || "http://localhost:3000",
+    devServerUrl: process.env.ELECTRON_DEV_URL || devProxyUrl,
     waitForServer: waitForServerReady,
   });
   debugLog("[App] Main window created");
@@ -304,8 +372,9 @@ app.whenReady().then(async () => {
         dataDir,
         mediaDir,
         prodServerPort: PROD_SERVER_PORT,
+        prodUseHttps: useH2,
         preloadPath: path.join(__dirname, "preload.js"),
-        devServerUrl: process.env.ELECTRON_DEV_URL || "http://localhost:3000",
+        devServerUrl: process.env.ELECTRON_DEV_URL || devProxyUrl,
         waitForServer: waitForServerReady,
       });
     }
@@ -317,6 +386,7 @@ app.whenReady().then(async () => {
 // Quit when all windows are closed (except on macOS)
 app.on("window-all-closed", () => {
   debugLog("[App] window-all-closed event");
+  stopH2Proxy();
   stopNextServer();
   flushDebugLog();
   if (process.platform !== "darwin") {
@@ -331,6 +401,7 @@ app.on("before-quit", () => {
   isAppQuitting = true;
   closeAllBrowserSessionWindows();
   clearServerRestartTimer();
+  stopH2Proxy();
   stopNextServer();
   flushDebugLog();
   void cleanupAllVoiceProcesses().catch((err) => {

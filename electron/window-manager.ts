@@ -137,6 +137,8 @@ export interface CreateWindowOptions {
   dataDir: string;
   mediaDir: string;
   prodServerPort: number;
+  /** When true, load via HTTPS (HTTP/2 proxy). Falls back to HTTP if false. */
+  prodUseHttps?: boolean;
   preloadPath: string;
   devServerUrl: string;
   waitForServer: (url: string, timeoutMs: number) => Promise<boolean>;
@@ -168,8 +170,8 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com data:; " +
           "img-src 'self' data: blob: https: http://localhost:*; " +
-          "media-src 'self' data: blob: https://*.amazonaws.com https://*.cloudfront.net https://assets.mixkit.co https://*.mixkit.co http://localhost:*; " +
-          "connect-src 'self' blob: https://api.anthropic.com https://openrouter.ai ws://localhost:* http://localhost:*; " +
+          "media-src 'self' data: blob: https://*.amazonaws.com https://*.cloudfront.net https://assets.mixkit.co https://*.mixkit.co http://localhost:* https://localhost:*; " +
+          "connect-src 'self' blob: https://api.anthropic.com https://openrouter.ai ws://localhost:* wss://localhost:* http://localhost:* https://localhost:*; " +
           "worker-src 'self' blob:; " +
           "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com;",
         ],
@@ -328,8 +330,9 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
     // Open DevTools in development
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, load from embedded Next.js server
-    const serverUrl = `http://localhost:${opts.prodServerPort}`;
+    // In production, load from embedded Next.js server (via HTTP/2 proxy if available)
+    const protocol = opts.prodUseHttps ? "https" : "http";
+    const serverUrl = `${protocol}://localhost:${opts.prodServerPort}`;
 
     debugLog("[Window] Production mode - checking server health before loading");
 
@@ -364,8 +367,8 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
 
   // Handle external links - open in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
-    // Allow same-origin navigation
-    if (targetUrl.startsWith("http://localhost") || targetUrl.startsWith("file://")) {
+    // Allow same-origin navigation (HTTP or HTTPS localhost)
+    if (targetUrl.startsWith("http://localhost") || targetUrl.startsWith("https://localhost") || targetUrl.startsWith("file://")) {
       return { action: "allow" };
     }
     // Open external links in default browser

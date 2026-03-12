@@ -316,6 +316,7 @@ const TOOL_INPUT_BATCH_MAX_CHARS = Number.isFinite(envToolInputMax)
   ? envToolInputMax
   : 8192;
 const loggedSanitizerToolCallIds = new Set<string>();
+const DEBUG_CHAT = process.env.NEXT_PUBLIC_DEBUG_CHAT === "true";
 
 class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
   private wrapStreamWithRecovery(
@@ -595,10 +596,12 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
               // Drop it to prevent the "argsText can only be appended" crash.
               const availChunk = chunk as UIMessageChunk & { toolCallId: string };
               if (availChunk.toolCallId && toolCallsWithDeltas.has(availChunk.toolCallId)) {
-                console.warn(
-                  `[ChatTransport] Dropping conflicting tool-input-available for ${availChunk.toolCallId} ` +
-                    `(had prior streaming deltas). Runtime will finalize from deltas.`
-                );
+                if (DEBUG_CHAT) {
+                  console.warn(
+                    `[ChatTransport] Dropping conflicting tool-input-available for ${availChunk.toolCallId} ` +
+                      `(had prior streaming deltas). Runtime will finalize from deltas.`
+                  );
+                }
                 return; // Drop this chunk
               }
               clearTimer();
@@ -613,10 +616,12 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
               // The subsequent tool-output-error will preserve the streamed input.
               const errChunk = chunk as UIMessageChunk & { toolCallId: string };
               if (errChunk.toolCallId && toolCallsWithDeltas.has(errChunk.toolCallId)) {
-                console.warn(
-                  `[ChatTransport] Dropping tool-input-error for ${errChunk.toolCallId} ` +
-                    `(had prior streaming deltas). Subsequent tool-output-error will preserve input.`
-                );
+                if (DEBUG_CHAT) {
+                  console.warn(
+                    `[ChatTransport] Dropping tool-input-error for ${errChunk.toolCallId} ` +
+                      `(had prior streaming deltas). Subsequent tool-output-error will preserve input.`
+                  );
+                }
                 return;
               }
               clearTimer();
@@ -655,7 +660,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
           if (
             TOOL_INPUT_BATCH_ENABLED &&
             rawToolInputDeltaChunks > 0 &&
-            process.env.NODE_ENV !== "production"
+            DEBUG_CHAT
           ) {
             console.log(
               `[ChatTransport] tool-input-delta batching: raw=${rawToolInputDeltaChunks}, emitted=${emittedToolInputDeltaChunks}`,

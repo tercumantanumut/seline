@@ -363,6 +363,7 @@ export function useSessionManager({
         append?: boolean;
         overrideCursor?: string | null;
         preserveExtra?: boolean;
+        signal?: AbortSignal;
     }) => {
         const silent = options?.silent ?? false;
         const append = options?.append ?? false;
@@ -380,7 +381,7 @@ export function useSessionManager({
             if (dateRange !== "all") params.set("dateRange", dateRange);
             const { data, error } = await resilientFetch<{ sessions: SessionInfo[]; nextCursor?: string; totalCount?: number }>(
                 `/api/sessions?${params.toString()}`,
-                { retries: 0 }
+                { retries: 0, signal: options?.signal }
             );
             if (error || !data) return false;
             const pageSessions = sortSessionsByUpdatedAt((data.sessions || []) as SessionInfo[]);
