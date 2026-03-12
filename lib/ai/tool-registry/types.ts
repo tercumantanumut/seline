@@ -8,6 +8,7 @@
  */
 
 import type { Tool } from "ai";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 
 /**
  * Tool category for grouping and search
@@ -82,6 +83,12 @@ export interface ToolMetadata {
    * already processed in the current turn.
    */
   ephemeralResults?: boolean;
+
+  /**
+   * Optional MCP annotations forwarded when this tool is exposed through the
+   * Claude Agent SDK bridge.
+   */
+  mcpAnnotations?: ToolAnnotations;
 }
 
 /**

@@ -308,6 +308,9 @@ export function createSeleneSdkMcpServer(
         name,
         description,
         inputSchema,
+        ...(registeredTool.metadata.mcpAnnotations
+          ? { annotations: registeredTool.metadata.mcpAnnotations }
+          : {}),
         handler: async (args: Record<string, unknown>) => {
           try {
             const result = await (toolInstance as any).execute?.(args, {});

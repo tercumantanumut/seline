@@ -165,6 +165,7 @@ Search and filter past conversations. Returns session metadata and summaries (no
 **Limit:** Max 50 results per call. Default 20.`,
       loading: { deferLoading: true },
       requiresSession: true,
+      mcpAnnotations: { readOnlyHint: true },
     } satisfies ToolMetadata,
     ({ sessionId, userId }) =>
       createSearchSessionsTool({
@@ -480,6 +481,7 @@ Examples:
 - \`{ action: "continue", delegationId: "del-123", followUpMessage: "Focus only on migration risks." }\``,
       loading: { deferLoading: true },
       requiresSession: true,
+      mcpAnnotations: { readOnlyHint: true },
     } satisfies ToolMetadata,
     ({ sessionId, userId, characterId }) =>
       createDelegateToSubagentTool({
