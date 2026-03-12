@@ -79,6 +79,16 @@ export interface ElectronBrowserSessionAPI {
   saveRecording: (options?: { defaultPath?: string }) => Promise<{ success: boolean; filePath?: string; canceled?: boolean }>;
 }
 
+export interface ElectronLogsAPI {
+  subscribe: () => void;
+  unsubscribe: () => void;
+  getBuffer: () => Promise<{ timestamp: string; level: string; message: string }[]>;
+  clear: () => void;
+  onEntry: (callback: (entry: { timestamp: string; level: string; message: string }) => void) => () => void;
+  onCritical: (callback: (data: { type: string; message: string }) => void) => () => void;
+  removeListeners: () => void;
+}
+
 export interface ElectronAPI {
   platform: NodeJS.Platform;
   isElectron: boolean;
@@ -87,6 +97,7 @@ export interface ElectronAPI {
   shell: ElectronShellAPI;
   ipc: ElectronIpcAPI;
   model: ElectronModelAPI;
+  logs?: ElectronLogsAPI;
   browserSession?: ElectronBrowserSessionAPI;
 }
 
