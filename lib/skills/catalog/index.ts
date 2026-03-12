@@ -359,12 +359,14 @@ export const SKILL_CATALOG: CatalogSkill[] = [
   },
 ];
 
-export const CATALOG_COLLECTIONS: CatalogSkillCollection[] = [AGENCY_AGENTS_COLLECTION];
+export const CATALOG_COLLECTIONS: CatalogSkillCollection[] = [];
 
 export { AGENCY_AGENTS_COLLECTION, SYSTEM_SKILLS };
 
 export function getAllCatalogSkills(): CatalogSkill[] {
-  return [...SYSTEM_SKILLS, ...SKILL_CATALOG, ...AGENCY_AGENTS_SKILLS];
+  // Agency agents are now surfaced in the agent creation wizard (template picker),
+  // not in the skills catalog page.
+  return [...SYSTEM_SKILLS, ...SKILL_CATALOG];
 }
 
 export function getCatalogSkillById(skillId: string): CatalogSkill | undefined {
