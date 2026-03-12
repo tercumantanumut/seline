@@ -512,17 +512,16 @@ export async function buildToolsForRequest(
       }
     }
 
-    // (b) Selene platform MCP tools — the SDK prefixes them as
-    // mcp__selene-platform__<toolName>. Register prefixed variants so
-    // the Vercel AI SDK accepts tool_use blocks from the SDK agent.
-    const MCP_SERVER_NAME = "selene-platform";
+    // (b) Selene platform MCP tools — the SDK agent calls these via the
+    // "selene-platform" MCP server, which handles real execution. Replace
+    // the original tool entries with passthrough versions so the Vercel AI
+    // SDK doesn't double-execute. The mcp__<server>__ prefix is stripped
+    // in normalizeClaudeSdkToolName so tool names arrive unprefixed.
     const existingToolNames = Object.keys(allToolsWithMCP);
     for (const name of existingToolNames) {
-      const prefixed = `mcp__${MCP_SERVER_NAME}__${name}`;
-      if (!allToolsWithMCP[prefixed]) {
-        allToolsWithMCP[prefixed] = createSdkPassthroughTool(prefixed);
-        sdkPassthroughNames.add(prefixed);
-      }
+      if (sdkPassthroughNames.has(name)) continue;
+      allToolsWithMCP[name] = createSdkPassthroughTool(name);
+      sdkPassthroughNames.add(name);
     }
   }
 

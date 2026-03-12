@@ -79,10 +79,10 @@ describe("normalizeClaudeSdkToolName", () => {
     expect(normalizeClaudeSdkToolName('name="Task" subagent_type="Explore"')).toBe("Task");
   });
 
-  it("keeps valid MCP-prefixed tool names intact", () => {
-    expect(normalizeClaudeSdkToolName("mcp__selene-platform__searchTools")).toBe(
-      "mcp__selene-platform__searchTools"
-    );
+  it("strips MCP server prefix from tool names", () => {
+    expect(normalizeClaudeSdkToolName("mcp__selene-platform__searchTools")).toBe("searchTools");
+    expect(normalizeClaudeSdkToolName("mcp__selene-platform__calculator")).toBe("calculator");
+    expect(normalizeClaudeSdkToolName("mcp__other-server__someAction")).toBe("someAction");
   });
 
   it("returns undefined for non-string or empty values", () => {

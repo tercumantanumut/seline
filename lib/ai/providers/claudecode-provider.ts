@@ -262,6 +262,14 @@ export function normalizeClaudeSdkToolName(raw: unknown): string | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
 
+  // Strip MCP server prefix added by the Claude Agent SDK.
+  // e.g. "mcp__selene-platform__calculator" → "calculator"
+  // This prevents doubled tool registrations and reduces context window bloat.
+  const mcpPrefixMatch = /^mcp__.+?__(.+)$/.exec(trimmed);
+  if (mcpPrefixMatch?.[1]) {
+    return mcpPrefixMatch[1];
+  }
+
   // Some malformed SDK payloads include name="Tool" style fragments.
   const nameAttrMatch = /(?:^|[\s<])name\s*=\s*["']?([A-Za-z0-9_.:-]+)/i.exec(trimmed);
   if (nameAttrMatch?.[1]) {
