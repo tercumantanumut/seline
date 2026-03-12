@@ -9,18 +9,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession, updateSession, getOrCreateLocalUser } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
+import { getCharacterModelConfig } from "@/lib/characters/queries";
 import {
   extractSessionModelConfig,
   buildSessionModelMetadata,
   clearSessionModelMetadata,
+  resolveSessionModelScope,
 } from "@/lib/ai/session-model-resolver";
 import { validateSessionModelConfig } from "@/lib/ai/model-validation";
-import type { SessionModelConfig } from "@/components/model-bag/model-bag.types";
+import type { AgentModelConfig, SessionModelConfig } from "@/components/model-bag/model-bag.types";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+async function getAgentConfigForSession(
+  metadata: Record<string, unknown>,
+): Promise<AgentModelConfig | null> {
+  const characterId = typeof metadata.characterId === "string" ? metadata.characterId : null;
+  return characterId ? getCharacterModelConfig(characterId) : null;
+}
+
 // -----------------------------------------------------------------------
-// GET — read current session model config
+// GET - read current session model config
 // -----------------------------------------------------------------------
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
@@ -40,12 +49,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const metadata = (session.metadata as Record<string, unknown>) || {};
     const config = extractSessionModelConfig(metadata);
+    const agentDefaults = await getAgentConfigForSession(metadata);
+    const resolved = await resolveSessionModelScope(metadata, { agentModelConfig: agentDefaults, settings });
 
     return NextResponse.json({
       sessionId: id,
       hasOverrides: config !== null,
       config: config ?? {},
-      // Also return global defaults for comparison in the UI
+      agentDefaults: agentDefaults ?? {},
       globalDefaults: {
         provider: settings.llmProvider,
         chatModel: settings.chatModel || "",
@@ -53,6 +64,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         visionModel: settings.visionModel || "",
         utilityModel: settings.utilityModel || "",
       },
+      effective: resolved.effectiveConfig,
+      sources: resolved.sources,
     });
   } catch (error) {
     console.error("[Session Model Config] GET error:", error);
@@ -64,7 +77,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 }
 
 // -----------------------------------------------------------------------
-// PUT — update session model config
+// PUT - update session model config
 // -----------------------------------------------------------------------
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
@@ -84,16 +97,16 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const body = (await req.json()) as SessionModelConfig & { clear?: boolean };
     const currentMetadata = (session.metadata as Record<string, unknown>) || {};
+    const agentDefaults = await getAgentConfigForSession(currentMetadata);
 
     let newMetadata: Record<string, unknown>;
 
     if (body.clear) {
-      // Clear all session overrides
       newMetadata = clearSessionModelMetadata(currentMetadata);
       console.log(`[Session Model Config] Cleared overrides for session ${id}`);
     } else {
-      // Validate model-provider compatibility before persisting
-      const validation = validateSessionModelConfig(body, settings.llmProvider);
+      const fallbackProvider = agentDefaults?.provider || settings.llmProvider;
+      const validation = validateSessionModelConfig(body, fallbackProvider);
       if (!validation.valid) {
         return NextResponse.json(
           {
@@ -104,7 +117,6 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         );
       }
 
-      // Merge new overrides into metadata
       const modelMeta = buildSessionModelMetadata(body);
       newMetadata = {
         ...currentMetadata,
@@ -116,12 +128,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const updated = await updateSession(id, { metadata: newMetadata });
+    await updateSession(id, { metadata: newMetadata });
+    const resolved = await resolveSessionModelScope(newMetadata, { agentModelConfig: agentDefaults, settings });
 
     return NextResponse.json({
       success: true,
       sessionId: id,
       config: extractSessionModelConfig(newMetadata) ?? {},
+      effective: resolved.effectiveConfig,
+      sources: resolved.sources,
     });
   } catch (error) {
     console.error("[Session Model Config] PUT error:", error);

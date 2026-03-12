@@ -1,5 +1,8 @@
 import { generateText } from "ai";
-import { resolveSessionUtilityModel, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
+import {
+  getSessionProviderTemperatureForSession,
+  resolveSessionUtilityModelForSession,
+} from "@/lib/ai/session-model-resolver";
 import { getSession, updateSession } from "@/lib/db/queries";
 
 const MAX_PROMPT_SNIPPET = 400;
@@ -48,9 +51,9 @@ export async function generateSessionTitle(sessionId: string, firstMessageConten
 
     const sessionMetadata = (session.metadata as Record<string, unknown> | null) ?? null;
     const { text } = await generateText({
-      model: resolveSessionUtilityModel(sessionMetadata),
+      model: await resolveSessionUtilityModelForSession(sessionMetadata),
       prompt: buildPrompt(firstMessageContent),
-      temperature: getSessionProviderTemperature(sessionMetadata, 0.4),
+      temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.4),
       maxOutputTokens: 60,
     });
 

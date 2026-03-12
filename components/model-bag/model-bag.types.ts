@@ -2,7 +2,8 @@
  * Model Bag Type System
  *
  * Shared types for the "Bag of Models" inventory UI and
- * per-session model override system.
+ * scoped model configuration across global settings,
+ * agent defaults, and per-session overrides.
  */
 
 // Re-export the provider type so consumers don't need a second import
@@ -18,9 +19,20 @@ export type LLMProvider =
 
 /** The 4 model roles that map to settings-manager.ts fields */
 export type ModelRole = "chat" | "research" | "vision" | "utility";
+export type ModelConfigSource = "session" | "agent" | "global" | "provider-default";
 
-/** Maps ModelRole → AppSettings field name */
-export const ROLE_TO_SETTINGS_KEY: Record<ModelRole, string> = {
+export interface ModelConfig {
+  provider?: LLMProvider;
+  chatModel?: string;
+  researchModel?: string;
+  visionModel?: string;
+  utilityModel?: string;
+}
+
+export interface AgentModelConfig extends ModelConfig {}
+
+/** Maps ModelRole -> AppSettings/AgentModelConfig field name */
+export const ROLE_TO_SETTINGS_KEY: Record<ModelRole, keyof ModelConfig> = {
   chat: "chatModel",
   research: "researchModel",
   vision: "visionModel",
@@ -76,7 +88,7 @@ export interface ModelBagState {
 
 /**
  * Per-session model override stored in session.metadata.
- * All fields are optional — absent means "use global setting".
+ * All fields are optional - absent means "use agent/global fallback".
  */
 export interface SessionModelConfig {
   sessionProvider?: LLMProvider;
@@ -84,4 +96,20 @@ export interface SessionModelConfig {
   sessionResearchModel?: string;
   sessionVisionModel?: string;
   sessionUtilityModel?: string;
+}
+
+export interface ResolvedModelConfig {
+  provider: LLMProvider;
+  chatModel: string;
+  researchModel: string;
+  visionModel: string;
+  utilityModel: string;
+}
+
+export interface ResolvedModelSources {
+  provider: ModelConfigSource;
+  chatModel: ModelConfigSource;
+  researchModel: ModelConfigSource;
+  visionModel: ModelConfigSource;
+  utilityModel: ModelConfigSource;
 }

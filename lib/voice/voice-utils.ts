@@ -5,8 +5,8 @@ import { sessions } from "@/lib/db/sqlite-schema";
 import { eq } from "drizzle-orm";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import {
-  getSessionProviderTemperature,
-  resolveSessionUtilityModel,
+  getSessionProviderTemperatureForSession,
+  resolveSessionUtilityModelForSession,
 } from "@/lib/ai/session-model-resolver";
 
 export const VOICE_ACTIONS = ["fix-grammar", "professional", "summarize", "translate"] as const;
@@ -376,8 +376,8 @@ export async function runVoiceAction(request: VoiceActionRequest): Promise<{ tex
 
   const startedAt = Date.now();
   const completion = await generateText({
-    model: resolveSessionUtilityModel(sessionMetadata),
-    temperature: getSessionProviderTemperature(sessionMetadata, 0.2),
+    model: await resolveSessionUtilityModelForSession(sessionMetadata),
+    temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.2),
     maxOutputTokens: 1200,
     system,
     prompt,

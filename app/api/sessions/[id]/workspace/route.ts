@@ -10,7 +10,10 @@ import {
 } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { resolveSessionUtilityModel, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
+import {
+  getSessionProviderTemperatureForSession,
+  resolveSessionUtilityModelForSession,
+} from "@/lib/ai/session-model-resolver";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
 import { GitService } from "@/lib/workspace/git-service";
@@ -378,8 +381,8 @@ async function generatePullRequestBody(
 
   try {
     const { text } = await generateText({
-      model: resolveSessionUtilityModel(sessionMetadata),
-      temperature: getSessionProviderTemperature(sessionMetadata, 0.2),
+      model: await resolveSessionUtilityModelForSession(sessionMetadata),
+      temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.2),
       maxOutputTokens: 1200,
       prompt: [
         "Write a concise but detailed GitHub pull request description in markdown.",

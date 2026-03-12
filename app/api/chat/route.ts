@@ -7,7 +7,12 @@ import { getPrimarySyncFolder } from "@/lib/vectordb/sync-folder-crud";
 import { shouldUseCache } from "@/lib/ai/cache/config";
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
 import { ContextWindowManager, isDelegatedToolName } from "@/lib/context-window";
-import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
+import {
+  getSessionDisplayNameForSession,
+  getSessionProviderTemperatureForSession,
+  resolveSessionLanguageModelForSession,
+  resolveSessionModelScopeForSession,
+} from "@/lib/ai/session-model-resolver";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, updateMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn, getInjectedMessageIds } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
@@ -315,8 +320,12 @@ export async function POST(req: Request) {
     console.debug(`[CHAT API] Context injection: isNew=${isNewSession}, tracking=${JSON.stringify(contextTracking)}, inject=${injectContext}`);
 
     // ── Context window pre-flight check ───────────────────────────────────────
-    const currentModelId = getSessionModelId(sessionMetadata);
-    const currentProvider = getSessionProvider(sessionMetadata);
+    const resolvedSessionModels = await resolveSessionModelScopeForSession(sessionMetadata, {
+      characterId,
+      settings: appSettings,
+    });
+    const currentModelId = resolvedSessionModels.effectiveConfig.chatModel;
+    const currentProvider = resolvedSessionModels.effectiveConfig.provider;
     const contextCheck = await ContextWindowManager.preFlightCheck(
       sessionId,
       currentModelId,
@@ -563,7 +572,7 @@ export async function POST(req: Request) {
       pluginRoots,
       allowedPluginNames,
       workflowPromptContextInput,
-      provider: getSessionProvider(sessionMetadata),
+      provider: currentProvider,
     });
 
     const {
@@ -700,9 +709,13 @@ export async function POST(req: Request) {
     }
 
     // ── Stream setup ───────────────────────────────────────────────────────────
-    const provider = getSessionProvider(sessionMetadata);
+    const provider = currentProvider;
     configuredProvider = provider;
-    console.debug(`[CHAT API] Using LLM: ${getSessionDisplayName(sessionMetadata)}, inject=${injectContext}, caching=${useCaching ? "on" : "off"}`);
+    const sessionDisplayName = await getSessionDisplayNameForSession(sessionMetadata, {
+      characterId,
+      settings: appSettings,
+    });
+    console.debug(`[CHAT API] Using LLM: ${sessionDisplayName}, inject=${injectContext}, caching=${useCaching ? "on" : "off"}`);
 
     // Think-tag filter: strip <think>...</think> blocks from non-Anthropic providers.
     // NOTE: This filter currently operates on text deltas as they are persisted to
@@ -825,7 +838,10 @@ export async function POST(req: Request) {
         () => withRunContext(
         { runId, sessionId, pipelineName: "chat", characterId: characterId || undefined },
         async () => streamText({
-          model: resolveSessionLanguageModel(sessionMetadata),
+          model: await resolveSessionLanguageModelForSession(sessionMetadata, {
+            characterId,
+            settings: appSettings,
+          }),
           ...(injectContext && { system: systemPromptValue }),
           messages: cachedMessages,
           tools: allToolsWithMCP,
@@ -835,7 +851,11 @@ export async function POST(req: Request) {
           // execute results from triggering a new SDK query (infinite loop).
           // The SDK agent's entire multi-turn work happens inside step 0's fetch.
           stopWhen: stepCountIs(provider === "claudecode" ? 1 : AI_CONFIG.maxSteps),
-          temperature: getSessionProviderTemperature(sessionMetadata, initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature),
+          temperature: await getSessionProviderTemperatureForSession(
+            sessionMetadata,
+            initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature,
+            { characterId, settings: appSettings },
+          ),
           toolChoice: AI_CONFIG.toolChoice,
           prepareStep: async ({ stepNumber, messages: stepMessages }) => {
             let activeToolSet: Set<string>;

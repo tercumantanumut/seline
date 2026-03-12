@@ -16,6 +16,13 @@ export interface CharacterSummary {
     enabledPlugins?: string[];
     purpose?: string;
     isSystemAgent?: boolean;
+    modelConfig?: {
+      provider?: string;
+      chatModel?: string;
+      researchModel?: string;
+      visionModel?: string;
+      utilityModel?: string;
+    };
     avatarConfig?: {
       source: string;
       presetId?: string;

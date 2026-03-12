@@ -8,6 +8,8 @@ import {
 } from "@/lib/db/sqlite-character-schema";
 import { skills } from "@/lib/db/sqlite-skills-schema";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { getAgentModelConfigFromMetadata, type SessionResolverOptions } from "@/lib/ai/session-model-resolver";
+import type { AgentModelConfig } from "@/components/model-bag/model-bag.types";
 
 // Helper to get current timestamp as ISO string for SQLite
 const now = () => new Date().toISOString();
@@ -25,6 +27,25 @@ export async function getCharacter(id: string) {
   return db.query.characters.findFirst({
     where: eq(characters.id, id),
   });
+}
+
+export async function getCharacterModelConfig(
+  id: string,
+): Promise<AgentModelConfig | null> {
+  const character = await getCharacter(id);
+  return getAgentModelConfigFromMetadata(
+    (character?.metadata as Record<string, unknown> | null) ?? null,
+  );
+}
+
+export function buildSessionResolverOptions(
+  characterId: string | null | undefined,
+  agentModelConfig?: AgentModelConfig | null,
+): SessionResolverOptions {
+  return {
+    characterId,
+    agentModelConfig: agentModelConfig ?? undefined,
+  };
 }
 
 export async function getCharacterFull(id: string): Promise<CharacterFull | null> {

@@ -308,6 +308,75 @@ function isModelCompatibleWithProvider(model: string, provider: LLMProvider): bo
   return isModelCompatible(model, provider);
 }
 
+function getProviderAvailabilityIssue(provider: LLMProvider): string | null {
+  if (provider === "antigravity") {
+    return isAntigravityAuthenticated()
+      ? null
+      : "Antigravity selected but not authenticated";
+  }
+
+  if (provider === "codex") {
+    return isCodexAuthenticated()
+      ? null
+      : "Codex selected but not authenticated";
+  }
+
+  if (provider === "claudecode") {
+    const state = getClaudeCodeAuthState();
+    return state.isAuthenticated
+      ? null
+      : "Claude Code selected but not authenticated";
+  }
+
+  if (provider === "openrouter") {
+    return getOpenRouterApiKey()
+      ? null
+      : "OpenRouter selected but OPENROUTER_API_KEY is not set";
+  }
+
+  if (provider === "kimi") {
+    return getKimiApiKey()
+      ? null
+      : "Kimi selected but KIMI_API_KEY is not set";
+  }
+
+  if (provider === "minimax") {
+    return getMiniMaxApiKey()
+      ? null
+      : "MiniMax selected but MINIMAX_API_KEY is not set";
+  }
+
+  return null;
+}
+
+export function isProviderOperational(provider: LLMProvider): boolean {
+  return getProviderAvailabilityIssue(provider) === null;
+}
+
+export function resolveProviderWithFallback(
+  preferredProvider: LLMProvider | null | undefined,
+  fallbackProvider: LLMProvider = "anthropic"
+): LLMProvider {
+  const candidates = [preferredProvider, fallbackProvider, "anthropic"].filter(
+    (value, index, array): value is LLMProvider => Boolean(value) && array.indexOf(value) === index
+  );
+
+  for (const provider of candidates) {
+    const issue = getProviderAvailabilityIssue(provider);
+    if (!issue) {
+      return provider;
+    }
+
+    const nextProvider = candidates.find(
+      (candidate) => candidate !== provider && !getProviderAvailabilityIssue(candidate)
+    );
+    const fallbackLabel = nextProvider ?? "anthropic";
+    console.warn(`[PROVIDERS] ${issue}, falling back to ${fallbackLabel}`);
+  }
+
+  return "anthropic";
+}
+
 /**
  * Validate that a model is compatible with the current provider.
  * If incompatible, logs a single warning and returns the fallback.
@@ -317,7 +386,7 @@ function isModelCompatibleWithProvider(model: string, provider: LLMProvider): bo
  * The primary validation should happen at the API boundary (settings PUT,
  * session model-config PUT) via model-validation.ts.
  */
-function validateModelForProvider(
+export function resolveModelForProvider(
   model: string | null | undefined,
   provider: LLMProvider,
   fallback: string,
@@ -483,7 +552,7 @@ export function getConfiguredModel(): string {
 
   const model = envModel || DEFAULT_MODELS[provider];
   return (
-    validateModelForProvider(model, provider, DEFAULT_MODELS[provider], "model") ||
+    resolveModelForProvider(model, provider, DEFAULT_MODELS[provider], "model") ||
     DEFAULT_MODELS[provider]
   );
 }
@@ -508,13 +577,22 @@ export function getProviderTemperature(requestedTemp: number): number {
 export function getLanguageModel(modelOverride?: string): LanguageModel {
   const provider = getConfiguredProvider();
   const model =
-    validateModelForProvider(
+    resolveModelForProvider(
       modelOverride || getConfiguredModel(),
       provider,
       DEFAULT_MODELS[provider],
       "model"
     ) || DEFAULT_MODELS[provider];
 
+  console.log(`[PROVIDERS] Using provider: ${provider}, model: ${model}`);
+
+  return getLanguageModelForProvider(provider, model);
+}
+
+export function getLanguageModelForProvider(
+  provider: LLMProvider,
+  model: string,
+): LanguageModel {
   console.log(`[PROVIDERS] Using provider: ${provider}, model: ${model}`);
 
   switch (provider) {
@@ -637,7 +715,7 @@ export function getModelByName(modelId: string): LanguageModel {
 export function getChatModel(): LanguageModel {
   const settings = loadSettings();
   const provider = getConfiguredProvider();
-  const chatModel = validateModelForProvider(
+  const chatModel = resolveModelForProvider(
     settings.chatModel || process.env.LLM_MODEL,
     provider,
     DEFAULT_MODELS[provider],
@@ -646,7 +724,7 @@ export function getChatModel(): LanguageModel {
 
   if (chatModel) {
     console.log(`[PROVIDERS] Using configured chat model: ${chatModel}`);
-    return provider === "ollama" ? getLanguageModel(chatModel) : getModelByName(chatModel);
+    return getLanguageModelForProvider(provider, chatModel);
   }
 
   return getLanguageModel();
@@ -658,7 +736,7 @@ export function getChatModel(): LanguageModel {
 export function getResearchModel(): LanguageModel {
   const settings = loadSettings();
   const provider = getConfiguredProvider();
-  const researchModel = validateModelForProvider(
+  const researchModel = resolveModelForProvider(
     settings.researchModel || process.env.RESEARCH_MODEL,
     provider,
     DEFAULT_MODELS[provider],
@@ -667,9 +745,7 @@ export function getResearchModel(): LanguageModel {
 
   if (researchModel) {
     console.log(`[PROVIDERS] Using configured research model: ${researchModel}`);
-    return provider === "ollama"
-      ? getLanguageModel(researchModel)
-      : getModelByName(researchModel);
+    return getLanguageModelForProvider(provider, researchModel);
   }
 
   return getChatModel();
@@ -681,7 +757,7 @@ export function getResearchModel(): LanguageModel {
 export function getVisionModel(): LanguageModel {
   const settings = loadSettings();
   const provider = getConfiguredProvider();
-  const visionModel = validateModelForProvider(
+  const visionModel = resolveModelForProvider(
     settings.visionModel || process.env.VISION_MODEL,
     provider,
     DEFAULT_MODELS[provider],
@@ -690,7 +766,7 @@ export function getVisionModel(): LanguageModel {
 
   if (visionModel) {
     console.log(`[PROVIDERS] Using configured vision model: ${visionModel}`);
-    return provider === "ollama" ? getLanguageModel(visionModel) : getModelByName(visionModel);
+    return getLanguageModelForProvider(provider, visionModel);
   }
 
   console.log(`[PROVIDERS] Using chat model for vision (has native vision support)`);
@@ -707,7 +783,7 @@ export function getVisionModel(): LanguageModel {
 export function getUtilityModel(): LanguageModel {
   const settings = loadSettings();
   const provider = getConfiguredProvider();
-  const overrideModel = validateModelForProvider(
+  const overrideModel = resolveModelForProvider(
     settings.utilityModel || process.env.UTILITY_MODEL,
     provider,
     UTILITY_MODELS[provider],
@@ -716,16 +792,12 @@ export function getUtilityModel(): LanguageModel {
 
   if (overrideModel) {
     console.log(`[PROVIDERS] Using configured utility model: ${overrideModel}`);
-    return provider === "ollama"
-      ? getLanguageModel(overrideModel)
-      : getModelByName(overrideModel);
+    return getLanguageModelForProvider(provider, overrideModel);
   }
 
   const model = UTILITY_MODELS[provider];
   console.log(`[PROVIDERS] Using utility model: ${model} (provider: ${provider})`);
-  // Delegate to getLanguageModel with the provider-specific utility model as override.
-  // The routing logic is identical; getLanguageModel handles auth checks and client init.
-  return getLanguageModel(model);
+  return getLanguageModelForProvider(provider, model);
 }
 
 // ---- Metadata / feature queries ----------------------------------------------
