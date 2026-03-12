@@ -318,11 +318,15 @@ const electronAPI = {
     clear: (): void => {
       ipcRenderer.send("logs:clear");
     },
-    onEntry: (callback: (entry: { timestamp: string; level: string; message: string }) => void): void => {
-      ipcRenderer.on("logs:entry", (_event, entry) => callback(entry));
+    onEntry: (callback: (entry: { timestamp: string; level: string; message: string }) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, entry: { timestamp: string; level: string; message: string }) => callback(entry);
+      ipcRenderer.on("logs:entry", listener);
+      return () => ipcRenderer.removeListener("logs:entry", listener);
     },
-    onCritical: (callback: (data: { type: string; message: string }) => void): void => {
-      ipcRenderer.on("logs:critical", (_event, data) => callback(data));
+    onCritical: (callback: (data: { type: string; message: string }) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: { type: string; message: string }) => callback(data);
+      ipcRenderer.on("logs:critical", listener);
+      return () => ipcRenderer.removeListener("logs:critical", listener);
     },
     removeListeners: (): void => {
       ipcRenderer.removeAllListeners("logs:entry");

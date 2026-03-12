@@ -4145,7 +4145,31 @@
     }
   },
   "dev": {
-    "dimensionMismatch": "Embedding dimension mismatch. Re-sync your folders in Settings to fix."
+    "dimensionMismatch": "Embedding dimension mismatch. Re-sync your folders in Settings to fix.",
+    "title": "Dev Logs",
+    "subtitle": "Live renderer diagnostics that stay put while you inspect them.",
+    "toggleLogs": "Toggle Dev Logs",
+    "pause": "Pause",
+    "resume": "Resume",
+    "pauseUpdates": "Pause live updates",
+    "resumeUpdates": "Resume live updates",
+    "copy": "Copy",
+    "copyLine": "Copy line",
+    "copyVisibleLogs": "Copy visible logs",
+    "copiedLine": "Copied log line",
+    "copiedVisibleLogs": "Copied visible logs",
+    "copyFailed": "Couldn't copy logs",
+    "nothingToCopy": "No logs to copy",
+    "clear": "Clear",
+    "clearLogs": "Clear logs",
+    "logsCleared": "Logs cleared",
+    "closeLogs": "Close Dev Logs",
+    "filterPlaceholder": "Filter logs by text, level, or timestamp...",
+    "following": "Following live",
+    "jumpToLatest": "Jump to latest",
+    "pausedCount": "{count} queued",
+    "emptyState": "Logs will appear here when the Electron app emits them.",
+    "noFilteredLogs": "No logs match the current filter."
   },
   "avatar3dModels": {
     "dialog": {
