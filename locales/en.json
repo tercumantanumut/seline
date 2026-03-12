@@ -16,7 +16,7 @@
   "onboarding": {
     "welcome": {
       "title": "Welcome to Selene",
-      "subtitle": "Your AI agents platform. Chat, create, research, and automate — everywhere.",
+      "subtitle": "Your AI agents platform. Chat, create, research, and automate \u2014 everywhere.",
       "features": {
         "agents": {
           "title": "Parallel Agents"
@@ -36,8 +36,8 @@
       "options": {
         "antigravity": {
           "title": "Antigravity",
-          "desc": "Sign in with your Antigravity account — risk of account ban, use at your own risk",
-          "badge": "⚠ Use at own risk"
+          "desc": "Sign in with your Antigravity account \u2014 risk of account ban, use at your own risk",
+          "badge": "\u26a0 Use at own risk"
         },
         "anthropic": {
           "title": "Anthropic",
@@ -53,7 +53,7 @@
         },
         "claudecode": {
           "title": "Claude Code (Agent SDK)",
-          "desc": "Use your Claude Pro or MAX subscription — personal use only, not for commercial use",
+          "desc": "Use your Claude Pro or MAX subscription \u2014 personal use only, not for commercial use",
           "badge": "Personal use only"
         },
         "kimi": {
@@ -123,7 +123,7 @@
     },
     "features": {
       "title": "Choose Your Path",
-      "subtitle": "Pick a starting point — change anytime in Settings.",
+      "subtitle": "Pick a starting point \u2014 change anytime in Settings.",
       "legend": {
         "ready": "Works out of the box",
         "configurable": "Configure in Settings"
@@ -236,9 +236,9 @@
         "ttsAutoReplyDesc": "Every assistant reply includes audio output",
         "postEditChecks": "After-edit checks",
         "postEditChecksDesc": "Run type-check and lint after every file edit",
-        "postEditOff": "Off — no checks",
-        "postEditFast": "Fast — type-check only (auto scope)",
-        "postEditStrict": "Strict — type-check + ESLint (all)",
+        "postEditOff": "Off \u2014 no checks",
+        "postEditFast": "Fast \u2014 type-check only (auto scope)",
+        "postEditStrict": "Strict \u2014 type-check + ESLint (all)",
         "rtk": "RTK (token optimizer)",
         "rtkDesc": "Compress command output to save context tokens"
       }
@@ -290,7 +290,7 @@
       "step1": "Sign up at tavily.com (free tier available)",
       "step2": "Copy your API key from the dashboard",
       "step3": "Paste it above and click \"Test API Key\"",
-      "noKeyHint": "No API key? Skip this step — DuckDuckGo provides free web search automatically.",
+      "noKeyHint": "No API key? Skip this step \u2014 DuckDuckGo provides free web search automatically.",
       "back": "Back",
       "skip": "Skip for now",
       "continue": "Continue"
@@ -357,7 +357,7 @@
     "email": "Email",
     "password": "Password",
     "placeholderEmail": "you@example.com",
-    "placeholderPassword": "••••••••",
+    "placeholderPassword": "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
     "signingIn": "Signing in...",
     "signIn": "Sign in",
     "error": "Login failed",
@@ -379,7 +379,7 @@
     "errorPasswordLength": "Password must be at least 6 characters",
     "errorPasswordMatch": "Passwords do not match",
     "placeholderEmail": "you@example.com",
-    "placeholderPassword": "••••••••"
+    "placeholderPassword": "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
   },
   "picker": {
     "title": "Choose an Agent",
@@ -446,7 +446,7 @@
       "descriptionPlaceholder": "Describe your agent in one sentence...",
       "createAndChat": "Create & Chat",
       "creating": "Creating...",
-      "advancedSetup": "Advanced setup →",
+      "advancedSetup": "Advanced setup \u2192",
       "errorExpansion": "Failed to generate agent profile. Check your AI provider settings.",
       "errorCreation": "Failed to create agent. Please try again.",
       "sessionExpired": "Session expired, please reload.",
@@ -454,7 +454,7 @@
       "rateLimited": "Too many requests right now. Please wait and try again.",
       "requestTimeout": "Request timed out. Please try again.",
       "networkError": "Network error. Please check your connection and try again.",
-      "useTemplate": "Use →",
+      "useTemplate": "Use \u2192",
       "loadingTemplates": "Loading templates...",
       "templateLoadError": "Could not load templates. Please try again.",
       "retryTemplates": "Retry",
@@ -570,7 +570,7 @@
           "label": "Custom System Prompt Override",
           "placeholder": "You are a specialized AI assistant...\n\nYour capabilities include:\n- ...\n- ...",
           "helper": "Override the auto-generated system prompt with your own",
-          "warning": "⚠️ Custom prompts replace all auto-generated instructions. Use this only if you need complete control over the agent's behavior.",
+          "warning": "\u26a0\ufe0f Custom prompts replace all auto-generated instructions. Use this only if you need complete control over the agent's behavior.",
           "clear": "Clear custom prompt"
         }
       }
@@ -578,12 +578,12 @@
     "deleteDialog": {
       "title": "Delete Agent",
       "description": "Are you sure you want to delete \"{name}\"?",
-      "warning": "⚠️ This action cannot be undone. All conversations, documents, and settings for this agent will be permanently deleted.",
+      "warning": "\u26a0\ufe0f This action cannot be undone. All conversations, documents, and settings for this agent will be permanently deleted.",
       "confirm": "Delete Agent",
       "deleting": "Deleting..."
     },
     "toolEditor": {
-      "subtitle": "{name} • {count} tools enabled",
+      "subtitle": "{name} \u2022 {count} tools enabled",
       "searchPlaceholder": "Search tools...",
       "selectAll": "Select All",
       "deselectAll": "Deselect All",
@@ -729,7 +729,7 @@
       },
       "chromiumWorkspace": {
         "name": "Chromium Workspace",
-        "description": "Embedded Chromium browser for web automation — navigate, click, type, extract, evaluate"
+        "description": "Embedded Chromium browser for web automation \u2014 navigate, click, type, extract, evaluate"
       },
       "generateImageFlux2Flex": {
         "name": "Generate (Flux.2 Flex)",
@@ -827,6 +827,11 @@
         "name": "Reference (FLUX.2 Klein 9B)",
         "description": "Reference-guided generation with FLUX.2 Klein 9B (requires Docker)"
       }
+    },
+    "skillsCatalog": {
+      "title": "Shared Skill Library",
+      "subtitle": "Load proven skills into your agent roster.",
+      "description": "Browse the full catalog once, then choose exactly which skills should be applied to which agents."
     }
   },
   "avatar": {
@@ -850,7 +855,7 @@
     },
     "delete": "Delete",
     "setAsPrimary": "Set as primary for {name}",
-    "note": "PNG, JPEG, or WebP · Max 10MB"
+    "note": "PNG, JPEG, or WebP \u00b7 Max 10MB"
   },
   "documents": {
     "title": "Knowledge Base",
@@ -908,12 +913,12 @@
       "fileTooLarge": "File is too large ({size}MB). Maximum: {max}MB",
       "someFilesTooLarge": "{count, plural, one {# file is} other {# files are}} too large. Maximum: {max}MB",
       "attachmentsDisabledResearch": "Attachments are not available in Deep Research mode",
-      "pastedTextChip": "Pasted text #{n} · {lines} lines",
+      "pastedTextChip": "Pasted text #{n} \u00b7 {lines} lines",
       "removePastedText": "Remove pasted text",
       "textPasted": "Large text captured ({lines} lines)",
       "editorEnable": "Rich editor",
       "editorDisable": "Simple mode",
-      "rewardSuggestion": "Upon completion: +{amount} · {reason}",
+      "rewardSuggestion": "Upon completion: +{amount} \u00b7 {reason}",
       "rewardBands": {
         "small": "Quick win",
         "medium": "Focused build",
@@ -1062,8 +1067,8 @@
       "patchLabel": "Patch",
       "fileCount": "{count, plural, one {# file} other {# files}}",
       "changed": "{count} changed",
-      "showLess": "▲ Show less",
-      "showAll": "▼ Show all ({count} lines)",
+      "showLess": "\u25b2 Show less",
+      "showAll": "\u25bc Show all ({count} lines)",
       "diagnostics": "Diagnostics ({tool})",
       "errors": "{count, plural, one {# error} other {# errors}}",
       "warnings": "{count, plural, one {# warning} other {# warnings}}",
@@ -1073,9 +1078,9 @@
       "activeDelegations": "{count, plural, one {# active delegation} other {# active delegations}}"
     },
     "skillImportOverlay": {
-      "uploading": "Uploading…",
-      "parsing": "Parsing package…",
-      "importing": "Importing skill…",
+      "uploading": "Uploading\u2026",
+      "parsing": "Parsing package\u2026",
+      "importing": "Importing skill\u2026",
       "success": "Import complete!",
       "error": "Import failed",
       "readyToUse": "{name} is ready to use",
@@ -1194,16 +1199,16 @@
     "voiceTool": {
       "stop": "Stop",
       "play": "Play",
-      "synthesizing": "Synthesizing speech…",
+      "synthesizing": "Synthesizing speech\u2026",
       "ttsFailed": "TTS failed",
-      "checkingTranscription": "Checking transcription…",
+      "checkingTranscription": "Checking transcription\u2026",
       "transcriptionFailed": "Transcription check failed",
       "playFailed": "Failed to play audio",
       "playbackBlocked": "Audio playback blocked by browser"
     },
     "planTool": {
-      "updating": "Updating plan…",
-      "creating": "Creating plan…",
+      "updating": "Updating plan\u2026",
+      "creating": "Creating plan\u2026",
       "planError": "Plan error: {error}",
       "plan": "Plan",
       "stepsUpdated": "{count, plural, one {# step updated} other {# steps updated}}"
@@ -1232,13 +1237,13 @@
     },
     "skillPicker": {
       "needsInput": "needs input",
-      "navigate": "↑↓ navigate",
+      "navigate": "\u2191\u2193 navigate",
       "select": "Tab/Enter select",
       "close": "Esc close",
       "open": "Command Space open",
       "searchPlaceholder": "Search skills, categories, and descriptions",
       "searchAriaLabel": "Search skills",
-      "noSkillsYet": "No skills available yet - drop a .md skill file or visit Settings → Plugins.",
+      "noSkillsYet": "No skills available yet - drop a .md skill file or visit Settings \u2192 Plugins.",
       "noMatch": "No skills match \"{query}\""
     },
     "skillsPage": {
@@ -1366,7 +1371,7 @@
     "onboarding": {
       "step1": {
         "title": "Workspaces let your agent work in isolation",
-        "description": "Your agent can create a separate copy of your code using git worktrees, make changes, and submit them for review — without touching your working files.",
+        "description": "Your agent can create a separate copy of your code using git worktrees, make changes, and submit them for review \u2014 without touching your working files.",
         "hint": "This badge appears in your chat header when a workspace is active."
       },
       "step2": {
@@ -1376,7 +1381,7 @@
       },
       "step3": {
         "title": "Track all workspaces at a glance",
-        "description": "See all your agents' active workspaces on the home page — their status, branch names, PR links, and quick actions like continue, cleanup, or view PR.",
+        "description": "See all your agents' active workspaces on the home page \u2014 their status, branch names, PR links, and quick actions like continue, cleanup, or view PR.",
         "hint": "Active workspaces appear above your agent cards on the home page."
       },
       "skip": "Skip",
@@ -1429,7 +1434,7 @@
     "recommendedExcludes": "Recommended excludes (build artifacts, caches, logs)",
     "fileExtensions": "File Extensions (comma-separated)",
     "excludePatterns": "Exclude Patterns (auto-detected from .gitignore)",
-    "patternsIncluded": "✓ Patterns from .gitignore included",
+    "patternsIncluded": "\u2713 Patterns from .gitignore included",
     "cancel": "Cancel",
     "addFolder": "Add Folder",
     "addFolderToIndex": "Add Synced Folder",
@@ -1621,8 +1626,8 @@
       "placeholder": "Type a name...",
       "errorMinLength": "Name must be at least 2 characters",
       "errorMaxLength": "Name must be less than 50 characters",
-      "escToGoBack": "← ESC to go back",
-      "continue": "Continue →"
+      "escToGoBack": "\u2190 ESC to go back",
+      "continue": "Continue \u2192"
     },
     "concept": {
       "question": "Describe your agent's role, domain, and personality...",
@@ -1635,8 +1640,8 @@
       "errorMinLength": "Please describe your agent in at least 10 characters",
       "errorMaxLength": "Concept must be less than 500 characters",
       "back": "Back",
-      "cmdEnter": "⌘+Enter to submit",
-      "continue": "Continue →"
+      "cmdEnter": "\u2318+Enter to submit",
+      "continue": "Continue \u2192"
     },
     "identity": {
       "question": "Define your agent's identity and purpose...",
@@ -1652,7 +1657,7 @@
       "errorPurposeMin": "Please describe the agent's purpose in at least 10 characters",
       "errorPurposeMax": "Purpose must be less than 1000 characters",
       "back": "Back",
-      "continue": "Continue →"
+      "continue": "Continue \u2192"
     },
     "capabilities": {
       "question": "Select the tools this agent can use...",
@@ -1787,7 +1792,7 @@
         "devWorkspaceEnabled": "Requires Developer Workspace enabled"
       },
       "back": "Back",
-      "continue": "Continue →"
+      "continue": "Continue \u2192"
     },
     "embeddingSetup": {
       "question": "Choose an embedding provider and model.",
@@ -1817,7 +1822,7 @@
       "title": "MCP Tools",
       "description": "Select which MCP servers and tools to enable for this agent.",
       "noServersTitle": "No MCP Servers Configured",
-      "noServersDescription": "Configure MCP servers in Settings → MCP Servers to enable external tools.",
+      "noServersDescription": "Configure MCP servers in Settings \u2192 MCP Servers to enable external tools.",
       "configureServers": "Open MCP Settings",
       "skipForNow": "Skip for Now",
       "serversNotConnected": "MCP servers are configured but not connected. Connect to discover available tools.",
@@ -1855,7 +1860,7 @@
         "pixelDesc": "Retro pixel style"
       },
       "back": "Back",
-      "generateCharacter": "Generate Character →"
+      "generateCharacter": "Generate Character \u2192"
     },
     "knowledgeBase": {
       "question": "Upload documents to build the agent's knowledge base...",
@@ -1867,8 +1872,8 @@
       "confirmDelete": "Confirm?",
       "skipHint": "You can skip this step and add documents later",
       "back": "Back",
-      "continue": "Continue →",
-      "skip": "Skip →"
+      "continue": "Continue \u2192",
+      "skip": "Skip \u2192"
     },
     "vectorSearchPage": {
       "step": "Step 4",
@@ -1897,7 +1902,7 @@
       "mcpSummary": "{servers} MCP servers, {tools} tools",
       "back": "Back",
       "creating": "Creating...",
-      "createAgent": "Create Agent ✓"
+      "createAgent": "Create Agent \u2713"
     },
     "success": {
       "title": "{name} is Ready!",
@@ -1921,7 +1926,7 @@
       "or": "or",
       "uploadYourOwn": "Upload Your Own Image",
       "uploading": "Uploading...",
-      "supportedFormats": "PNG, JPEG, or WebP • Max 10MB",
+      "supportedFormats": "PNG, JPEG, or WebP \u2022 Max 10MB",
       "errors": {
         "invalidFormat": "Please upload a PNG, JPEG, or WebP image",
         "fileTooLarge": "Image must be less than 10MB"
@@ -1999,14 +2004,14 @@
         "signedIn": "Signed in: {email}",
         "antigravityTitle": "Antigravity models",
         "antigravityDesc": "Use your Antigravity subscription to access supported premium models.",
-        "antigravityWarning": "Risk of account ban — use at your own risk",
+        "antigravityWarning": "Risk of account ban \u2014 use at your own risk",
         "signInGoogle": "Sign in with Google",
         "codexTitle": "OpenAI Codex",
         "codexDesc": "Connect your OpenAI account to use Codex models.",
         "signInOpenAI": "Sign in with OpenAI",
         "claudecodeTitle": "Claude Code",
         "claudecodeDesc": "Connect your Anthropic account to use Claude Code models.",
-        "claudecodeWarning": "Personal use only — not for commercial use",
+        "claudecodeWarning": "Personal use only \u2014 not for commercial use",
         "signInAnthropic": "Sign in with Anthropic",
         "authFlowTitle": "Complete Authentication",
         "authStep1": "A browser window has opened with the Anthropic authentication page",
@@ -2095,7 +2100,7 @@
       "disabledTooltip": "This server is disabled and will not connect. Toggle to enable.",
       "syncedFolderVariable": "Primary synced folder",
       "syncedFoldersArrayVariable": "All synced folders (separate arguments)",
-      "filesystemRequiresSyncedFolder": "Filesystem MCP server requires at least one synced folder. Please add a folder in Settings → Synced Folders.",
+      "filesystemRequiresSyncedFolder": "Filesystem MCP server requires at least one synced folder. Please add a folder in Settings \u2192 Synced Folders.",
       "variablePreview": "Preview",
       "noFoldersSynced": "No folders synced yet",
       "variableHelp": "Use ${SYNCED_FOLDER} for single-folder access or ${SYNCED_FOLDERS_ARRAY} for multi-folder access",
@@ -2360,7 +2365,7 @@
           "customModelHelper": "Pick a preset or enter any Hugging Face cross-encoder reranker model ID.",
           "ready": "Ready",
           "download": "Download",
-          "wrongModelType": "Wrong model type: This appears to be an embedding model, not a cross-encoder reranker. Rerankers score (query, text) pairs — they don’t produce vectors. Select a cross-encoder model like \"cross-encoder/ms-marco-MiniLM-L-6-v2\".",
+          "wrongModelType": "Wrong model type: This appears to be an embedding model, not a cross-encoder reranker. Rerankers score (query, text) pairs \u2014 they don\u2019t produce vectors. Select a cross-encoder model like \"cross-encoder/ms-marco-MiniLM-L-6-v2\".",
           "unrecognizedModel": "Unrecognized model: Ensure this is a cross-encoder model (not an embedding model). Cross-encoders output relevance scores, not vectors.",
           "downloadFailed": "Download failed",
           "downloadApiUnavailable": "Model download API not available. Please restart the app."
@@ -2412,7 +2417,7 @@
       "language": {
         "label": "Language",
         "en": "English",
-        "tr": "Türkçe"
+        "tr": "T\u00fcrk\u00e7e"
       },
       "toolLoading": {
         "label": "How tools are loaded",
@@ -2472,7 +2477,7 @@
         "standalone": "Standalone (default)",
         "standaloneDesc": "Launches a sandboxed headless browser. Isolated cookies, no extensions. Predictable and zero-friction.",
         "userChrome": "Use my Chrome browser",
-        "userChromeDesc": "Launches with your real Chrome profile — inherits cookies, extensions, and browser fingerprint. Better for avoiding bot detection.",
+        "userChromeDesc": "Launches with your real Chrome profile \u2014 inherits cookies, extensions, and browser fingerprint. Better for avoiding bot detection.",
         "profilePathLabel": "Chrome profile path (optional)",
         "profilePathPlaceholder": "Leave empty for OS default profile",
         "noteLabel": "Note:",
@@ -2581,9 +2586,9 @@
         "whisperDownloaded": "Downloaded",
         "whisperDownload": "Download",
         "whisperSelectModel": "Select a model",
-        "whisperMultilingual": " · Supports ~99 languages",
-        "whisperEnglishOnly": " · English only",
-        "whisperSetupHint": "Download a model above — whisper-cli and ffmpeg are bundled with the app. Transcription runs entirely on your device — no API key or internet needed.",
+        "whisperMultilingual": " \u00b7 Supports ~99 languages",
+        "whisperEnglishOnly": " \u00b7 English only",
+        "whisperSetupHint": "Download a model above \u2014 whisper-cli and ffmpeg are bundled with the app. Transcription runs entirely on your device \u2014 no API key or internet needed.",
         "providerParakeet": "Local (Parakeet/sherpa-onnx)",
         "providerParakeetDesc": "Fast local transcription via sherpa-onnx websocket server.",
         "parakeetModelLabel": "Parakeet model",
@@ -2705,7 +2710,7 @@
     "clearOverride": "Clear override (use default)",
     "usingDefault": "Using default",
     "close": "Close",
-    "enterToAssign": "Enter + ↵",
+    "enterToAssign": "Enter + \u21b5",
     "sessionOverride": {
       "loadingConfig": "Loading model config...",
       "updateFailed": "Failed to update session model",
@@ -2727,22 +2732,22 @@
     "providerFilter": {
       "all": "All",
       "activeProvider": "{name} (active provider)",
-      "doubleClickToSwitch": "{name} — double-click to switch",
-      "notConfigured": "{name} — not configured"
+      "doubleClickToSwitch": "{name} \u2014 double-click to switch",
+      "notConfigured": "{name} \u2014 not configured"
     },
     "tooltip": {
       "assigned": "Assigned:",
       "vision": "Vision",
       "thinking": "Thinking",
       "tools": "Tools",
-      "notConfigured": "Provider not configured — set API key or connect in Settings"
+      "notConfigured": "Provider not configured \u2014 set API key or connect in Settings"
     },
     "providerLabel": "Provider:",
     "defaultBadge": "DEF",
     "assignTo": "ASSIGN TO:",
     "currentlyActive": "Currently active",
     "connectProviders": "Connect providers in Settings",
-    "footerHint": "Click to switch model · Manage providers in <settings>Settings</settings>",
+    "footerHint": "Click to switch model \u00b7 Manage providers in <settings>Settings</settings>",
     "switched": "Switched to {name} for this session",
     "switchFailed": "Failed to switch model",
     "loadFailed": "Failed to load model settings",
@@ -2921,7 +2926,7 @@
       "noActiveChannels": "No active channels",
       "startNew": "Start new chat",
       "new": "New",
-      "newTitle": "New Chat (⌘N)",
+      "newTitle": "New Chat (\u2318N)",
       "filters": "Filters",
       "quickLinks": "Quick Links",
       "knowledgeBase": "Knowledge Base",
@@ -3020,7 +3025,7 @@
         "tooltip": "Context: {current}/{max} ({percentage})",
         "compactNow": "Compact now",
         "newSession": "Start new session",
-        "thresholdsLabel": "Warn {warn}% · Crit {crit}% · Hard {hard}%",
+        "thresholdsLabel": "Warn {warn}% \u00b7 Crit {crit}% \u00b7 Hard {hard}%",
         "thresholdsTooltip": "Thresholds (warning / critical / hard limit): {thresholds}"
       },
       "blocked": {
@@ -3136,21 +3141,21 @@
         "tokens": {
           "title": "Token usage",
           "unit": "tokens",
-          "detail": "{input} input • {output} output"
+          "detail": "{input} input \u2022 {output} output"
         },
         "cost": {
           "title": "Estimated cost (Claude Sonnet 4.5)",
-          "detail": "{input} input • {output} output"
+          "detail": "{input} input \u2022 {output} output"
         },
         "stats": {
           "title": "Session stats",
           "messages": "{count} messages",
-          "breakdown": "{assistant} assistant • {user} user",
+          "breakdown": "{assistant} assistant \u2022 {user} user",
           "duration": "Duration ~{seconds}s"
         },
         "cache": {
           "title": "Cache savings",
-          "detail": "{read} read • {write} write"
+          "detail": "{read} read \u2022 {write} write"
         }
       },
       "tools": {
@@ -3162,9 +3167,9 @@
       },
       "media": {
         "title": "Media generation",
-        "total": "{images} images • {videos} videos",
+        "total": "{images} images \u2022 {videos} videos",
         "empty": "No images or videos were generated in this session.",
-        "service": "{images} images • {videos} videos"
+        "service": "{images} images \u2022 {videos} videos"
       }
     }
   },
@@ -3182,7 +3187,7 @@
     },
     "pinned": "Pinned Chats",
     "noPinned": "No pinned chats yet",
-    "pinCta": "Pin important chats via ··· → Pin chat",
+    "pinCta": "Pin important chats via \u00b7\u00b7\u00b7 \u2192 Pin chat",
     "recentChats": "Recent Chats",
     "viewAllChats": "View all",
     "noChats": "No chats yet. Start a conversation!",
@@ -3203,7 +3208,7 @@
       "loadError": "Failed to load skill data",
       "runs": "{count} runs",
       "telemetry": {
-        "autoTriggered": "Auto-triggered: {auto} · Manual: {manual}",
+        "autoTriggered": "Auto-triggered: {auto} \u00b7 Manual: {manual}",
         "copy": "Copy: {ok} ok / {fail} fail",
         "updates": "Updates: {ok} ok / {stale} stale",
         "asOf": "As of: {time}"
@@ -3353,7 +3358,7 @@
         "calls": "{count} calls",
         "avg": "avg {duration}",
         "toolErrors": "Tool Errors",
-        "noErrors": "No tool errors 🎉",
+        "noErrors": "No tool errors \ud83c\udf89",
         "errors": "{count} errors",
         "dailyTrends": "Daily Trends",
         "failedToLoad": "Failed to load analytics"
@@ -3553,7 +3558,66 @@
         "productivity": "Productivity",
         "creative": "Creative",
         "docs": "Docs",
-        "security": "Security"
+        "security": "Security",
+        "engineering": "Engineering",
+        "paid-media": "Paid Media",
+        "sales": "Sales",
+        "marketing": "Marketing",
+        "product": "Product",
+        "project-management": "Project Management",
+        "testing": "Testing",
+        "support": "Support",
+        "spatial-computing": "Spatial Computing",
+        "specialized": "Specialized",
+        "game-development": "Game Development"
+      },
+      "retry": "Retry",
+      "skillFallback": "Skill",
+      "selectAgentFirst": "Select an agent first",
+      "collectionsTitle": "Collections",
+      "collectionInstallFailed": "Collection install failed",
+      "collectionInstallPartial": "Installed {installed} skills, {failed} failed.",
+      "collectionInstallSuccess": "Installed {installed} skills, skipped {skipped}.",
+      "toggleFailed": "Failed to update skill status",
+      "uninstallSuccess": "Skill uninstalled",
+      "uninstallFailed": "Failed to uninstall skill",
+      "alreadyInstalledOnAgent": "Skill is already installed on this agent",
+      "emptySearchSkills": "No custom skills match your search.",
+      "emptyCustomSkills": "No custom skills yet.",
+      "emptyCustomSkillsHint": "Create your own or install from the catalog below.",
+      "collectionCard": {
+        "skillsCount": "{count} skills \u00b7 {installed} installed",
+        "source": "Source",
+        "installing": "Installing...",
+        "installed": "Installed",
+        "install": "Install {count} skills"
+      },
+      "chooseSkills": "Choose skills",
+      "removeInstalled": "Remove installed",
+      "applyToAgents": "Apply to agents",
+      "selectionRequired": "Select at least one skill",
+      "selectAgentsRequired": "Select at least one agent",
+      "applySelectionSuccess": "Applied {skills} skill assignments across {agents} agents.",
+      "applySelectionPartial": "Applied some skill assignments, but {failed} installs failed across {agents} agents.",
+      "selectionUninstallSuccess": "Removed {removed} installed skills.",
+      "selectionUninstallPartial": "Removed {removed} installed skills, {failed} failed.",
+      "selectionInstallTitle": "Choose skills to install",
+      "selectionInstallDescription": "Pick the skills you want to add to this agent.",
+      "selectionInstallTitleMultiAgent": "Apply skills to agents",
+      "selectionInstallDescriptionMultiAgent": "Select the skills to apply, then choose one or more agents.",
+      "selectionUninstallTitle": "Remove installed skills",
+      "selectionUninstallDescription": "Select the installed skills you want to remove from this agent.",
+      "selectionDialog": {
+        "skillsTitle": "Skills",
+        "agentsTitle": "Agents",
+        "selectAll": "Select all",
+        "clear": "Clear",
+        "installedBadge": "Installed",
+        "agentsHelp": "Select one or more agents to receive the chosen skills.",
+        "selectionSummary": "Selection",
+        "selectedSkills": "{count} skills selected",
+        "singleAgentHelp": "Choose the exact skills you want to add or remove before applying.",
+        "applying": "Applying..."
       }
     }
   },
@@ -3795,7 +3859,7 @@
       "title": "Quick Start Templates",
       "subtitle": "Choose a template to get started quickly",
       "useTemplate": "Use Template",
-      "createFromScratch": "Or create from scratch →",
+      "createFromScratch": "Or create from scratch \u2192",
       "requiresIntegration": "Requires {integration} integration",
       "alternativeAvailable": "Will use {method} instead",
       "estimatedTime": "~{duration}",
@@ -4030,9 +4094,9 @@
       "viewPlugins": "View Plugins",
       "viewSkills": "View Skills",
       "importFailed": "Import failed",
-      "parsingPackage": "Parsing package…",
-      "importingPlugin": "Installing plugin…",
-      "uploading": "Uploading…",
+      "parsingPackage": "Parsing package\u2026",
+      "importingPlugin": "Installing plugin\u2026",
+      "uploading": "Uploading\u2026",
       "importComplete": "Import complete!"
     }
   },

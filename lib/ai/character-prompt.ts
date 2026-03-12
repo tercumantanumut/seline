@@ -134,6 +134,7 @@ export function buildCharacterSystemPrompt(
       sections.push(
         [
           "## Skill Matching Guidance",
+          "- If the user asks for a workflow, campaign, template, playbook, or other reusable task, check for related skills first.",
           "- Use `runSkill` action=\"list\" to discover available skills when needed.",
           "- Use `runSkill` action=\"run\" when a user request clearly matches a skill trigger example.",
           "- Use `updateSkill` for create/patch/replace/metadata/copy/archive operations.",

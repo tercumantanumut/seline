@@ -1,4 +1,5 @@
-import type { CatalogSkill } from "./types";
+import type { CatalogSkill, CatalogSkillCollection } from "./types";
+import { AGENCY_AGENTS_COLLECTION, AGENCY_AGENTS_SKILLS } from "./agency-agents";
 import { SYSTEM_SKILLS } from "./system-skills";
 
 export const SKILL_CATALOG: CatalogSkill[] = [
@@ -348,12 +349,22 @@ export const SKILL_CATALOG: CatalogSkill[] = [
   },
 ];
 
-export { SYSTEM_SKILLS };
+export const CATALOG_COLLECTIONS: CatalogSkillCollection[] = [AGENCY_AGENTS_COLLECTION];
+
+export { AGENCY_AGENTS_COLLECTION, SYSTEM_SKILLS };
 
 export function getAllCatalogSkills(): CatalogSkill[] {
-  return [...SYSTEM_SKILLS, ...SKILL_CATALOG];
+  return [...SYSTEM_SKILLS, ...SKILL_CATALOG, ...AGENCY_AGENTS_SKILLS];
 }
 
 export function getCatalogSkillById(skillId: string): CatalogSkill | undefined {
   return getAllCatalogSkills().find((skill) => skill.id === skillId);
+}
+
+export function getCatalogCollections(): CatalogSkillCollection[] {
+  return [...CATALOG_COLLECTIONS];
+}
+
+export function getCatalogSkillsByCollection(collectionId: string): CatalogSkill[] {
+  return getAllCatalogSkills().filter((skill) => skill.collectionId === collectionId);
 }
