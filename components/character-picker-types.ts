@@ -3,6 +3,23 @@
 // Shared types for the character picker and its sub-components.
 // ==========================================================================
 
+export interface AgentModelConfigDraft {
+  provider: string;
+  chatModel: string;
+  researchModel: string;
+  visionModel: string;
+  utilityModel: string;
+}
+
+export interface IdentityEditorFormState {
+  name: string;
+  displayName: string;
+  tagline: string;
+  purpose: string;
+  systemPromptOverride: string;
+  modelConfig: AgentModelConfigDraft;
+}
+
 export interface CharacterSummary {
   id: string;
   name: string;

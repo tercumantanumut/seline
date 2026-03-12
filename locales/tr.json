@@ -539,6 +539,7 @@
       "subtitle": "Ajan detaylarını ve davranışını güncelle",
       "tabs": {
         "basic": "Temel Bilgiler",
+        "models": "Model Varsayılanları",
         "advanced": "Özel İstem"
       },
       "fields": {
@@ -573,8 +574,39 @@
           "warning": "⚠️ Özel istemler tüm otomatik oluşturulan talimatları değiştirir. Bunu yalnızca ajanın davranışı üzerinde tam kontrole ihtiyacınız varsa kullanın.",
           "clear": "Özel istemi temizle"
         }
+      },
+      "modelConfig": {
+        "title": "Ajan model varsayılanları",
+        "description": "Bu ajan için kalıcı varsayılanlar seçin. Oturum override'ları yalnızca mevcut sohbet için bunların üzerine yazar.",
+        "precedence": "Çözümleme sırası: oturum geçersiz kılma -> ajan varsayılanı -> global fallback -> sağlayıcı varsayılanı",
+        "providerLabel": "Sağlayıcı",
+        "providerInherit": "Global sağlayıcıyı kullan ({provider})",
+        "providerHelper": "Aşağıdaki tüm model rolleri {provider} sağlayıcısına göre doğrulanır.",
+        "roleInherit": "Devralınan varsayılanı kullan ({model})",
+        "roleFallback": "Bu rol boşsa veya uyumsuzsa {source} yoluna geri düşer.",
+        "agentProviderFallback": "bu ajanın {provider} sağlayıcı zinciri",
+        "globalFallback": "{provider} için global/sağlayıcı fallback zinciri",
+        "customModel": "özel model",
+        "roles": {
+          "chat": {
+            "label": "Ana sohbet modeli",
+            "helper": "Bu ajanın birincil konuşma modeli."
+          },
+          "research": {
+            "label": "Araştırma modeli",
+            "helper": "Derin araştırma ve uzun analizlerde kullanılır."
+          },
+          "vision": {
+            "label": "Görsel modeli",
+            "helper": "Burada yalnızca görsel desteği olan modeller listelenir."
+          },
+          "utility": {
+            "label": "Yardımcı model",
+            "helper": "Arka plan ve yardımcı görevlerde kullanılır."
+          }
+        }
       }
-    },
+    }
     "deleteDialog": {
       "title": "Ajanı Sil",
       "description": "\"{name}\" ajanını silmek istediğinizden emin misiniz?",
@@ -2656,18 +2688,32 @@
     "close": "Kapat",
     "enterToAssign": "Enter + ↵",
     "sessionOverride": {
+      "title": "Oturum model geçersiz kılmaları",
+      "description": "Buradaki değişiklikler yalnızca bu sohbeti etkiler. Ajan varsayılanları sonraki oturumlar için korunur.",
+      "precedence": "Aktif çözümleme sırası: oturum geçersiz kılma -> ajan varsayılanı -> global fallback -> sağlayıcı varsayılanı",
       "loadingConfig": "Model yapılandırması yükleniyor...",
       "updateFailed": "Oturum modeli güncellenemedi",
       "updateSuccess": "Oturum modeli güncellendi",
       "clearFailed": "Geçersiz kılmalar temizlenemedi",
       "clearSuccess": "Oturum modeli geçersiz kılmaları temizlendi",
+      "provider": "Sağlayıcı",
       "chatModel": "Sohbet Modeli",
       "researchModel": "Araştırma Modeli",
       "visionModel": "Görüntü Modeli",
       "utilityModel": "Yardımcı Model",
       "clearAllOverrides": "Tüm geçersiz kılmaları temizle",
-      "helpText": "Boş = global ayarı kullan. Yalnızca bu oturum için geçersiz kılmak üzere model kimliği girin.",
-      "globalLabel": "global:",
+      "helpText": "Oturum override'ları yalnızca bu sohbette geçerlidir. Bir alanı boş bırakırsanız önce ajan varsayılanına, sonra global ayarlara düşer.",
+      "emptyValue": "Ayarlanmadı",
+      "clearField": "Temizle",
+      "sessionLabel": "Oturum",
+      "agentLabel": "Ajan",
+      "globalLabel": "Global",
+      "effectiveLabel": "Efektif",
+      "sourceLabel": "Kaynak",
+      "sourceSession": "oturum geçersiz kılması",
+      "sourceAgent": "ajan varsayılanı",
+      "sourceGlobal": "global fallback",
+      "sourceProviderDefault": "sağlayıcı varsayılanı",
       "providerDefault": "(sağlayıcı varsayılanı)",
       "modelLabel": "Model",
       "globalStatus": "Global",
