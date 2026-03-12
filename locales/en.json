@@ -11,7 +11,9 @@
     "retry": "Retry",
     "email": "Email",
     "password": "Password",
-    "confirmPassword": "Confirm Password"
+    "confirmPassword": "Confirm Password",
+    "create": "Create",
+    "notFound": "Not found."
   },
   "onboarding": {
     "welcome": {
@@ -412,7 +414,8 @@
       "dashboard": "Dashboard",
       "duplicate": "Duplicate",
       "delete": "Delete",
-      "avatar3d": "3D Avatar"
+      "avatar3d": "3D Avatar",
+      "manageSkills": "Skills"
     },
     "mcpToolsTitle": "Configure MCP Tools",
     "plugins": {
@@ -608,11 +611,6 @@
           }
         }
       }
-    },
-    "skillsCatalog": {
-      "title": "Skills Catalog",
-      "subtitle": "Browse & Install Skills",
-      "description": "Explore available skills from curated collections and community sources. Install skills to extend your agents with specialized capabilities."
     },
     "deleteDialog": {
       "title": "Delete Agent",
@@ -3637,26 +3635,18 @@
       },
       "chooseSkills": "Choose skills",
       "removeInstalled": "Remove installed",
-      "applyToAgents": "Apply to agents",
       "selectionRequired": "Select at least one skill",
-      "selectAgentsRequired": "Select at least one agent",
-      "applySelectionSuccess": "Applied {skills} skill assignments across {agents} agents.",
-      "applySelectionPartial": "Applied some skill assignments, but {failed} installs failed across {agents} agents.",
       "selectionUninstallSuccess": "Removed {removed} installed skills.",
       "selectionUninstallPartial": "Removed {removed} installed skills, {failed} failed.",
       "selectionInstallTitle": "Choose skills to install",
       "selectionInstallDescription": "Pick the skills you want to add to this agent.",
-      "selectionInstallTitleMultiAgent": "Apply skills to agents",
-      "selectionInstallDescriptionMultiAgent": "Select the skills to apply, then choose one or more agents.",
       "selectionUninstallTitle": "Remove installed skills",
       "selectionUninstallDescription": "Select the installed skills you want to remove from this agent.",
       "selectionDialog": {
         "skillsTitle": "Skills",
-        "agentsTitle": "Agents",
         "selectAll": "Select all",
         "clear": "Clear",
         "installedBadge": "Installed",
-        "agentsHelp": "Select one or more agents to receive the chosen skills.",
         "selectionSummary": "Selection",
         "selectedSkills": "{count} skills selected",
         "singleAgentHelp": "Choose the exact skills you want to add or remove before applying.",

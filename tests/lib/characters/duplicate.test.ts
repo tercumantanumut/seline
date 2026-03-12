@@ -32,4 +32,19 @@ describe("character duplicate helpers", () => {
     expect(duplicated.inheritedResources).toBeUndefined();
     expect(source.workflowId).toBe("wf-1");
   });
+
+  it("clears system agent flags from metadata", () => {
+    const source = {
+      purpose: "Search sessions",
+      isSystemAgent: true,
+      systemAgentType: "session-search",
+      workflowId: "wf-1",
+    };
+
+    const duplicated = buildDuplicateMetadata(source);
+    expect(duplicated.purpose).toBe("Search sessions");
+    expect(duplicated.isSystemAgent).toBeUndefined();
+    expect(duplicated.systemAgentType).toBeUndefined();
+    expect(duplicated.workflowId).toBeUndefined();
+  });
 });

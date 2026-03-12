@@ -11,7 +11,6 @@ import { useTranslations } from "next-intl";
 import { SkillImportDropzone } from "@/components/skills/skill-import-dropzone";
 import { SkillCard } from "@/components/skills/skill-card";
 import { SkillCatalogPage } from "@/components/skills/skill-catalog-page";
-import { SkillSearch } from "@/components/skills/skill-search";
 import { SkillSection } from "@/components/skills/skill-section";
 import { toast } from "sonner";
 import {
@@ -59,7 +58,6 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
   const [showImport, setShowImport] = useState(false);
   const [skillToDelete, setSkillToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [search, setSearch] = useState("");
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
 
 
@@ -114,17 +112,6 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
     return skills.filter((s) => !s.catalogId);
   }, [skills]);
 
-  // Filtered custom skills by search
-  const filteredCustomSkills = useMemo(() => {
-    if (!search.trim()) return customSkills;
-    const q = search.toLowerCase();
-    return customSkills.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.description && s.description.toLowerCase().includes(q)) ||
-        (s.category && s.category.toLowerCase().includes(q))
-    );
-  }, [customSkills, search]);
 
   // Toggle skill status (active/archived) — works for both custom and catalog-installed skills
   const handleToggleSkill = useCallback(async (skillId: string, enabled: boolean, catalogId?: string) => {
@@ -239,13 +226,10 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
             />
           )}
 
-          {/* Search */}
-          <SkillSearch value={search} onChange={setSearch} className="max-w-full" />
-
           {/* Your Skills section — always visible */}
-          <SkillSection title={t("mySkills")} count={filteredCustomSkills.length}>
-            {filteredCustomSkills.length > 0 ? (
-              filteredCustomSkills.map((skill) => (
+          <SkillSection title={t("mySkills")} count={customSkills.length}>
+            {customSkills.length > 0 ? (
+              customSkills.map((skill) => (
                 <SkillCard
                   key={skill.id}
                   skill={{
@@ -266,13 +250,11 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
             ) : (
               <div className="col-span-full rounded-lg border border-dashed border-terminal-border bg-terminal-cream/50 p-6 text-center">
                 <p className="font-mono text-sm text-terminal-muted">
-                  {search ? catalogT("emptySearchSkills") : catalogT("emptyCustomSkills")}
+                  {catalogT("emptyCustomSkills")}
                 </p>
-                {!search && (
-                  <p className="mt-1.5 text-xs text-terminal-muted">
-                    {catalogT("emptyCustomSkillsHint")}
-                  </p>
-                )}
+                <p className="mt-1.5 text-xs text-terminal-muted">
+                  {catalogT("emptyCustomSkillsHint")}
+                </p>
               </div>
             )}
           </SkillSection>

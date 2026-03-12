@@ -11,7 +11,9 @@
     "retry": "Tekrar dene",
     "email": "E-posta",
     "password": "Şifre",
-    "confirmPassword": "Şifreyi doğrula"
+    "confirmPassword": "Şifreyi doğrula",
+    "create": "Oluştur",
+    "notFound": "Bulunamadı."
   },
   "onboarding": {
     "welcome": {
@@ -412,7 +414,8 @@
       "dashboard": "Kontrol Paneli",
       "duplicate": "Çoğalt",
       "delete": "Sil",
-      "avatar3d": "3D Avatar"
+      "avatar3d": "3D Avatar",
+      "manageSkills": "Beceriler"
     },
     "mcpToolsTitle": "MCP Araçlarını Yapılandır",
     "plugins": {
@@ -608,11 +611,6 @@
           }
         }
       }
-    },
-    "skillsCatalog": {
-      "title": "Yetenek Kataloğu",
-      "subtitle": "Yetenekleri Keşfet ve Kur",
-      "description": "Küratörlü koleksiyonlardan ve topluluk kaynaklarından mevcut yetenekleri keşfedin. Ajanlarınıza özel yetenekler eklemek için kurun."
     },
     "deleteDialog": {
       "title": "Ajanı Sil",
@@ -3585,26 +3583,18 @@
       },
       "chooseSkills": "Becerileri seç",
       "removeInstalled": "Kurulanları kaldır",
-      "applyToAgents": "Ajanlara uygula",
       "selectionRequired": "En az bir beceri seçin",
-      "selectAgentsRequired": "En az bir ajan seçin",
-      "applySelectionSuccess": "{agents} ajan için {skills} beceri ataması uygulandı.",
-      "applySelectionPartial": "Bazı atamalar uygulandı, ancak {agents} ajan genelinde {failed} yükleme başarısız oldu.",
       "selectionUninstallSuccess": "{removed} kurulu beceri kaldırıldı.",
       "selectionUninstallPartial": "{removed} kurulu beceri kaldırıldı, {failed} kaldırma başarısız oldu.",
       "selectionInstallTitle": "Yüklenecek becerileri seçin",
       "selectionInstallDescription": "Bu ajana eklemek istediğiniz becerileri seçin.",
-      "selectionInstallTitleMultiAgent": "Becerileri ajanlara uygula",
-      "selectionInstallDescriptionMultiAgent": "Önce becerileri, ardından uygulanacak bir veya daha fazla ajanı seçin.",
       "selectionUninstallTitle": "Kurulu becerileri kaldır",
       "selectionUninstallDescription": "Bu ajandan kaldırmak istediğiniz kurulu becerileri seçin.",
       "selectionDialog": {
         "skillsTitle": "Beceriler",
-        "agentsTitle": "Ajanlar",
         "selectAll": "Tümünü seç",
         "clear": "Temizle",
         "installedBadge": "Kurulu",
-        "agentsHelp": "Seçilen becerileri alacak bir veya daha fazla ajan seçin.",
         "selectionSummary": "Seçim",
         "selectedSkills": "{count} beceri seçildi",
         "singleAgentHelp": "Uygulamadan önce eklemek veya kaldırmak istediğiniz becerileri seçin.",

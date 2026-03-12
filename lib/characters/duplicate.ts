@@ -16,5 +16,7 @@ export function buildDuplicateMetadata(sourceMetadata: MetadataLike): Record<str
   delete metadata.workflowId;
   delete metadata.workflowRole;
   delete metadata.inheritedResources;
+  delete metadata.isSystemAgent;
+  delete metadata.systemAgentType;
   return metadata;
 }

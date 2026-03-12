@@ -26,6 +26,7 @@ export function AgentCardInWorkflow({
   onNewChat,
   onEditIdentity,
   onEditModelDefaults,
+  onManageSkills,
   onEditTools,
   onEditFolders,
   onEditMcp,
@@ -50,6 +51,7 @@ export function AgentCardInWorkflow({
   onNewChat: (id: string) => void;
   onEditIdentity: (c: CharacterSummary) => void;
   onEditModelDefaults: (c: CharacterSummary) => void;
+  onManageSkills: (c: CharacterSummary) => void;
   onEditTools: (c: CharacterSummary) => void;
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
@@ -119,6 +121,7 @@ export function AgentCardInWorkflow({
           character={character}
           onEditIdentity={onEditIdentity}
           onEditModelDefaults={onEditModelDefaults}
+          onManageSkills={onManageSkills}
           onEditTools={onEditTools}
           onEditFolders={onEditFolders}
           onEditMcp={onEditMcp}

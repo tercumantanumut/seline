@@ -9,7 +9,7 @@ import {
   UserCircle,
 } from "@phosphor-icons/react";
 import { Pencil } from "@phosphor-icons/react";
-import { Cpu, GitBranchPlus, MoreHorizontal, Copy, Puzzle, Unlink } from "lucide-react";
+import { Cpu, GitBranchPlus, MoreHorizontal, Copy, Puzzle, Unlink, Sparkles } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,7 @@ export type AgentOverflowMenuProps = {
   character: CharacterSummary;
   onEditIdentity: (c: CharacterSummary) => void;
   onEditModelDefaults: (c: CharacterSummary) => void;
+  onManageSkills: (c: CharacterSummary) => void;
   onEditTools: (c: CharacterSummary) => void;
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
@@ -50,6 +51,7 @@ export function AgentOverflowMenu({
   character,
   onEditIdentity,
   onEditModelDefaults,
+  onManageSkills,
   onEditTools,
   onEditFolders,
   onEditMcp,
@@ -92,6 +94,10 @@ export function AgentOverflowMenu({
         <DropdownMenuItem onSelect={() => onEditModelDefaults(character)}>
           <Cpu className="w-3.5 h-3.5 mr-2" />
           {t("menu.modelDefaults")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onManageSkills(character)}>
+          <Sparkles className="w-3.5 h-3.5 mr-2" />
+          {t("menu.manageSkills")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditTools(character)}>
           <Wrench className="w-3.5 h-3.5 mr-2" />

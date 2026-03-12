@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Camera, Cpu, FolderPlus, Plug, MoreHorizontal, Copy, Puzzle } from "lucide-react";
+import { Camera, Cpu, FolderPlus, Plug, MoreHorizontal, Copy, Puzzle, Sparkles } from "lucide-react";
 import {
   Wrench,
   Database,
@@ -52,6 +52,7 @@ interface SidebarCharacterProfileProps {
   onOpenFoldersDialog: () => void;
   onEditIdentity: () => void;
   onEditModelDefaults: () => void;
+  onManageSkills: () => void;
   onEditTools: () => void;
   onEditMcp: () => void;
   onEditPlugins: () => void;
@@ -73,6 +74,7 @@ export function SidebarCharacterProfile({
   onOpenFoldersDialog,
   onEditIdentity,
   onEditModelDefaults,
+  onManageSkills,
   onEditTools,
   onEditMcp,
   onEditPlugins,
@@ -211,6 +213,10 @@ export function SidebarCharacterProfile({
               <DropdownMenuItem onSelect={onEditModelDefaults}>
                 <Cpu className="w-3.5 h-3.5 mr-2" />
                 {tPicker("menu.modelDefaults")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onManageSkills}>
+                <Sparkles className="w-3.5 h-3.5 mr-2" />
+                {tPicker("menu.manageSkills")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={onEditTools}>
                 <Wrench className="w-3.5 h-3.5 mr-2" />

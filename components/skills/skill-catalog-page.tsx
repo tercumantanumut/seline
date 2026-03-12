@@ -24,26 +24,11 @@ import type {
 type CharacterOption = { id: string; name: string; displayName?: string | null };
 
 type SelectionMode = "install" | "uninstall";
-type CatalogPageMode = "single-agent" | "multi-agent";
 
 interface SkillCatalogPageProps {
-  mode?: CatalogPageMode;
-  characters?: CharacterOption[];
   embedded?: boolean;
   initialCharacterId?: string | null;
   hideCharacterSelector?: boolean;
-  autoRefreshKeys?: Array<string | number | null | undefined>;
-}
-
-function normalizeRefreshKeys(keys?: Array<string | number | null | undefined>): string {
-  if (!keys || keys.length === 0) {
-    return "";
-  }
-
-  return keys
-    .map((value) => String(value ?? ""))
-    .filter(Boolean)
-    .join("::");
 }
 
 function toggleSetValue(current: Set<string>, value: string): Set<string> {
@@ -71,8 +56,6 @@ function buildInstalledMap(payload: CatalogInstallManyResponse) {
 }
 
 export function SkillCatalogPage({
-  mode = "single-agent",
-  characters: providedCharacters,
   embedded = false,
   initialCharacterId = null,
   hideCharacterSelector = false,
@@ -85,55 +68,35 @@ export function SkillCatalogPage({
   const [search, setSearch] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<CatalogSkillWithStatus | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [characters, setCharacters] = useState<CharacterOption[]>(providedCharacters || []);
+  const [characters, setCharacters] = useState<CharacterOption[]>([]);
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(initialCharacterId);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("install");
   const [selectionSkills, setSelectionSkills] = useState<CatalogSkillWithStatus[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
-  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
   const [selectionBusy, setSelectionBusy] = useState(false);
 
-  const isMultiAgent = mode === "multi-agent";
-
   useEffect(() => {
-    if (providedCharacters) {
-      setCharacters(providedCharacters);
-    }
-  }, [providedCharacters]);
-
-  useEffect(() => {
-    if (isMultiAgent) {
-      setActiveCharacterId(null);
-      return;
-    }
-
     if (initialCharacterId) {
       setActiveCharacterId(initialCharacterId);
-      return;
     }
-
-    if (!activeCharacterId && providedCharacters && providedCharacters.length > 0) {
-      setActiveCharacterId(providedCharacters[0].id);
-    }
-  }, [activeCharacterId, initialCharacterId, isMultiAgent, providedCharacters]);
+  }, [initialCharacterId]);
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const catalogUrl = !isMultiAgent && activeCharacterId
+      const catalogUrl = activeCharacterId
         ? `/api/skills/catalog?characterId=${encodeURIComponent(activeCharacterId)}`
         : "/api/skills/catalog";
 
-      const requests: Promise<Response>[] = [fetch(catalogUrl)];
-      if (!providedCharacters) {
-        requests.push(fetch("/api/characters"));
-      }
+      const [catalogRes, charsRes] = await Promise.all([
+        fetch(catalogUrl),
+        fetch("/api/characters"),
+      ]);
 
-      const [catalogRes, charsRes] = await Promise.all(requests);
       if (!catalogRes.ok) {
         throw new Error("Failed to load catalog");
       }
@@ -147,21 +110,19 @@ export function SkillCatalogPage({
       setCatalog(allCatalog);
       setCollections(Array.isArray(catalogData.collections) ? catalogData.collections : []);
 
-      if (!providedCharacters && charsRes) {
-        const charsData = charsRes.ok ? await charsRes.json() : { characters: [] };
-        const charList: CharacterOption[] = Array.isArray(charsData.characters) ? charsData.characters : [];
-        setCharacters(charList);
+      const charsData = charsRes.ok ? await charsRes.json() : { characters: [] };
+      const charList: CharacterOption[] = Array.isArray(charsData.characters) ? charsData.characters : [];
+      setCharacters(charList);
 
-        if (!isMultiAgent && !activeCharacterId && !initialCharacterId && charList.length > 0) {
-          setActiveCharacterId(charList[0].id);
-        }
+      if (!activeCharacterId && !initialCharacterId && charList.length > 0) {
+        setActiveCharacterId(charList[0].id);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
       setLoading(false);
     }
-  }, [activeCharacterId, initialCharacterId, isMultiAgent, providedCharacters]);
+  }, [activeCharacterId, initialCharacterId]);
 
   useEffect(() => {
     void loadCatalog();
@@ -203,7 +164,6 @@ export function SkillCatalogPage({
     setSelectionMode(params.mode);
     setSelectionSkills(params.skills);
     setSelectedSkillIds(new Set(params.defaultSkillIds));
-    setSelectedAgentIds(new Set());
     setSelectionOpen(true);
   }, []);
 
@@ -349,26 +309,16 @@ export function SkillCatalogPage({
     }
   }, [clearBusy, markBusy, t]);
 
-  const openSingleSkillApply = useCallback((skill: CatalogSkillWithStatus) => {
-    openSelectionDialog({
-      mode: "install",
-      skills: [skill],
-      defaultSkillIds: [skill.id],
-    });
-  }, [openSelectionDialog]);
-
   const openCollectionInstallSelection = useCallback((collectionId: string) => {
     const skills = catalog.filter((skill) => skill.collectionId === collectionId);
-    const defaultSkillIds = isMultiAgent
-      ? []
-      : skills.filter((skill) => !skill.isInstalled).map((skill) => skill.id);
+    const defaultSkillIds = skills.filter((skill) => !skill.isInstalled).map((skill) => skill.id);
 
     openSelectionDialog({
       mode: "install",
       skills,
       defaultSkillIds,
     });
-  }, [catalog, isMultiAgent, openSelectionDialog]);
+  }, [catalog, openSelectionDialog]);
 
   const openCollectionUninstallSelection = useCallback((collectionId: string) => {
     const skills = catalog.filter((skill) => skill.collectionId === collectionId && skill.isInstalled);
@@ -386,12 +336,7 @@ export function SkillCatalogPage({
       return;
     }
 
-    if (selectionMode === "install" && isMultiAgent && selectedAgentIds.size === 0) {
-      toast.error(t("selectAgentsRequired"));
-      return;
-    }
-
-    if (!isMultiAgent && !activeCharacterId) {
+    if (!activeCharacterId) {
       toast.error(t("selectAgentFirst"));
       return;
     }
@@ -399,47 +344,6 @@ export function SkillCatalogPage({
     setSelectionBusy(true);
 
     try {
-      if (selectionMode === "install" && isMultiAgent) {
-        const agentIds = Array.from(selectedAgentIds);
-        const results = await Promise.all(
-          agentIds.map(async (characterId) => {
-            const res = await fetch("/api/skills/catalog/install", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ characterId, catalogSkillIds }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(data.error || t("installFailed"));
-            }
-            return data as CatalogInstallManyResponse;
-          })
-        );
-
-        const failed = results.reduce((sum, result) => sum + result.failed.length, 0);
-        const applied = results.reduce(
-          (sum, result) => sum + result.installed.length + result.skipped.length,
-          0
-        );
-
-        await loadCatalog();
-        setSelectionOpen(false);
-
-        if (failed > 0) {
-          toast.error(t("applySelectionPartial", {
-            skills: catalogSkillIds.length,
-            agents: agentIds.length,
-            failed,
-          }));
-        } else {
-          toast.success(t("applySelectionSuccess", {
-            skills: applied,
-            agents: agentIds.length,
-          }));
-        }
-        return;
-      }
-
       if (selectionMode === "install" && activeCharacterId) {
         const res = await fetch("/api/skills/catalog/install", {
           method: "POST",
@@ -531,30 +435,21 @@ export function SkillCatalogPage({
     }
   }, [
     activeCharacterId,
-    isMultiAgent,
-    loadCatalog,
-    selectedAgentIds,
     selectedSkillIds,
     selectionMode,
     t,
   ]);
 
   const selectionApplyLabel = selectionMode === "install"
-    ? isMultiAgent
-      ? t("applyToAgents")
-      : t("chooseSkills")
+    ? t("chooseSkills")
     : t("removeInstalled");
 
   const selectionTitle = selectionMode === "install"
-    ? isMultiAgent
-      ? t("selectionInstallTitleMultiAgent")
-      : t("selectionInstallTitle")
+    ? t("selectionInstallTitle")
     : t("selectionUninstallTitle");
 
   const selectionDescription = selectionMode === "install"
-    ? isMultiAgent
-      ? t("selectionInstallDescriptionMultiAgent")
-      : t("selectionInstallDescription")
+    ? t("selectionInstallDescription")
     : t("selectionUninstallDescription");
 
   if (loading) {
@@ -588,7 +483,7 @@ export function SkillCatalogPage({
         </header>
       ) : null}
 
-      {!isMultiAgent && !hideCharacterSelector ? (
+      {!hideCharacterSelector ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <select
             value={activeCharacterId || ""}
@@ -613,17 +508,17 @@ export function SkillCatalogPage({
           {collectionSummaries.map((collection) => {
             const collectionSkills = catalog.filter((skill) => skill.collectionId === collection.id);
             const hasInstalledSkills = collectionSkills.some((skill) => skill.isInstalled);
-            const hasAvailableSkills = isMultiAgent || collectionSkills.some((skill) => !skill.isInstalled);
+            const hasAvailableSkills = collectionSkills.some((skill) => !skill.isInstalled);
 
             return (
               <SkillCollectionCard
                 key={collection.id}
                 collection={collection}
-                primaryLabel={isMultiAgent ? t("applyToAgents") : t("chooseSkills")}
-                secondaryLabel={!isMultiAgent && hasInstalledSkills ? t("removeInstalled") : undefined}
+                primaryLabel={t("chooseSkills")}
+                secondaryLabel={hasInstalledSkills ? t("removeInstalled") : undefined}
                 onPrimaryAction={() => openCollectionInstallSelection(collection.id)}
                 onSecondaryAction={
-                  !isMultiAgent && hasInstalledSkills
+                  hasInstalledSkills
                     ? () => openCollectionUninstallSelection(collection.id)
                     : undefined
                 }
@@ -646,7 +541,7 @@ export function SkillCatalogPage({
       {grouped.map(({ category, label, skills }) => (
         <SkillSection key={category} title={label} count={skills.length}>
           {skills.map((skill) => {
-            const cardVariant = isMultiAgent ? "catalog" : skill.isInstalled ? "installed" : "catalog";
+            const cardVariant = skill.isInstalled ? "installed" : "catalog";
             const cardBusy = busyIds.has(skill.id) || (skill.installedSkillId ? busyIds.has(skill.installedSkillId) : false);
 
             return (
@@ -657,19 +552,17 @@ export function SkillCatalogPage({
                 isEnabled={skill.isEnabled ?? false}
                 isBusy={cardBusy}
                 onInstall={
-                  isMultiAgent
-                    ? () => openSingleSkillApply(skill)
-                    : skill.isInstalled
-                      ? undefined
-                      : () => handleInstall(skill.id)
+                  skill.isInstalled
+                    ? undefined
+                    : () => handleInstall(skill.id)
                 }
                 onToggle={
-                  !isMultiAgent && skill.isInstalled && skill.installedSkillId
+                  skill.isInstalled && skill.installedSkillId
                     ? (enabled) => handleToggleInstalledSkill(skill.id, skill.installedSkillId!, enabled)
                     : undefined
                 }
                 onDelete={
-                  !isMultiAgent && skill.isInstalled && skill.installedSkillId
+                  skill.isInstalled && skill.installedSkillId
                     ? () => handleUninstallInstalledSkill(skill.id, skill.installedSkillId!)
                     : undefined
                 }
@@ -687,34 +580,17 @@ export function SkillCatalogPage({
         skill={selectedSkill}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        characterId={isMultiAgent ? null : activeCharacterId}
+        characterId={activeCharacterId}
         onInstall={async (catalogSkillId) => {
-          const skill = catalog.find((item) => item.id === catalogSkillId);
-          if (!skill) return;
-
-          if (isMultiAgent) {
-            openSingleSkillApply(skill);
-            return;
-          }
-
           await handleInstall(catalogSkillId);
         }}
-        installLabel={isMultiAgent ? t("applyToAgents") : undefined}
-        installDisabled={isMultiAgent ? characters.length === 0 : !activeCharacterId}
-        onToggle={
-          !isMultiAgent
-            ? async (catalogSkillId, installedSkillId, enabled) => {
-                await handleToggleInstalledSkill(catalogSkillId, installedSkillId, enabled);
-              }
-            : undefined
-        }
-        onUninstall={
-          !isMultiAgent
-            ? async (catalogSkillId, installedSkillId) => {
-                await handleUninstallInstalledSkill(catalogSkillId, installedSkillId);
-              }
-            : undefined
-        }
+        installDisabled={!activeCharacterId}
+        onToggle={async (catalogSkillId, installedSkillId, enabled) => {
+          await handleToggleInstalledSkill(catalogSkillId, installedSkillId, enabled);
+        }}
+        onUninstall={async (catalogSkillId, installedSkillId) => {
+          await handleUninstallInstalledSkill(catalogSkillId, installedSkillId);
+        }}
       />
 
       <CatalogSelectionDialog
@@ -727,25 +603,8 @@ export function SkillCatalogPage({
         onToggleSkill={(skillId) => setSelectedSkillIds((prev) => toggleSetValue(prev, skillId))}
         onSelectAllSkills={() => setSelectedSkillIds(new Set(selectionSkills.map((skill) => skill.id)))}
         onClearSkills={() => setSelectedSkillIds(new Set())}
-        agents={isMultiAgent ? characters : []}
-        selectedAgentIds={isMultiAgent ? selectedAgentIds : undefined}
-        onToggleAgent={
-          isMultiAgent
-            ? (agentId) => setSelectedAgentIds((prev) => toggleSetValue(prev, agentId))
-            : undefined
-        }
-        onSelectAllAgents={
-          isMultiAgent
-            ? () => setSelectedAgentIds(new Set(characters.map((agent) => agent.id)))
-            : undefined
-        }
-        onClearAgents={isMultiAgent ? () => setSelectedAgentIds(new Set()) : undefined}
         applyLabel={selectionApplyLabel}
-        applyDisabled={
-          selectionBusy ||
-          selectedSkillIds.size === 0 ||
-          (selectionMode === "install" && isMultiAgent && selectedAgentIds.size === 0)
-        }
+        applyDisabled={selectionBusy || selectedSkillIds.size === 0}
         isApplying={selectionBusy}
         onApply={handleApplySelection}
       />

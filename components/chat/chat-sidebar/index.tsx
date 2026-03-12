@@ -438,6 +438,7 @@ export function CharacterSidebar({
         onOpenFoldersDialog={() => setFoldersOpen(true)}
         onEditIdentity={() => charActions.openIdentityEditor(characterSummary)}
         onEditModelDefaults={() => charActions.openModelDefaults(characterSummary)}
+        onManageSkills={() => router.push(`/agents/${character.id}/skills`)}
         onEditTools={() => toolEditor.openToolEditor(characterSummary)}
         onEditMcp={() => charActions.openMcpToolEditor(characterSummary)}
         onEditPlugins={() => charActions.openPluginEditor(characterSummary)}

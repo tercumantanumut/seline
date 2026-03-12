@@ -49,7 +49,7 @@ import { useToolEditor } from "@/components/character-picker-tool-editor-hook";
 import { useCharacterActions } from "@/components/character-picker-character-actions-hook";
 import { useTheme } from "@/components/theme/theme-provider";
 import { Avatar3DModelSelector } from "@/components/avatar-3d/avatar-model-selector";
-import { SkillCatalogPage } from "@/components/skills/skill-catalog-page";
+
 
 export function CharacterPicker() {
   const router = useRouter();
@@ -67,7 +67,7 @@ export function CharacterPicker() {
 
   const t = useTranslations("picker");
   const tDeps = useTranslations("picker.toolEditor.dependencyWarnings");
-  const skillsCatalogT = useTranslations("picker.skillsCatalog");
+
 
   // Session sync
   useSessionSync({ enablePolling: true, pollingInterval: 10000 });
@@ -380,6 +380,7 @@ export function CharacterPicker() {
             onNewChat={handleNewChat}
             onEditIdentity={charActions.openIdentityEditor}
             onEditModelDefaults={charActions.openModelDefaults}
+            onManageSkills={(c) => router.push(`/agents/${c.id}/skills`)}
             onEditTools={toolEditor.openToolEditor}
             onEditFolders={charActions.openFolderManager}
             onEditMcp={charActions.openMcpToolEditor}
@@ -451,6 +452,7 @@ export function CharacterPicker() {
               onNewChat={handleNewChat}
               onEditIdentity={charActions.openIdentityEditor}
               onEditModelDefaults={charActions.openModelDefaults}
+              onManageSkills={(c) => router.push(`/agents/${c.id}/skills`)}
               onEditTools={toolEditor.openToolEditor}
               onEditFolders={charActions.openFolderManager}
               onEditMcp={charActions.openMcpToolEditor}
@@ -478,35 +480,6 @@ export function CharacterPicker() {
               {t("clearSearch")}
             </button>
           </div>
-        )}
-
-        {characters.length > 0 && (
-          <section className="space-y-4 rounded-[28px] border border-terminal-border/50 bg-white/55 px-4 py-5 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.28)] sm:px-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-terminal-green/80">
-                  {skillsCatalogT("title")}
-                </p>
-                <h2 className="mt-1 font-mono text-lg font-semibold text-terminal-dark">
-                  {skillsCatalogT("subtitle")}
-                </h2>
-              </div>
-              <p className="max-w-xl font-mono text-xs leading-relaxed text-terminal-muted">
-                {skillsCatalogT("description")}
-              </p>
-            </div>
-
-            <SkillCatalogPage
-              mode="multi-agent"
-              characters={characters.map((character) => ({
-                id: character.id,
-                name: character.name,
-                displayName: character.displayName ?? null,
-              }))}
-              embedded
-              autoRefreshKeys={characters.map((character) => `${character.id}:${character.stats?.skillCount ?? 0}`)}
-            />
-          </section>
         )}
 
         {characters.length === 0 && (
