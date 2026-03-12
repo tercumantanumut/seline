@@ -37,7 +37,7 @@ export function VectorWarningListener() {
     if (window.electronAPI?.logs) {
       const electron = window.electronAPI;
       electron.logs.subscribe();
-      electron.logs.onCritical((data: { type: string; message: string }) => {
+      const disposeCritical = electron.logs.onCritical((data: { type: string; message: string }) => {
         if (data.type === "dimension_mismatch") {
           if (Date.now() - lastToastAtRef.current < 30_000) {
             return;
@@ -49,7 +49,7 @@ export function VectorWarningListener() {
 
       return () => {
         electron.logs.unsubscribe();
-        electron.logs.removeListeners();
+        disposeCritical();
       };
     }
 

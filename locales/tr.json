@@ -3957,7 +3957,31 @@
     "onlyZipSupported": "Yalnızca .zip eklenti paketleri desteklenir"
   },
   "dev": {
-    "dimensionMismatch": "Gömme boyutu uyuşmazlığı. Düzeltmek için Ayarlar'da klasörlerinizi yeniden senkronize edin."
+    "dimensionMismatch": "Gömme boyutu uyusmazligi. Duzeltmek icin Ayarlar'da klasorlerinizi yeniden senkronize edin.",
+    "title": "Dev Logs",
+    "subtitle": "Incelerken yerinde kalan canli Electron tanilari.",
+    "toggleLogs": "Dev Logs panelini ac veya kapat",
+    "pause": "Duraklat",
+    "resume": "Surdur",
+    "pauseUpdates": "Canli guncellemeleri duraklat",
+    "resumeUpdates": "Canli guncellemeleri surdur",
+    "copy": "Kopyala",
+    "copyLine": "Satiri kopyala",
+    "copyVisibleLogs": "Gorunen loglari kopyala",
+    "copiedLine": "Log satiri kopyalandi",
+    "copiedVisibleLogs": "Gorunen loglar kopyalandi",
+    "copyFailed": "Loglar kopyalanamadi",
+    "nothingToCopy": "Kopyalanacak log yok",
+    "clear": "Temizle",
+    "clearLogs": "Loglari temizle",
+    "logsCleared": "Loglar temizlendi",
+    "closeLogs": "Dev Logs panelini kapat",
+    "filterPlaceholder": "Metin, seviye veya saate gore log filtrele...",
+    "following": "Canli takip acik",
+    "jumpToLatest": "En yeni kayda git",
+    "pausedCount": "{count} bekliyor",
+    "emptyState": "Electron uygulamasi log urettiginde burada gorunecek.",
+    "noFilteredLogs": "Mevcut filtreyle eslesen log yok."
   },
   "avatar3dModels": {
     "dialog": {

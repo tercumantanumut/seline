@@ -92,8 +92,8 @@ interface ElectronAPI {
         unsubscribe: () => void;
         getBuffer: () => Promise<ElectronLogEntry[]>;
         clear: () => void;
-        onEntry: (callback: (entry: ElectronLogEntry) => void) => void;
-        onCritical: (callback: (data: ElectronCriticalError) => void) => void;
+        onEntry: (callback: (entry: ElectronLogEntry) => void) => () => void;
+        onCritical: (callback: (data: ElectronCriticalError) => void) => () => void;
         removeListeners: () => void;
     };
 
