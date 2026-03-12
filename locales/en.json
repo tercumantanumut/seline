@@ -3044,6 +3044,7 @@
       "startedAt": "Started at {time}",
       "backgroundTask": "Background task"
     },
+    "sessionActiveTasksDescription": "Track every active task in this chat without leaving the thread.",
     "backgroundRun": {
       "stop": "Stop Run",
       "stopping": "Stopping...",
@@ -4003,7 +4004,8 @@
       "activeTasks": "{count} active task(s)",
       "startedAgo": "Started {time}",
       "chatRun": "Chat run",
-      "channelTask": "Channel {channelType}"
+      "channelTask": "Channel {channelType}",
+      "scrollToViewAll": "Scroll to view all active tasks."
     }
   },
   "plugins": {
