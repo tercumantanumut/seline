@@ -108,7 +108,7 @@ export function buildWorkflowPromptContext(input: WorkflowPromptContextInput): s
       "- Do work directly when the task is simple, single-step, or faster to complete in current context.",
       "- Choose target subagent from directory by explicit purpose match before starting delegation.",
       "- Integrate and synthesize subagent results back to the user with clear decisions and next actions.",
-      "- Avoid duplicate work: if a delegation to the same subagent is already active, reuse it via observe/continue/stop.",
+      "- Multiple parallel delegations to the same subagent are supported — each gets its own session and delegationId.",
       "",
       "## Background Mode (optional)",
       "- Use mode='background' on start when you need interactive management (observe/continue/stop).",
@@ -120,7 +120,7 @@ export function buildWorkflowPromptContext(input: WorkflowPromptContextInput): s
     if (activeDelegations.length > 0) {
       lines.push(
         "",
-        "Active delegations (reuse these; do not start duplicates to the same subagent):",
+        "Active delegations:",
       );
       for (const del of activeDelegations) {
         const elapsed = Math.floor(del.elapsed / 1000);

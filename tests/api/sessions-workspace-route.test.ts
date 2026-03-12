@@ -36,6 +36,8 @@ const aiMocks = vi.hoisted(() => ({
 const resolverMocks = vi.hoisted(() => ({
   resolveSessionUtilityModel: vi.fn(() => ({ id: "utility-model" })),
   getSessionProviderTemperature: vi.fn(() => 0.2),
+  resolveSessionUtilityModelForSession: vi.fn(async () => ({ id: "utility-model" })),
+  getSessionProviderTemperatureForSession: vi.fn(async () => 0.2),
 }));
 
 const fsMocks = vi.hoisted(() => ({

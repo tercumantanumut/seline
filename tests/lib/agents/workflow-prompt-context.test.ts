@@ -27,7 +27,7 @@ describe("buildWorkflowPromptContext", () => {
     expect(prompt).toContain("## Initiator / Orchestrator Contract");
     expect(prompt).toContain("Delegate by calling start with a task. The call blocks and returns the subagent's final result directly.");
     expect(prompt).toContain("Launch multiple start calls in parallel for concurrent subagent work");
-    expect(prompt).toContain("Avoid duplicate work: if a delegation to the same subagent is already active, reuse it via observe/continue/stop.");
+    expect(prompt).toContain("Multiple parallel delegations to the same subagent are supported — each gets its own session and delegationId.");
     expect(prompt).toContain("## Background Mode (optional)");
     expect(prompt).toContain("mode='background'");
     expect(prompt).toContain("observe(waitSeconds)");

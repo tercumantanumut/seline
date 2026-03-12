@@ -60,6 +60,10 @@ export function getSdkExecutableConfig(): {
       }
       console.log("[Agent SDK] Production mode — fallback node binary:", nodeBin);
     }
+  } else {
+    // In dev mode, ensure ELECTRON_RUN_AS_NODE is not inherited from the
+    // parent process (e.g. when the test runner or dev server runs inside Electron).
+    delete env.ELECTRON_RUN_AS_NODE;
   }
 
   return { executable: "node", env };

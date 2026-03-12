@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { existsSync } from "node:fs";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
@@ -16,6 +15,8 @@ import {
   buildDuplicateCharacterName,
   buildDuplicateDisplayName,
   buildDuplicateMetadata,
+  filterDuplicableFolders,
+  mapDuplicateFolderStatus,
 } from "@/lib/characters/duplicate";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -60,11 +61,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         .from(agentSyncFolders)
         .where(eq(agentSyncFolders.characterId, id));
 
-      // Skip inherited workflow folders (they'll be re-shared if the agent joins a workflow)
-      // and folders pointing to non-existent paths (stale worktrees, deleted directories)
-      const ownFolders = sourceFolders.filter(
-        (f) => !f.inheritedFromWorkflowId && existsSync(f.folderPath)
-      );
+      const ownFolders = filterDuplicableFolders(sourceFolders);
 
       if (ownFolders.length > 0) {
         const duplicatedFolders: InferInsertModel<typeof agentSyncFolders>[] = ownFolders.map((folder) => ({
@@ -76,7 +73,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           recursive: folder.recursive,
           includeExtensions: folder.includeExtensions as string[],
           excludePatterns: folder.excludePatterns as string[],
-          status: folder.status === "synced" ? "paused" : folder.status,
+          status: mapDuplicateFolderStatus(folder.status),
           indexingMode: folder.indexingMode,
           syncMode: folder.syncMode,
           syncCadenceMinutes: folder.syncCadenceMinutes,
