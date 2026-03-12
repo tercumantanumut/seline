@@ -54,3 +54,22 @@ export function getApiBaseUrl(): string {
     ? "http://localhost:3456"
     : "http://localhost:3000";
 }
+
+/**
+ * Get the loopback URL for server-internal API calls.
+ *
+ * In packaged Electron builds, Next.js listens on its internal HTTP port
+ * (3457 by default) and the renderer reaches it through the HTTPS proxy on
+ * 3456. Server-side code should call the internal port directly instead of
+ * routing back through the proxy.
+ */
+export function getInternalApiBaseUrl(): string {
+  const port = process.env.PORT?.trim();
+  if (port) {
+    return `http://localhost:${port}`;
+  }
+
+  return isElectronProduction()
+    ? "http://localhost:3457"
+    : "http://localhost:3000";
+}

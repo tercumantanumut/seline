@@ -40,6 +40,9 @@ interface AvatarPipWidgetProps {
 const INSET = 16;
 const WIDGET_W = 280;
 const WIDGET_H = 360;
+const DEV_LOGS_BUTTON_SIZE = 44;
+const FLOATING_BUTTON_GAP = 12;
+const HIDDEN_AVATAR_RIGHT_OFFSET = INSET + DEV_LOGS_BUTTON_SIZE + FLOATING_BUTTON_GAP;
 
 // =============================================================================
 // Component
@@ -187,7 +190,7 @@ function AvatarPipWidget({
             "flex items-center gap-2",
             "hover:bg-card hover:shadow-xl hover:scale-105 transition-all cursor-pointer",
           )}
-          style={{ right: INSET, bottom: INSET }}
+          style={{ right: HIDDEN_AVATAR_RIGHT_OFFSET, bottom: INSET }}
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.6, opacity: 0 }}

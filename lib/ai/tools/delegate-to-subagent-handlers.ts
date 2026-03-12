@@ -18,7 +18,7 @@ import {
   getMessages,
 } from "@/lib/db/sqlite-queries";
 import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
-import { isElectronProduction } from "@/lib/utils/environment";
+import { getInternalApiBaseUrl } from "@/lib/utils/environment";
 import {
   activeDelegations,
   nextDelegationId,
@@ -91,9 +91,7 @@ export function buildDelegationsSummary(characterId: string): DelegateResult["de
 // ---------------------------------------------------------------------------
 
 function getChatApiBaseUrl(): string {
-  return isElectronProduction()
-    ? "http://localhost:3456"
-    : "http://localhost:3000";
+  return getInternalApiBaseUrl();
 }
 
 export async function executeDelegation(

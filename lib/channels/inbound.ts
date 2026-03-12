@@ -27,6 +27,7 @@ import { taskRegistry } from "@/lib/background-tasks/registry";
 import { abortChatRun } from "@/lib/background-tasks/chat-abort-registry";
 import type { ChannelTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
+import { getInternalApiBaseUrl } from "@/lib/utils/environment";
 import { transcribeAudio, isTranscriptionAvailable, isAudioMimeType } from "@/lib/audio/transcription";
 import { interactiveBridgeEvents, resolveInteractiveWait, storeUserAnswer } from "@/lib/interactive-tool-bridge";
 import {
@@ -562,16 +563,8 @@ async function sendNewSessionConfirmation(message: ChannelInboundMessage): Promi
  * - Electron Production: Next.js standalone server runs on port 3456
  */
 function getChatApiBaseUrl(): string {
-  // Detect Electron production environment (same logic as lib/mcp/stdio-transport.ts)
-  const isElectronProduction =
-    (process.env.SELENE_PRODUCTION_BUILD === "1" ||
-     !!(process as any).resourcesPath ||
-     !!process.env.ELECTRON_RESOURCES_PATH) &&
-    process.env.ELECTRON_IS_DEV !== "1" &&
-    process.env.NODE_ENV !== "development";
-
-  const baseUrl = isElectronProduction ? "http://localhost:3456" : "http://localhost:3000";
-  console.log(`[Channels] Chat API base URL: ${baseUrl} (isElectronProd=${isElectronProduction})`);
+  const baseUrl = getInternalApiBaseUrl();
+  console.log(`[Channels] Chat API base URL: ${baseUrl}`);
 
   return baseUrl;
 }
