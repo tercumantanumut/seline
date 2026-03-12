@@ -15,6 +15,7 @@ import {
 } from "@/lib/characters/validation";
 import { z } from "zod";
 import { detachAgentFromWorkflows } from "@/lib/agents/workflows";
+import { validateAgentModelConfig } from "@/lib/ai/model-validation";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -88,6 +89,19 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     }
 
     const { character: charData, metadata } = parseResult.data;
+
+    if (metadata?.modelConfig) {
+      const validation = validateAgentModelConfig(metadata.modelConfig, settings.llmProvider);
+      if (!validation.valid) {
+        return NextResponse.json(
+          {
+            error: "Incompatible agent model configuration",
+            details: validation.errors,
+          },
+          { status: 400 },
+        );
+      }
+    }
 
     // Update in parallel
     const promises: Promise<unknown>[] = [];

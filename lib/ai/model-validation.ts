@@ -11,7 +11,7 @@
  * - providers.ts         isModelCompatibleWithProvider() / validateModelForProvider()
  */
 
-import type { LLMProvider } from "@/components/model-bag/model-bag.types";
+import type { AgentModelConfig, LLMProvider } from "@/components/model-bag/model-bag.types";
 
 // ---------------------------------------------------------------------------
 // Provider-specific model ID sets (imported dynamically to avoid circular deps)
@@ -179,6 +179,23 @@ export interface BatchValidationResult {
   validFields: ModelFieldName[];
 }
 
+export function validateAgentModelConfig(
+  config: AgentModelConfig | null | undefined,
+  globalProvider: LLMProvider,
+): BatchValidationResult {
+  const effectiveProvider = config?.provider || globalProvider;
+
+  return validateAllModelsForProvider(
+    {
+      chatModel: config?.chatModel,
+      researchModel: config?.researchModel,
+      visionModel: config?.visionModel,
+      utilityModel: config?.utilityModel,
+    },
+    effectiveProvider,
+  );
+}
+
 /**
  * Validate all model fields for a provider at once.
  * Returns aggregated results for use in API error responses.
@@ -219,7 +236,8 @@ export function validateAllModelsForProvider(
 /**
  * Validate a session model config.
  * If the config includes a provider override, validates models against that provider.
- * If no provider override, validates against the provided global provider.
+ * If no provider override, validates against the provided fallback provider
+ * (agent default when present, otherwise global).
  */
 export function validateSessionModelConfig(
   config: {
@@ -229,9 +247,9 @@ export function validateSessionModelConfig(
     sessionVisionModel?: string;
     sessionUtilityModel?: string;
   },
-  globalProvider: LLMProvider,
+  fallbackProvider: LLMProvider,
 ): BatchValidationResult {
-  const effectiveProvider = config.sessionProvider || globalProvider;
+  const effectiveProvider = config.sessionProvider || fallbackProvider;
 
   return validateAllModelsForProvider(
     {
