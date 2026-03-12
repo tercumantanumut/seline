@@ -354,6 +354,14 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
     mainWindow?.focus();
   });
 
+  // Forward window visibility to renderer for transport budget (Layer 5)
+  mainWindow.on("blur", () => {
+    mainWindow?.webContents.send("window:visibility-changed", false);
+  });
+  mainWindow.on("focus", () => {
+    mainWindow?.webContents.send("window:visibility-changed", true);
+  });
+
   // Handle external links - open in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
     // Allow same-origin navigation

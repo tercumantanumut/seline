@@ -17,6 +17,7 @@ import type {
 import { nowISO, isStale } from "@/lib/utils/timestamp";
 
 const STALE_THRESHOLD_MS = 30 * 60 * 1000;
+const DEBUG_TASK_REGISTRY = process.env.DEBUG_TASK_REGISTRY === "true";
 
 const globalForRegistry = globalThis as typeof globalThis & {
   taskRegistry?: TaskRegistry;
@@ -106,12 +107,14 @@ class TaskRegistry extends EventEmitter {
     const task = this.tasks.get(runId);
     const progressPreview = progressText?.slice(0, 50);
 
-    console.log("[TaskRegistry] emitProgress called:", {
-      runId,
-      progressText: progressPreview,
-      hasTask: !!task,
-      currentTaskCount: this.tasks.size,
-    });
+    if (DEBUG_TASK_REGISTRY) {
+      console.log("[TaskRegistry] emitProgress called:", {
+        runId,
+        progressText: progressPreview,
+        hasTask: !!task,
+        currentTaskCount: this.tasks.size,
+      });
+    }
 
     // Update lastActivityAt for stale detection
     if (task) {
@@ -167,12 +170,14 @@ class TaskRegistry extends EventEmitter {
       timestamp: nowISO(),
     };
 
-    console.log("[TaskRegistry] Emitting task:progress:", {
-      runId,
-      userId: task.userId,
-      type: task.type,
-      progressText: progressPreview,
-    });
+    if (DEBUG_TASK_REGISTRY) {
+      console.log("[TaskRegistry] Emitting task:progress:", {
+        runId,
+        userId: task.userId,
+        type: task.type,
+        progressText: progressPreview,
+      });
+    }
 
     this.emit("task:progress", event);
     this.emit(`task:progress:${task.userId}`, event);

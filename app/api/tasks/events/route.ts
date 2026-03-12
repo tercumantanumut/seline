@@ -7,7 +7,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { taskRegistry } from "@/lib/background-tasks/registry";
-import { isTaskSuppressedFromUI, type TaskEvent } from "@/lib/background-tasks/types";
+import { isTaskSuppressedFromUI, type TaskEvent, type TaskProgressEvent } from "@/lib/background-tasks/types";
 import { startScheduler } from "@/lib/scheduler/scheduler-service";
 import { nowISO } from "@/lib/utils/timestamp";
 
@@ -138,10 +138,37 @@ export async function GET(request: NextRequest) {
         }
       };
 
+      // Layer 4: Per-run progress throttle — buffer latest, flush on timer
+      const SSE_PROGRESS_THROTTLE_MS = 300;
+      const progressBuffer = new Map<string, TaskEvent>();
+      const progressTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+      const handleProgressThrottled = (event: TaskEvent) => {
+        const runId = "runId" in event ? (event as TaskProgressEvent).runId : undefined;
+        if (!runId) {
+          handleEvent(event);
+          return;
+        }
+        progressBuffer.set(runId, event);
+        if (!progressTimers.has(runId)) {
+          progressTimers.set(
+            runId,
+            setTimeout(() => {
+              progressTimers.delete(runId);
+              const buffered = progressBuffer.get(runId);
+              if (buffered) {
+                progressBuffer.delete(runId);
+                handleEvent(buffered);
+              }
+            }, SSE_PROGRESS_THROTTLE_MS)
+          );
+        }
+      };
+
       cleanup = taskRegistry.subscribeForUser(userId, {
         onStarted: handleEvent,
         onCompleted: handleEvent,
-        onProgress: handleEvent,
+        onProgress: handleProgressThrottled,
       });
 
       heartbeatInterval = setInterval(() => {
@@ -171,6 +198,9 @@ export async function GET(request: NextRequest) {
       }, HEARTBEAT_INTERVAL_MS);
 
       onAbort = () => {
+        for (const timer of progressTimers.values()) clearTimeout(timer);
+        progressTimers.clear();
+        progressBuffer.clear();
         if (heartbeatInterval) {
           clearInterval(heartbeatInterval);
           heartbeatInterval = null;
@@ -189,6 +219,8 @@ export async function GET(request: NextRequest) {
     },
 
     cancel() {
+      // Note: progressTimers/progressBuffer are scoped to start() — onAbort handles them.
+      // cancel() can fire independently; onAbort cleans timers if abort signal fires.
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
         heartbeatInterval = null;
