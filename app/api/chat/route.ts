@@ -38,7 +38,7 @@ import {
   buildUserInjectionContent,
   buildStopSystemMessage,
 } from "@/lib/background-tasks/live-prompt-helpers";
-import { combineAbortSignals } from "@/lib/utils/abort";
+
 import { createHeartbeatStream } from "@/lib/utils/heartbeat-stream";
 import {
     classifyRecoverability,
@@ -833,7 +833,28 @@ export async function POST(req: Request) {
       }
     };
 
-    const streamAbortSignal = combineAbortSignals([req.signal, chatAbortController.signal]);
+    // Decouple run lifetime from client connection. Previously req.signal was
+    // combined here, meaning a renderer crash/reload (which closes the HTTP
+    // connection) would abort the LLM call and cancel the run. Now only the
+    // explicit user-stop controller can abort the computation. The onFinish
+    // callback still fires and persists results to DB even if the client is gone.
+    const streamAbortSignal = chatAbortController.signal;
+
+    // Track client disconnect separately for graceful transport teardown.
+    // When this fires, we stop piping chunks but let the LLM call finish.
+    let clientDisconnected = false;
+    const markClientDisconnected = () => {
+      if (clientDisconnected) return;
+      clientDisconnected = true;
+      console.log(`[CHAT API] Client disconnected (session=${sessionId}, run=${runId}) — LLM call continues, onFinish will persist results`);
+    };
+    // Check if already aborted before attaching listener (AbortSignal doesn't
+    // replay past aborts to late listeners).
+    if (req.signal.aborted) {
+      markClientDisconnected();
+    } else {
+      req.signal.addEventListener("abort", markClientDisconnected, { once: true });
+    }
 
     // Build shared callback context
     const callbackCtx = {
@@ -1236,24 +1257,38 @@ export async function POST(req: Request) {
 
         const emitChunk = (chunk: UIMessageChunk) => {
           if (closed) return;
-          controller.enqueue(chunk);
+          try {
+            controller.enqueue(chunk);
+          } catch {
+            // Controller already cancelled (client disconnected) — stop enqueuing
+            closed = true;
+          }
         };
 
         const closeStream = () => {
           if (closed) return;
           closed = true;
-          controller.close();
+          try { controller.close(); } catch { /* already closed/cancelled */ }
         };
 
         const finalizeAndEmitError = async (errorMessage: string, sourceError?: unknown) => {
+          // Always finalize the run on provider error — even if client is gone.
+          // Previously we skipped finalizeFailedRun when clientDisconnected, but
+          // onFinish only fires on successful completion. If the provider errors
+          // after disconnect, nothing else would finalize the run, leaving it
+          // stuck in "in_progress" forever.
           await finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError, streamAborted: streamAbortSignal.aborted });
-          if (!closed) {
+          if (!closed && !clientDisconnected) {
             emitChunk({ type: "error", errorText: `Streaming interrupted: ${errorMessage}` } as UIMessageChunk);
-            closeStream();
           }
+          closeStream();
         };
 
         const preparePrecommitRetry = async (errorMessage: string, sourceError?: unknown) => {
+          // No point retrying if client is gone — the LLM call continues in
+          // background and onFinish will persist results when it completes.
+          if (clientDisconnected) return false;
+
           const { retry, classification } = shouldAttemptPrecommitRecovery({
             provider,
             error: sourceError,
@@ -1346,12 +1381,15 @@ export async function POST(req: Request) {
 
         void pump();
       },
-      async cancel(reason) {
-        try {
-          await activeUiReader?.cancel(reason);
-        } catch {
-          // no-op
-        }
+      async cancel(_reason) {
+        // Mark client as gone so the pump stops emitting and finalizeAndEmitError
+        // skips writing to the closed transport.
+        markClientDisconnected();
+        // Do NOT cancel activeUiReader — cancellation propagates upstream through
+        // the AI SDK stream and can abort the LLM call, defeating the signal
+        // decoupling. Instead, let the pump detect the closed controller naturally
+        // (emitChunk/closeStream catch the error) and exit gracefully while the
+        // LLM computation continues in the background.
       },
     });
 
