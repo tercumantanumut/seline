@@ -850,7 +850,7 @@ export async function POST(req: Request) {
       discoveredTools,
       previouslyDiscoveredTools,
       initialActiveToolNames,
-      assistantMessageId,
+      getAssistantMessageId: () => assistantMessageId,
       contextTracking,
       injectContext,
       toolLoadingMode,
@@ -1201,6 +1201,8 @@ export async function POST(req: Request) {
       streamingState.pendingBroadcast = false;
       streamingState.stepOffset = undefined;
       streamingState.provenance = undefined;
+      // Rotate message ID to avoid UNIQUE constraint if prior attempt persisted a row
+      assistantMessageId = crypto.randomUUID();
     };
 
     const buildUiMessageStream = () =>
@@ -1251,9 +1253,10 @@ export async function POST(req: Request) {
           }
         };
 
-        const preparePrecommitRetry = async (errorMessage: string) => {
+        const preparePrecommitRetry = async (errorMessage: string, sourceError?: unknown) => {
           const { retry, classification } = shouldAttemptPrecommitRecovery({
             provider,
+            error: sourceError,
             errorMessage,
             attempt: requestAttempt,
             maxAttempts: STREAM_RECOVERY_MAX_ATTEMPTS,
@@ -1321,7 +1324,7 @@ export async function POST(req: Request) {
               }
             } catch (error) {
               const errorMessage = normalizeStreamError(error).message;
-              shouldRestart = await preparePrecommitRetry(errorMessage);
+              shouldRestart = await preparePrecommitRetry(errorMessage, error);
               if (!shouldRestart) {
                 await finalizeAndEmitError(errorMessage, error);
                 return;

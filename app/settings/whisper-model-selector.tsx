@@ -119,7 +119,7 @@ export function WhisperModelSelector({ formState, updateField }: WhisperModelSel
         filename: modelInfo.hfFile,
       });
 
-      if (fileExists !== false) {
+      if (fileExists === true) {
         setDownloadProgress(100);
         setModelStatus((prev) => ({ ...prev, [modelId]: true }));
       }

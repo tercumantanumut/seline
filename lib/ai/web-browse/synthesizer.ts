@@ -271,14 +271,20 @@ Based on the web content above, provide a comprehensive answer to the user's que
 
     // Call the utility model with timeout
     const result = await Promise.race([
-      generateText({
-        model: await resolveSessionUtilityModelForSession(sessionMetadata),
-        system: SYNTHESIS_SYSTEM_PROMPT,
-        prompt: synthesisPrompt,
-        maxOutputTokens: 2000,
-        temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.3),
-        abortSignal,
-      }),
+      (async () => {
+        const [model, temperature] = await Promise.all([
+          resolveSessionUtilityModelForSession(sessionMetadata),
+          getSessionProviderTemperatureForSession(sessionMetadata, 0.3),
+        ]);
+        return generateText({
+          model,
+          system: SYNTHESIS_SYSTEM_PROMPT,
+          prompt: synthesisPrompt,
+          maxOutputTokens: 2000,
+          temperature,
+          abortSignal,
+        });
+      })(),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), SYNTHESIS_TIMEOUT_MS)),
     ]);
 

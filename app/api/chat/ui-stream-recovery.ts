@@ -31,6 +31,7 @@ export function hasPersistedStreamingProgress(
 
 export function shouldAttemptPrecommitRecovery(args: {
   provider: string;
+  error: unknown;
   errorMessage: string;
   attempt: number;
   maxAttempts: number;
@@ -40,6 +41,7 @@ export function shouldAttemptPrecommitRecovery(args: {
 }): { retry: boolean; classification: RecoveryClassification } {
   const {
     provider,
+    error,
     errorMessage,
     attempt,
     maxAttempts,
@@ -48,11 +50,9 @@ export function shouldAttemptPrecommitRecovery(args: {
     streamingState,
   } = args;
 
-  const classification = classifyRecoverability({
-    provider,
-    error: new Error(errorMessage),
-    message: errorMessage,
-  });
+  const classification = classifyRecoverability(
+    error ?? { provider, message: errorMessage },
+  );
 
   const retry = shouldRetry({
     classification,

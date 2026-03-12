@@ -481,7 +481,6 @@ Examples:
 - \`{ action: "continue", delegationId: "del-123", followUpMessage: "Focus only on migration risks." }\``,
       loading: { deferLoading: true },
       requiresSession: true,
-      mcpAnnotations: { readOnlyHint: true },
     } satisfies ToolMetadata,
     ({ sessionId, userId, characterId }) =>
       createDelegateToSubagentTool({

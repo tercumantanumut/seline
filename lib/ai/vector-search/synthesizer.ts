@@ -542,18 +542,22 @@ export async function synthesizeSearchResults(
 
     // Call the utility model with tools and timeout
     // Note: maxSteps enables multi-step tool calling in AI SDK 5.0+
-    const generateOptions = {
-      model: await resolveSessionUtilityModelForSession(sessionMetadata),
-      system: SYNTHESIS_SYSTEM_PROMPT,
-      prompt: contextPrompt,
-      tools,
-      maxSteps: tools ? MAX_TOOL_STEPS : 1, // Only allow multi-step if tools are available
-      maxOutputTokens: 4000,
-      temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.2),
-    };
-
     const result = await Promise.race([
-      generateText(generateOptions as Parameters<typeof generateText>[0]),
+      (async () => {
+        const [model, temperature] = await Promise.all([
+          resolveSessionUtilityModelForSession(sessionMetadata),
+          getSessionProviderTemperatureForSession(sessionMetadata, 0.2),
+        ]);
+        return generateText({
+          model,
+          system: SYNTHESIS_SYSTEM_PROMPT,
+          prompt: contextPrompt,
+          tools,
+          maxSteps: tools ? MAX_TOOL_STEPS : 1,
+          maxOutputTokens: 4000,
+          temperature,
+        } as Parameters<typeof generateText>[0]);
+      })(),
       new Promise<null>((resolve) =>
         setTimeout(() => resolve(null), SYNTHESIS_TIMEOUT_MS)
       ),
@@ -605,12 +609,16 @@ export async function synthesizeSearchResults(
     if (!finalText && toolCalls > 0) {
       console.warn(`[VectorSearchSynthesizer] No text after ${toolCalls} tool calls, requesting final response`);
       try {
+        const [followUpModel, followUpTemp] = await Promise.all([
+          resolveSessionUtilityModelForSession(sessionMetadata),
+          getSessionProviderTemperatureForSession(sessionMetadata, 0.2),
+        ]);
         const followUp = await generateText({
-          model: await resolveSessionUtilityModelForSession(sessionMetadata),
+          model: followUpModel,
           system: SYNTHESIS_SYSTEM_PROMPT,
           prompt: contextPrompt + "\n\n## IMPORTANT\nYou have already read the relevant files. Now provide your JSON response with findings.",
           maxOutputTokens: 4000,
-          temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.2),
+          temperature: followUpTemp,
         });
         finalText = followUp.text || "";
         console.log(`[VectorSearchSynthesizer] Follow-up response: ${finalText.length} chars`);

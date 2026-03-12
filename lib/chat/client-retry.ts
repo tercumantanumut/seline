@@ -30,7 +30,13 @@ function isMeaningfulAssistantPart(part: unknown): boolean {
     return false;
   }
 
-  return true;
+  // Known meaningful types: file, source-url, source-document
+  if (candidate.type === "file" || candidate.type === "source-url" || candidate.type === "source-document") {
+    return true;
+  }
+
+  // Unknown/structural parts (step-start, reasoning, etc.) should not block retry
+  return false;
 }
 
 export function hasMeaningfulAssistantContent(message: UIMessage | undefined): boolean {

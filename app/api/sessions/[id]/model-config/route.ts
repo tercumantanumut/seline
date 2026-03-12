@@ -23,8 +23,11 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 async function getAgentConfigForSession(
   metadata: Record<string, unknown>,
+  sessionCharacterId?: string | null,
 ): Promise<AgentModelConfig | null> {
-  const characterId = typeof metadata.characterId === "string" ? metadata.characterId : null;
+  const characterId =
+    (typeof sessionCharacterId === "string" ? sessionCharacterId : null) ??
+    (typeof metadata.characterId === "string" ? metadata.characterId : null);
   return characterId ? getCharacterModelConfig(characterId) : null;
 }
 
@@ -49,7 +52,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const metadata = (session.metadata as Record<string, unknown>) || {};
     const config = extractSessionModelConfig(metadata);
-    const agentDefaults = await getAgentConfigForSession(metadata);
+    const agentDefaults = await getAgentConfigForSession(metadata, session.characterId);
     const resolved = await resolveSessionModelScope(metadata, { agentModelConfig: agentDefaults, settings });
 
     return NextResponse.json({
@@ -97,7 +100,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const body = (await req.json()) as SessionModelConfig & { clear?: boolean };
     const currentMetadata = (session.metadata as Record<string, unknown>) || {};
-    const agentDefaults = await getAgentConfigForSession(currentMetadata);
+    const agentDefaults = await getAgentConfigForSession(currentMetadata, session.characterId);
 
     let newMetadata: Record<string, unknown>;
 
