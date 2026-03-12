@@ -2,21 +2,24 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, ArrowLeft } from "lucide-react";
+import { Sparkles, ArrowRight, ArrowLeft, PenTool } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ComputerGraphic } from "../computer-graphic";
 import { useReducedMotion } from "../hooks/use-reduced-motion";
 import { useTranslations } from "next-intl";
 import { isElectron } from "@/lib/electron/types";
 import { cn } from "@/lib/utils";
+import { AgentTemplateBrowser } from "../template-browser";
+import { AGENCY_AGENTS_SKILLS } from "@/lib/skills/catalog/agency-agents";
+import type { CatalogSkill } from "@/lib/skills/catalog/types";
 
 interface IntroPageProps {
   onContinue: () => void;
   onQuickCreate?: (description: string) => void;
+  onSelectTemplate?: (template: CatalogSkill) => void;
   onBack?: () => void;
 }
 
-export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps) {
+export function IntroPage({ onContinue, onQuickCreate, onSelectTemplate, onBack }: IntroPageProps) {
   const t = useTranslations("characterCreation.intro");
   const tc = useTranslations("common");
   const [quickDescription, setQuickDescription] = useState("");
@@ -33,9 +36,6 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
   // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && !isQuickMode) {
-        onContinue();
-      }
       if (e.key === "Escape" && isQuickMode) {
         setIsQuickMode(false);
       } else if (e.key === "Escape" && !isQuickMode && onBack) {
@@ -45,7 +45,7 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isQuickMode, onContinue, onBack]);
+  }, [isQuickMode, onBack]);
 
   // Focus input when quick mode is activated
   useEffect(() => {
@@ -61,116 +61,110 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
     }
   };
 
+  const handleTemplateSelect = (template: CatalogSkill) => {
+    onSelectTemplate?.(template);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-terminal-cream">
-      {/* Computer Graphic */}
+    <div className="flex h-full min-h-screen flex-col bg-terminal-cream">
+      {/* Top Left Back Button */}
+      {onBack && !isQuickMode && (
+        <motion.div
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          className={cn(
+            "absolute top-2.5 md:top-3.5 left-4 md:left-6 z-50",
+            isElectronApp && "mt-8"
+          )}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="flex items-center gap-1 text-terminal-dark hover:bg-terminal-dark/10 h-9 px-3"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden md:inline">{tc("back")}</span>
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Header section */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{
-          duration: prefersReducedMotion ? 0 : 0.8,
-          ease: [0.4, 0, 0.2, 1],
-        }}
-        className="mb-12"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.5 }}
+        className="shrink-0 px-6 pt-14 pb-4 text-center"
       >
-        <ComputerGraphic
-          size="lg"
-          screenContent={
-            <div className="flex items-center justify-center h-full">
-              <span className="text-terminal-green text-lg animate-blink">
-                ▋
-              </span>
-            </div>
-          }
+        <h1 className="text-2xl font-bold text-terminal-dark font-mono">
+          {t("title")}
+        </h1>
+        <p className="mt-2 text-sm text-terminal-muted font-mono">
+          {t("subtitle")}
+        </p>
+      </motion.div>
+
+      {/* Template Browser — main content area */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: prefersReducedMotion ? 0 : 0.2,
+          duration: prefersReducedMotion ? 0 : 0.4,
+        }}
+        className="mx-auto flex w-full max-w-6xl flex-1 min-h-0 px-4 pb-4"
+      >
+        <AgentTemplateBrowser
+          templates={AGENCY_AGENTS_SKILLS}
+          onSelectTemplate={handleTemplateSelect}
         />
       </motion.div>
 
-      {/* Title & Subtitle */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{
-          delay: prefersReducedMotion ? 0 : 0.4,
-          duration: prefersReducedMotion ? 0 : 0.5,
-        }}
-        className="text-center space-y-4 max-w-2xl"
-      >
-        {/* Heading */}
-        <motion.h1
+      {/* Bottom bar — Start from Scratch + Quick Create */}
+      {!isQuickMode ? (
+        <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{
-            delay: prefersReducedMotion ? 0 : 0.6,
-            duration: prefersReducedMotion ? 0 : 0.5,
+            delay: prefersReducedMotion ? 0 : 0.4,
+            duration: prefersReducedMotion ? 0 : 0.3,
           }}
-          className="text-3xl font-bold text-terminal-dark font-mono"
+          className="shrink-0 border-t border-terminal-border/50 bg-terminal-cream/90 backdrop-blur-sm"
         >
-          {t("title")}
-        </motion.h1>
-
-        {/* Subtitle */}
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            delay: prefersReducedMotion ? 0 : 0.8,
-            duration: prefersReducedMotion ? 0 : 0.5,
-          }}
-          className="text-lg text-terminal-muted font-mono"
-        >
-          {t("subtitle")}
-        </motion.p>
-
-        {/* Action Buttons */}
-        {!isQuickMode && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{
-              delay: prefersReducedMotion ? 0 : 1.0,
-              duration: prefersReducedMotion ? 0 : 0.3,
-            }}
-            className="pt-8 space-y-4"
-          >
-            {/* Main Continue Button */}
+          <div className="mx-auto flex max-w-6xl items-center justify-center gap-6 px-6 py-4">
             <button
               onClick={onContinue}
-              className="group inline-flex items-center gap-2 px-6 py-3 bg-terminal-dark text-terminal-cream font-mono text-sm rounded-lg hover:bg-terminal-dark/90 transition-colors"
+              className="group inline-flex items-center gap-2 rounded-lg border border-terminal-border/60 bg-white px-5 py-2.5 font-mono text-sm text-terminal-dark transition-colors hover:border-terminal-dark/30 hover:bg-terminal-dark/5"
             >
-              <span className="text-terminal-green">{">"}</span>
+              <PenTool className="h-4 w-4 text-terminal-muted" />
               <span>{t("guidedCreation")}</span>
-              <ArrowRight className="w-4 h-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+              <ArrowRight className="h-4 w-4 opacity-50 transition-all group-hover:translate-x-1 group-hover:opacity-100" />
             </button>
 
-            {/* Quick Create Button */}
             {onQuickCreate && (
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-xs text-terminal-muted font-mono">{t("or")}</span>
-                <button
-                  onClick={() => setIsQuickMode(true)}
-                  className="group inline-flex items-center gap-2 px-6 py-3 bg-terminal-cream/50 text-terminal-dark font-mono text-sm rounded-lg hover:bg-terminal-amber/10 shadow-sm transition-colors"
-                >
-                  <Sparkles className="w-4 h-4 text-terminal-amber" />
-                  <span>{t("quickCreate")}</span>
-                </button>
-              </div>
+              <button
+                onClick={() => setIsQuickMode(true)}
+                className="group inline-flex items-center gap-2 rounded-lg border border-terminal-amber/30 bg-terminal-amber/5 px-5 py-2.5 font-mono text-sm text-terminal-dark transition-colors hover:bg-terminal-amber/10"
+              >
+                <Sparkles className="h-4 w-4 text-terminal-amber" />
+                <span>{t("quickCreate")}</span>
+              </button>
             )}
-
-          </motion.div>
-        )}
-
-        {/* Quick Create Input */}
-        {isQuickMode && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-            className="pt-8 space-y-4"
-          >
-            <p className="text-sm text-terminal-muted font-mono">
+          </div>
+        </motion.div>
+      ) : (
+        /* Quick Create Input — replaces the bottom bar */
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
+          className="shrink-0 border-t border-terminal-border/50 bg-terminal-cream/90 backdrop-blur-sm px-6 py-5"
+        >
+          <div className="mx-auto max-w-2xl space-y-3">
+            <p className="text-sm text-terminal-muted font-mono text-center">
               {t("quickPrompt")}
             </p>
-            <form onSubmit={handleQuickSubmit} className="space-y-4">
+            <form onSubmit={handleQuickSubmit} className="space-y-3">
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-terminal-green font-mono">
                   {">"}
@@ -208,40 +202,17 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
                 </button>
               </div>
             </form>
-          </motion.div>
-        )}
-      </motion.div>
-
-      {/* Top Left Back Button */}
-      {onBack && !isQuickMode && (
-        <motion.div
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          className={cn(
-            "absolute top-2.5 md:top-3.5 left-4 md:left-6 z-50",
-            isElectronApp && "mt-8"
-          )}
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="flex items-center gap-1 text-terminal-dark hover:bg-terminal-dark/10 h-9 px-3"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden md:inline">{tc("back")}</span>
-          </Button>
+          </div>
         </motion.div>
       )}
 
       {/* Decorative Elements */}
-      <div className="absolute bottom-8 left-8 font-mono text-xs text-terminal-muted opacity-80">
+      <div className="absolute bottom-2 left-4 font-mono text-[10px] text-terminal-muted opacity-60">
         Selene
       </div>
-      <div className="absolute bottom-8 right-8 font-mono text-xs text-terminal-muted opacity-80">
+      <div className="absolute bottom-2 right-4 font-mono text-[10px] text-terminal-muted opacity-60">
         {new Date().getFullYear()}
       </div>
     </div>
   );
 }
-

@@ -84,7 +84,9 @@ export const agentMetadataSchema = z.object({
   /** Agent's purpose/responsibilities description */
   purpose: z.string().max(2000).optional(),
   /** Custom system prompt override (replaces auto-generated prompt if provided) */
-  systemPromptOverride: z.string().max(10000).optional(),
+  systemPromptOverride: z.string().max(50000).optional(),
+  /** Catalog ID of the selected agent template, for traceability */
+  selectedTemplateId: z.string().max(200).optional(),
 
   /** Per-agent defaults for provider/model selection */
   modelConfig: z.object({

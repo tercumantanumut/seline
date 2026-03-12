@@ -24,6 +24,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import type { AgentIdentity } from "./terminal-pages/identity-page";
 import type { UploadedDocument } from "./terminal-pages/knowledge-base-page";
+import type { CatalogSkill } from "@/lib/skills/catalog/types";
 
 type WizardPage =
   | "intro"
@@ -48,6 +49,10 @@ interface WizardState {
   enabledMcpServers: string[];
   enabledMcpTools: string[];
   mcpToolPreferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>;
+  /** Full system prompt from a selected agent template (overrides purpose in metadata) */
+  systemPromptOverride: string | null;
+  /** Catalog ID of the selected template, for traceability */
+  selectedTemplateId: string | null;
 }
 
 const initialState: WizardState = {
@@ -58,6 +63,8 @@ const initialState: WizardState = {
   enabledMcpServers: [],
   enabledMcpTools: [],
   mcpToolPreferences: {},
+  systemPromptOverride: null,
+  selectedTemplateId: null,
 };
 
 const pageVariants = {
@@ -155,6 +162,8 @@ export function TerminalWizard() {
         metadata: {
           purpose: identity.purpose,
           enabledTools: state.enabledTools,
+          ...(state.systemPromptOverride ? { systemPromptOverride: state.systemPromptOverride } : {}),
+          ...(state.selectedTemplateId ? { selectedTemplateId: state.selectedTemplateId } : {}),
         },
       });
 
@@ -263,6 +272,41 @@ export function TerminalWizard() {
     }
   };
 
+  // Handle template selection: pre-fill identity from catalog template
+  const handleSelectTemplate = async (template: CatalogSkill) => {
+    setState((prev) => ({
+      ...prev,
+      identity: {
+        name: template.displayName,
+        tagline: template.shortDescription.slice(0, 100),
+        purpose: template.shortDescription,
+      },
+      selectedTemplateId: template.id,
+      // Temporarily set overview as placeholder while we fetch the full content
+      systemPromptOverride: template.overview || null,
+    }));
+    navigateTo("loading");
+
+    try {
+      // Fetch the full bundled markdown content for this template
+      const { data } = await resilientFetch<{ markdown: string }>(
+        `/api/skills/catalog/${encodeURIComponent(template.id)}/content`
+      );
+
+      if (data?.markdown) {
+        setState((prev) => ({
+          ...prev,
+          systemPromptOverride: data.markdown,
+        }));
+      }
+    } catch (err) {
+      // Non-fatal: we still have the overview as fallback
+      console.warn("Failed to load full template content, using overview:", err);
+    }
+
+    navigateTo("identity");
+  };
+
   // Finalize agent creation
   const handleFinalizeAgent = async () => {
     if (!draftAgentId) return;
@@ -284,6 +328,8 @@ export function TerminalWizard() {
           enabledMcpServers: state.enabledMcpServers,
           enabledMcpTools: state.enabledMcpTools,
           mcpToolPreferences: state.mcpToolPreferences,
+          ...(state.systemPromptOverride ? { systemPromptOverride: state.systemPromptOverride } : {}),
+          ...(state.selectedTemplateId ? { selectedTemplateId: state.selectedTemplateId } : {}),
           mcpUserConfigured:
             state.enabledMcpServers.length > 0 ||
             state.enabledMcpTools.length > 0 ||
@@ -354,7 +400,7 @@ export function TerminalWizard() {
               <IntroPage
                 onContinue={() => navigateTo("identity")}
                 onQuickCreate={handleQuickCreate}
-
+                onSelectTemplate={handleSelectTemplate}
                 onBack={() => router.push("/")}
               />
             )}

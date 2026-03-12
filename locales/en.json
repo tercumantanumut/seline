@@ -1651,7 +1651,11 @@
       "templateFilter": "Filter",
       "templateLoading": "Loading templates...",
       "templateSearch": "Search templates",
-      "templateUse": "Use Template"
+      "templateSearchPlaceholder": "Search 120+ agent templates...",
+      "templateUse": "Use This Template",
+      "templateAll": "All Templates",
+      "templateSelectToPreview": "Select a template to preview",
+      "templateBrowserLabel": "Agent template browser"
     },
     "name": {
       "question": "What shall we call your agent?",
