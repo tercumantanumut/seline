@@ -17,6 +17,7 @@ import { getDeliveryRouter } from "./delivery";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { ScheduledTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
+import { getInternalApiBaseUrl } from "@/lib/utils/environment";
 import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
 
@@ -65,19 +66,8 @@ export class TaskQueue {
    * - Electron Production: port 3456 (standalone server)
    */
   private getChatApiBaseUrl(): string {
-    // Detect Electron production environment (same logic as lib/channels/inbound.ts)
-    const isElectronProduction =
-      (process.env.SELENE_PRODUCTION_BUILD === "1" ||
-       !!(process as any).resourcesPath ||
-       !!process.env.ELECTRON_RESOURCES_PATH) &&
-      process.env.ELECTRON_IS_DEV !== "1" &&
-      process.env.NODE_ENV !== "development";
-
-    const baseUrl = isElectronProduction
-      ? "http://localhost:3456"
-      : "http://localhost:3000";
-
-    console.log(`[TaskQueue] Chat API base URL: ${baseUrl} (isElectronProd=${isElectronProduction})`);
+    const baseUrl = getInternalApiBaseUrl();
+    console.log(`[TaskQueue] Chat API base URL: ${baseUrl}`);
 
     return baseUrl;
   }

@@ -8,6 +8,8 @@ import { renderSkillPrompt } from "@/lib/skills/runtime";
 import { trackSkillTelemetryEvent } from "@/lib/skills/telemetry";
 import { getCharacterFull } from "@/lib/characters/queries";
 import { nextOrderingIndex } from "@/lib/session/message-ordering";
+import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
+import { getInternalApiBaseUrl } from "@/lib/utils/environment";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     });
 
     // ── 3. Fire the chat API against the new session ──
-    const baseUrl = req.nextUrl.origin;
+    const baseUrl = getInternalApiBaseUrl();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 300_000);
 
@@ -82,11 +84,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          cookie: req.headers.get("cookie") || "",
+          "X-Session-Id": sessionId,
+          "X-Character-Id": skill.characterId,
+          "X-Internal-Auth": INTERNAL_API_SECRET,
         },
         body: JSON.stringify({
           sessionId,
-          characterId: skill.characterId,
           messages: [{ role: "user", content: rendered.prompt }],
         }),
         signal: controller.signal,
