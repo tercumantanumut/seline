@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Loader2, Check, X, GitBranchPlus, User } from "lucide-react";
 import {
   Plug as PhosphorPlug,
@@ -25,8 +26,26 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { AnimatedButton } from "@/components/ui/animated-button";
+import { PROVIDER_DISPLAY_NAMES, ROLE_THEME } from "@/components/model-bag/model-bag.constants";
+import { useModelBag } from "@/components/model-bag/use-model-bag";
+import { getDefaultModelForProvider } from "@/lib/config/model-catalog";
 import { useTranslations } from "next-intl";
-import type { CharacterSummary, WorkflowGroup } from "@/components/character-picker-types";
+import type {
+  AgentModelConfigDraft,
+  CharacterSummary,
+  IdentityEditorFormState,
+  WorkflowGroup,
+} from "@/components/character-picker-types";
+import type { LLMProvider, ModelRole } from "@/components/model-bag/model-bag.types";
+
+const MODEL_ROLE_KEYS: Record<ModelRole, keyof AgentModelConfigDraft> = {
+  chat: "chatModel",
+  research: "researchModel",
+  vision: "visionModel",
+  utility: "utilityModel",
+};
+
+const MODEL_ROLE_ORDER: ModelRole[] = ["chat", "research", "vision", "utility"];
 
 const Plug = PhosphorPlug;
 const Trash2 = Trash;
@@ -145,30 +164,83 @@ export function IdentityEditorDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  identityForm: {
-    name: string;
-    displayName: string;
-    tagline: string;
-    purpose: string;
-    systemPromptOverride: string;
-  };
-  setIdentityForm: (form: {
-    name: string;
-    displayName: string;
-    tagline: string;
-    purpose: string;
-    systemPromptOverride: string;
-  }) => void;
+  identityForm: IdentityEditorFormState;
+  setIdentityForm: (form: IdentityEditorFormState) => void;
   generatedPrompt: string;
   isSaving: boolean;
   onSave: () => void;
 }) {
   const t = useTranslations("picker");
   const tc = useTranslations("common");
+  const { models, providers, activeProvider, roleAssignments, isLoading: isModelBagLoading } = useModelBag();
+
+  const currentProvider = (identityForm.modelConfig.provider || activeProvider) as LLMProvider;
+  const currentProviderLabel = PROVIDER_DISPLAY_NAMES[currentProvider] || currentProvider;
+
+  const providerOptions = useMemo(
+    () =>
+      providers.filter(
+        (provider) => provider.isAuthenticated || provider.id === activeProvider || provider.id === identityForm.modelConfig.provider,
+      ),
+    [activeProvider, identityForm.modelConfig.provider, providers],
+  );
+
+  const providerModels = useMemo(
+    () => models.filter((model) => model.provider === currentProvider),
+    [currentProvider, models],
+  );
+
+  const roleOptions = useMemo(() => {
+    const options = {} as Record<ModelRole, Array<{ id: string; label: string }>>;
+
+    for (const role of MODEL_ROLE_ORDER) {
+      const filtered = providerModels.filter((model) => (role === "vision" ? model.capabilities.vision : true));
+      const mapped = filtered.map((model) => ({
+        id: model.id,
+        label: `${model.name} — ${model.id}`,
+      }));
+      const currentValue = identityForm.modelConfig[MODEL_ROLE_KEYS[role]];
+
+      if (currentValue && !mapped.some((model) => model.id === currentValue)) {
+        mapped.unshift({
+          id: currentValue,
+          label: `${currentValue} · ${t("identityEditor.modelConfig.customModel")}`,
+        });
+      }
+
+      options[role] = mapped;
+    }
+
+    return options;
+  }, [identityForm.modelConfig, providerModels, t]);
+
+  const updateModelConfig = (nextConfig: AgentModelConfigDraft) => {
+    setIdentityForm({
+      ...identityForm,
+      modelConfig: nextConfig,
+    });
+  };
+
+  const handleProviderChange = (value: string) => {
+    updateModelConfig({
+      provider: value,
+      chatModel: "",
+      researchModel: "",
+      visionModel: "",
+      utilityModel: "",
+    });
+  };
+
+  const handleRoleModelChange = (role: ModelRole, value: string) => {
+    updateModelConfig({
+      ...identityForm.modelConfig,
+      [MODEL_ROLE_KEYS[role]]: value,
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl bg-terminal-cream max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="sm:max-w-4xl bg-terminal-cream max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-terminal-border/20">
           <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
             <User className="w-5 h-5 text-terminal-green" />
@@ -180,9 +252,12 @@ export function IdentityEditorDialog({
         </DialogHeader>
 
         <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="mx-6 mt-4 grid w-auto grid-cols-2 bg-terminal-bg/20">
+          <TabsList className="mx-6 mt-4 grid w-full grid-cols-3 bg-terminal-bg/20">
             <TabsTrigger value="basic" className="font-mono text-sm">
               {t("identityEditor.tabs.basic")}
+            </TabsTrigger>
+            <TabsTrigger value="models" className="font-mono text-sm">
+              {t("identityEditor.tabs.models")}
             </TabsTrigger>
             <TabsTrigger value="advanced" className="font-mono text-sm">
               {t("identityEditor.tabs.advanced")}
@@ -256,6 +331,95 @@ export function IdentityEditorDialog({
               <p className="mt-1 font-mono text-xs text-terminal-muted">
                 {t("identityEditor.fields.purpose.helper")} ({identityForm.purpose.length}/2000)
               </p>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="models" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
+            <div className="rounded-lg border border-terminal-border/60 bg-white/70 p-4 space-y-3">
+              <div className="space-y-1">
+                <p className="font-mono text-sm text-terminal-dark">
+                  {t("identityEditor.modelConfig.title")}
+                </p>
+                <p className="font-mono text-xs text-terminal-muted">
+                  {t("identityEditor.modelConfig.description")}
+                </p>
+              </div>
+              <div className="rounded border border-terminal-green/20 bg-terminal-green/5 px-3 py-2">
+                <p className="font-mono text-xs text-terminal-dark">
+                  {t("identityEditor.modelConfig.precedence")}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-terminal-border/60 bg-white/70 p-4 space-y-3">
+              <div>
+                <Label className="font-mono text-sm text-terminal-dark mb-1 block">
+                  {t("identityEditor.modelConfig.providerLabel")}
+                </Label>
+                <select
+                  value={identityForm.modelConfig.provider}
+                  onChange={(event) => handleProviderChange(event.target.value)}
+                  disabled={isSaving || isModelBagLoading}
+                  className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green disabled:opacity-60"
+                >
+                  <option value="">
+                    {t("identityEditor.modelConfig.providerInherit", {
+                      provider: PROVIDER_DISPLAY_NAMES[activeProvider] || activeProvider,
+                    })}
+                  </option>
+                  {providerOptions.map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.displayName}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                  {t("identityEditor.modelConfig.providerHelper", {
+                    provider: currentProviderLabel,
+                  })}
+                </p>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {MODEL_ROLE_ORDER.map((role) => {
+                  const roleKey = MODEL_ROLE_KEYS[role];
+                  const globalValue = roleAssignments[role] || getDefaultModelForProvider(currentProvider);
+                  return (
+                    <div key={role} className="rounded border border-terminal-border/50 bg-terminal-bg/5 p-3">
+                      <div className="mb-2 space-y-1">
+                        <p className="font-mono text-sm text-terminal-dark">
+                          {t(`identityEditor.modelConfig.roles.${role}.label`)}
+                        </p>
+                        <p className="font-mono text-xs text-terminal-muted">
+                          {t(`identityEditor.modelConfig.roles.${role}.helper`)}
+                        </p>
+                      </div>
+                      <select
+                        value={identityForm.modelConfig[roleKey]}
+                        onChange={(event) => handleRoleModelChange(role, event.target.value)}
+                        disabled={isSaving || isModelBagLoading}
+                        className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green disabled:opacity-60"
+                      >
+                        <option value="">
+                          {t("identityEditor.modelConfig.roleInherit", { model: globalValue || currentProviderLabel })}
+                        </option>
+                        {roleOptions[role].map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-2 font-mono text-[11px] text-terminal-muted">
+                        {t("identityEditor.modelConfig.roleFallback", {
+                          source: identityForm.modelConfig.provider
+                            ? t("identityEditor.modelConfig.agentProviderFallback", { provider: currentProviderLabel })
+                            : t("identityEditor.modelConfig.globalFallback", { provider: currentProviderLabel }),
+                        })}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </TabsContent>
 

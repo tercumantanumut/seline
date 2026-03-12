@@ -540,6 +540,7 @@
       "subtitle": "Update agent details and behavior",
       "tabs": {
         "basic": "Basic Info",
+        "models": "Model Defaults",
         "advanced": "Custom Prompt"
       },
       "fields": {
@@ -573,6 +574,37 @@
           "helper": "Override the auto-generated system prompt with your own",
           "warning": "⚠️ Custom prompts replace all auto-generated instructions. Use this only if you need complete control over the agent's behavior.",
           "clear": "Clear custom prompt"
+        }
+      },
+      "modelConfig": {
+        "title": "Agent model defaults",
+        "description": "Choose persistent defaults for this agent. Session overrides still win for the current chat only.",
+        "precedence": "Resolution order: session override -> agent default -> global fallback -> provider default",
+        "providerLabel": "Provider",
+        "providerInherit": "Use global provider ({provider})",
+        "providerHelper": "All model roles below validate against {provider}.",
+        "roleInherit": "Use inherited default ({model})",
+        "roleFallback": "If this role is empty or incompatible, it falls back to {source}.",
+        "agentProviderFallback": "this agent's {provider} provider chain",
+        "globalFallback": "the global/provider fallback chain for {provider}",
+        "customModel": "custom model",
+        "roles": {
+          "chat": {
+            "label": "Main chat model",
+            "helper": "Primary conversation model for this agent."
+          },
+          "research": {
+            "label": "Research model",
+            "helper": "Used for deep research and longer-form analysis."
+          },
+          "vision": {
+            "label": "Vision model",
+            "helper": "Only models with vision support are listed here."
+          },
+          "utility": {
+            "label": "Utility model",
+            "helper": "Used for background and compact helper tasks."
+          }
         }
       }
     },
@@ -2740,13 +2772,27 @@
       "updateSuccess": "Session model updated",
       "clearFailed": "Failed to clear overrides",
       "clearSuccess": "Session model overrides cleared",
+      "title": "Session model overrides",
+      "description": "These changes affect only this chat. Agent defaults remain intact for future sessions.",
+      "precedence": "Active resolution order: session override -> agent default -> global fallback -> provider default",
+      "provider": "Provider",
       "chatModel": "Chat Model",
       "researchModel": "Research Model",
       "visionModel": "Vision Model",
       "utilityModel": "Utility Model",
       "clearAllOverrides": "Clear all overrides",
-      "helpText": "Empty = use global setting. Enter a model ID to override for this session only.",
-      "globalLabel": "global:",
+      "helpText": "Session overrides apply only to this chat. Leave a field empty to fall back through agent defaults, then global settings.",
+      "emptyValue": "Not set",
+      "clearField": "Clear",
+      "sessionLabel": "Session",
+      "agentLabel": "Agent",
+      "globalLabel": "Global",
+      "effectiveLabel": "Effective",
+      "sourceLabel": "Source",
+      "sourceSession": "session override",
+      "sourceAgent": "agent default",
+      "sourceGlobal": "global fallback",
+      "sourceProviderDefault": "provider default",
       "providerDefault": "(provider default)",
       "modelLabel": "Model",
       "globalStatus": "Global",
