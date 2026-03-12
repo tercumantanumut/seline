@@ -106,6 +106,52 @@ export default async function RootLayout({
 })();
   `;
 
+  // Recovery script — runs outside React so it works even when the React tree
+  // has fully unmounted (gray screen). On visibility restore, checks whether the
+  // known #app-root element is present and visible. Requires 2 consecutive
+  // failed checks 3s apart before reloading — avoids false positives from
+  // temporary suspense states, transitions, or slow re-renders after resume.
+  // Timer is deduped: re-hiding cancels any pending check.
+  const rendererRecoveryScript = `
+(() => {
+  var loadedAt = Date.now();
+  var checkTimer = null;
+  var failCount = 0;
+  var REQUIRED_FAILS = 2;
+  var CHECK_INTERVAL = 3000;
+  var INITIAL_GRACE = 15000;
+
+  function checkAlive() {
+    checkTimer = null;
+    var root = document.getElementById('app-root');
+    // Alive = root exists, has layout height, and has rendered children
+    if (root && root.offsetHeight > 0 && root.childElementCount > 0) {
+      failCount = 0;
+      return;
+    }
+    failCount++;
+    if (failCount >= REQUIRED_FAILS) {
+      console.warn('[Selene] UI unresponsive after background (' + failCount + ' checks failed) — reloading');
+      window.location.reload();
+      return;
+    }
+    checkTimer = setTimeout(checkAlive, CHECK_INTERVAL);
+  }
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible') {
+      if (checkTimer) { clearTimeout(checkTimer); checkTimer = null; }
+      failCount = 0;
+      return;
+    }
+    if (Date.now() - loadedAt < INITIAL_GRACE) return;
+    if (checkTimer) { clearTimeout(checkTimer); checkTimer = null; }
+    failCount = 0;
+    checkTimer = setTimeout(checkAlive, CHECK_INTERVAL);
+  });
+})();
+  `;
+
   return (
     <html
       lang={locale}
@@ -118,29 +164,34 @@ export default async function RootLayout({
         <Script id="theme-script" strategy="beforeInteractive">
           {themeScript}
         </Script>
-        <ThemeProvider initialTheme={initialTheme}>
-          <NextIntlClientProvider locale={locale} messages={messages}>
-            <GlobalSyncWrapper>
-              <AuthProvider>
-                <TaskNotificationProvider>
-                  {children}
-                </TaskNotificationProvider>
-              </AuthProvider>
-            </GlobalSyncWrapper>
-            <Toaster
-              position="bottom-right"
-              closeButton
-              toastOptions={{
-                className: "font-mono text-sm",
-                style: {
-                  background: "hsl(var(--terminal-cream))",
-                  color: "hsl(var(--terminal-dark))",
-                  border: "1px solid hsl(var(--terminal-dark))",
-                },
-              }}
-            />
-          </NextIntlClientProvider>
-        </ThemeProvider>
+        <Script id="renderer-recovery" strategy="afterInteractive">
+          {rendererRecoveryScript}
+        </Script>
+        <div id="app-root">
+          <ThemeProvider initialTheme={initialTheme}>
+            <NextIntlClientProvider locale={locale} messages={messages}>
+              <GlobalSyncWrapper>
+                <AuthProvider>
+                  <TaskNotificationProvider>
+                    {children}
+                  </TaskNotificationProvider>
+                </AuthProvider>
+              </GlobalSyncWrapper>
+              <Toaster
+                position="bottom-right"
+                closeButton
+                toastOptions={{
+                  className: "font-mono text-sm",
+                  style: {
+                    background: "hsl(var(--terminal-cream))",
+                    color: "hsl(var(--terminal-dark))",
+                    border: "1px solid hsl(var(--terminal-dark))",
+                  },
+                }}
+              />
+            </NextIntlClientProvider>
+          </ThemeProvider>
+        </div>
       </body>
     </html>
   );

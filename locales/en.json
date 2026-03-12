@@ -11,7 +11,9 @@
     "retry": "Retry",
     "email": "Email",
     "password": "Password",
-    "confirmPassword": "Confirm Password"
+    "confirmPassword": "Confirm Password",
+    "create": "Create",
+    "notFound": "Not found."
   },
   "onboarding": {
     "welcome": {
@@ -404,6 +406,7 @@
     "mcpTools": "MCP Tools",
     "menu": {
       "editInfo": "Edit Info",
+      "modelDefaults": "Model Defaults",
       "manageTools": "Manage Tools",
       "syncFolders": "Sync Folders",
       "mcpTools": "MCP Tools",
@@ -411,7 +414,8 @@
       "dashboard": "Dashboard",
       "duplicate": "Duplicate",
       "delete": "Delete",
-      "avatar3d": "3D Avatar"
+      "avatar3d": "3D Avatar",
+      "manageSkills": "Skills"
     },
     "mcpToolsTitle": "Configure MCP Tools",
     "plugins": {
@@ -540,6 +544,7 @@
       "subtitle": "Update agent details and behavior",
       "tabs": {
         "basic": "Basic Info",
+        "models": "Model Defaults",
         "advanced": "Custom Prompt"
       },
       "fields": {
@@ -573,6 +578,37 @@
           "helper": "Override the auto-generated system prompt with your own",
           "warning": "⚠️ Custom prompts replace all auto-generated instructions. Use this only if you need complete control over the agent's behavior.",
           "clear": "Clear custom prompt"
+        }
+      },
+      "modelConfig": {
+        "title": "Agent model defaults",
+        "description": "Choose persistent defaults for this agent. Session overrides still win for the current chat only.",
+        "precedence": "Resolution order: session override -> agent default -> global fallback -> provider default",
+        "providerLabel": "Provider",
+        "providerInherit": "Use global provider ({provider})",
+        "providerHelper": "All model roles below validate against {provider}.",
+        "roleInherit": "Use inherited default ({model})",
+        "roleFallback": "If this role is empty or incompatible, it falls back to {source}.",
+        "agentProviderFallback": "this agent's {provider} provider chain",
+        "globalFallback": "the global/provider fallback chain for {provider}",
+        "customModel": "custom model",
+        "roles": {
+          "chat": {
+            "label": "Main chat model",
+            "helper": "Primary conversation model for this agent."
+          },
+          "research": {
+            "label": "Research model",
+            "helper": "Used for deep research and longer-form analysis."
+          },
+          "vision": {
+            "label": "Vision model",
+            "helper": "Only models with vision support are listed here."
+          },
+          "utility": {
+            "label": "Utility model",
+            "helper": "Used for background and compact helper tasks."
+          }
         }
       }
     },
@@ -1950,7 +1986,10 @@
     "save": {
       "cta": "Save Changes",
       "saving": "Saving...",
-      "saved": "Saved!"
+      "saved": "Saved!",
+      "savedToast": "Settings saved",
+      "unsaved": "Unsaved changes",
+      "shortcut": "Press {shortcut} to save"
     },
     "nav": {
       "apiKeys": "AI Providers",
@@ -2604,6 +2643,7 @@
         "whisperModelLabel": "Whisper Model",
         "whisperDownloaded": "Downloaded",
         "whisperDownload": "Download",
+        "whisperDownloadInProgress": "Downloading...",
         "whisperSelectModel": "Select a model",
         "whisperMultilingual": " · Supports ~99 languages",
         "whisperEnglishOnly": " · English only",
@@ -2730,24 +2770,6 @@
     "usingDefault": "Using default",
     "close": "Close",
     "enterToAssign": "Enter + ↵",
-    "sessionOverride": {
-      "loadingConfig": "Loading model config...",
-      "updateFailed": "Failed to update session model",
-      "updateSuccess": "Session model updated",
-      "clearFailed": "Failed to clear overrides",
-      "clearSuccess": "Session model overrides cleared",
-      "chatModel": "Chat Model",
-      "researchModel": "Research Model",
-      "visionModel": "Vision Model",
-      "utilityModel": "Utility Model",
-      "clearAllOverrides": "Clear all overrides",
-      "helpText": "Empty = use global setting. Enter a model ID to override for this session only.",
-      "globalLabel": "global:",
-      "providerDefault": "(provider default)",
-      "modelLabel": "Model",
-      "globalStatus": "Global",
-      "overrideBadge": "OVERRIDE"
-    },
     "providerFilter": {
       "all": "All",
       "activeProvider": "{name} (active provider)",
@@ -3577,7 +3599,69 @@
         "productivity": "Productivity",
         "creative": "Creative",
         "docs": "Docs",
-        "security": "Security"
+        "security": "Security",
+        "engineering": "Engineering",
+        "paid-media": "Paid Media",
+        "sales": "Sales",
+        "marketing": "Marketing",
+        "product": "Product",
+        "project-management": "Project Management",
+        "testing": "Testing",
+        "support": "Support",
+        "spatial-computing": "Spatial Computing",
+        "specialized": "Specialized",
+        "game-development": "Game Development"
+      },
+      "retry": "Retry",
+      "skillFallback": "Skill",
+      "selectAgentFirst": "Select an agent first",
+      "collectionsTitle": "Collections",
+      "collectionInstallFailed": "Collection install failed",
+      "collectionInstallPartial": "Installed {installed} skills, {failed} failed.",
+      "collectionInstallSuccess": "Installed {installed} skills, skipped {skipped}.",
+      "toggleFailed": "Failed to update skill status",
+      "uninstallSuccess": "Skill uninstalled",
+      "uninstallFailed": "Failed to uninstall skill",
+      "alreadyInstalledOnAgent": "Skill is already installed on this agent",
+      "emptySearchSkills": "No custom skills match your search.",
+      "emptyCustomSkills": "No custom skills yet.",
+      "emptyCustomSkillsHint": "Create your own or install from the catalog below.",
+      "collectionCard": {
+        "skillsCount": "{count} skills · {installed} installed",
+        "source": "Source",
+        "installing": "Installing...",
+        "installed": "Installed",
+        "install": "Install {count} skills"
+      },
+      "chooseSkills": "Choose skills",
+      "removeInstalled": "Remove installed",
+      "selectionRequired": "Select at least one skill",
+      "selectionUninstallSuccess": "Removed {removed} installed skills.",
+      "selectionUninstallPartial": "Removed {removed} installed skills, {failed} failed.",
+      "selectionInstallTitle": "Choose skills to install",
+      "selectionInstallDescription": "Pick the skills you want to add to this agent.",
+      "selectionUninstallTitle": "Remove installed skills",
+      "selectionUninstallDescription": "Select the installed skills you want to remove from this agent.",
+      "selectionDialog": {
+        "skillsTitle": "Skills",
+        "selectAll": "Select all",
+        "clear": "Clear",
+        "installedBadge": "Installed",
+        "selectionSummary": "Selection",
+        "selectedSkills": "{count} skills selected",
+        "singleAgentHelp": "Choose the exact skills you want to add or remove before applying.",
+        "applying": "Applying...",
+        "searchPlaceholder": "Search skills...",
+        "filterAll": "All",
+        "filterNotInstalled": "Not installed",
+        "filterInstalled": "Installed",
+        "filterSelected": "Selected",
+        "noMatch": "No skills match your filters."
+      },
+      "detail": {
+        "active": "Active",
+        "disabled": "Disabled",
+        "uninstall": "Uninstall"
       }
     }
   },

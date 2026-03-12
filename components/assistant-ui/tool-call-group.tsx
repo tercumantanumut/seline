@@ -135,7 +135,7 @@ function phaseToBadgeStatus(phase: LiveToolPhase): ToolCallBadgeStatus {
 function phaseToAccentClass(phase: LiveToolPhase): string {
   switch (phase) {
     case "error":
-      return "border-red-400/40 bg-background/80 text-foreground backdrop-blur-md";
+      return "border-destructive/40 bg-background/80 text-foreground backdrop-blur-md";
     case "completed":
       return "border-terminal-green/40 bg-background/80 text-foreground backdrop-blur-md";
     case "preparing":

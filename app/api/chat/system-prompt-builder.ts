@@ -209,6 +209,7 @@ export async function buildSystemPromptForRequest(
     systemPromptValue,
     "\n\n[Skills Runtime]\n" +
       "Use runSkill for action=list|inspect|run (DB + plugin skills).\n" +
+      "If the user asks for a workflow, campaign, template, playbook, or other reusable task, check for related skills first.\n" +
       "Use updateSkill for action=create|patch|replace|metadata|copy|archive.\n" +
       "Prefer tool-first skill discovery instead of relying on static prompt catalogs."
   );

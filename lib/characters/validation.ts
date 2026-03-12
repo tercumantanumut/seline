@@ -86,6 +86,15 @@ export const agentMetadataSchema = z.object({
   /** Custom system prompt override (replaces auto-generated prompt if provided) */
   systemPromptOverride: z.string().max(10000).optional(),
 
+  /** Per-agent defaults for provider/model selection */
+  modelConfig: z.object({
+    provider: z.enum(["anthropic", "openrouter", "antigravity", "codex", "kimi", "minimax", "ollama", "claudecode"]).optional(),
+    chatModel: z.string().max(200).optional(),
+    researchModel: z.string().max(200).optional(),
+    visionModel: z.string().max(200).optional(),
+    utilityModel: z.string().max(200).optional(),
+  }).optional(),
+
   /** Whether this is a system specialist agent (auto-provisioned) */
   isSystemAgent: z.boolean().optional(),
   /** The specialist type, e.g. "explore", "plan", "command" */

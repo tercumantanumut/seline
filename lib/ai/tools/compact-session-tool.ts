@@ -1,7 +1,7 @@
 import { tool, jsonSchema } from "ai";
 import { getSession } from "@/lib/db/queries";
 import { ContextWindowManager } from "@/lib/context-window";
-import { getSessionModelId, getSessionProvider } from "@/lib/ai/session-model-resolver";
+import { resolveSessionModelScopeForSession } from "@/lib/ai/session-model-resolver";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 
 interface CompactSessionToolOptions {
@@ -41,8 +41,9 @@ async function executeCompactSession(
   }
 
   const metadata = (session.metadata as Record<string, unknown>) || {};
-  const modelId = getSessionModelId(metadata);
-  const provider = getSessionProvider(metadata);
+  const resolvedScope = await resolveSessionModelScopeForSession(metadata);
+  const modelId = resolvedScope.effectiveConfig.chatModel;
+  const provider = resolvedScope.effectiveConfig.provider;
 
   const result = await ContextWindowManager.forceCompact(
     options.sessionId,

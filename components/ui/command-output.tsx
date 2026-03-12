@@ -45,7 +45,7 @@ function StatusIndicator({ success, error }: { success?: boolean; error?: string
 
     if (error) {
         return (
-            <span className="flex items-center gap-1 text-red-400">
+            <span className="flex items-center gap-1 text-destructive">
                 <X className="h-3.5 w-3.5" />
                 <span className="text-xs">{t("error")}</span>
             </span>
@@ -197,7 +197,7 @@ export function CommandOutput({
                         <div className="space-y-1">
                             <div className={cn(
                                 "text-xs uppercase tracking-wide pl-6",
-                                success ? "text-terminal-text/40" : "text-red-400/60"
+                                success ? "text-terminal-text/40" : "text-destructive/60"
                             )}>
                                 {t("standardError")}{success ? t("stdErrWarning") : ""}
                             </div>

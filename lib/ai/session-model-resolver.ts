@@ -1,36 +1,30 @@
 /**
  * Session Model Resolver
  *
- * Resolves which model to use for a given session by checking
- * session-level overrides in metadata before falling back to
- * global settings from settings-manager.ts.
- *
- * This enables per-session model assignment:
- *   Session A → Claude Sonnet 4.5 (Anthropic)
- *   Session B → GPT-5.1 Codex (Codex)
- *   Session C → (no override) → uses global settings
+ * Resolves the effective provider/model configuration for a chat scope using:
+ *   session override -> agent default -> global fallback -> provider default
  */
 
 import type { LanguageModel } from "ai";
-import type { SessionModelConfig } from "@/components/model-bag/model-bag.types";
+import type {
+  AgentModelConfig,
+  ModelConfig,
+  ModelConfigSource,
+  ResolvedModelConfig,
+  ResolvedModelSources,
+  SessionModelConfig,
+} from "@/components/model-bag/model-bag.types";
 import { loadSettings, type AppSettings } from "@/lib/settings/settings-manager";
 import {
-  getLanguageModel,
-  getModelByName,
-  getChatModel,
-  getResearchModel,
-  getVisionModel,
-  getUtilityModel,
-  getConfiguredProvider,
-  getConfiguredModel,
+  DEFAULT_MODELS,
+  UTILITY_MODELS,
+  getLanguageModelForProvider,
   getProviderDisplayName,
-  getProviderTemperature,
+  isProviderOperational,
+  resolveModelForProvider,
+  resolveProviderWithFallback,
   type LLMProvider,
 } from "@/lib/ai/providers";
-
-// ---------------------------------------------------------------------------
-// Session metadata keys for model overrides
-// ---------------------------------------------------------------------------
 
 const SESSION_MODEL_KEYS = {
   provider: "sessionProvider",
@@ -40,43 +34,254 @@ const SESSION_MODEL_KEYS = {
   utility: "sessionUtilityModel",
 } as const;
 
-// ---------------------------------------------------------------------------
-// Extract session model config from metadata
-// ---------------------------------------------------------------------------
+const PROVIDER_NAMES: Record<string, string> = {
+  anthropic: "Anthropic",
+  openrouter: "OpenRouter",
+  antigravity: "Antigravity",
+  codex: "OpenAI Codex",
+  claudecode: "Claude Code",
+  kimi: "Moonshot Kimi",
+  minimax: "MiniMax",
+  ollama: "Ollama",
+};
 
-/**
- * Get the model ID string for a session (for context window lookups).
- * Returns the session override if present, otherwise the global setting.
- */
-export function getSessionModelId(
-  sessionMetadata: Record<string, unknown> | null | undefined,
-): string {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (config?.sessionChatModel) {
-    return config.sessionChatModel;
-  }
-  // Fall back to the effective global model so provider defaults stay in sync.
-  return getConfiguredModel();
+const ROLE_FIELDS = ["chatModel", "researchModel", "visionModel", "utilityModel"] as const;
+type RoleField = (typeof ROLE_FIELDS)[number];
+
+export interface ResolvedSessionModelScope {
+  effectiveConfig: ResolvedModelConfig;
+  sources: ResolvedModelSources;
+  sessionConfig: SessionModelConfig | null;
+  agentConfig: AgentModelConfig | null;
+  globalConfig: ModelConfig;
 }
 
-/**
- * Get the provider for a session (for context window lookups).
- * Returns the session override if present, otherwise the global setting.
- */
-export function getSessionProvider(
-  sessionMetadata: Record<string, unknown> | null | undefined,
-): LLMProvider {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (config?.sessionProvider) {
-    return config.sessionProvider;
-  }
-  return getConfiguredProvider();
+export interface SessionResolverOptions {
+  characterId?: string | null;
+  agentModelConfig?: AgentModelConfig | null;
+  settings?: AppSettings;
 }
 
-/**
- * Extract SessionModelConfig from session metadata.
- * Returns null if no overrides are present.
- */
+interface CandidateValue {
+  model: string;
+  source: ModelConfigSource;
+}
+
+function getGlobalModelConfig(settings: AppSettings): ModelConfig {
+  return {
+    provider: settings.llmProvider,
+    chatModel: settings.chatModel || undefined,
+    researchModel: settings.researchModel || undefined,
+    visionModel: settings.visionModel || undefined,
+    utilityModel: settings.utilityModel || undefined,
+  };
+}
+
+function getCharacterIdFromMetadata(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+): string | null {
+  return typeof sessionMetadata?.characterId === "string" && sessionMetadata.characterId
+    ? sessionMetadata.characterId
+    : null;
+}
+
+function getAgentModelConfigFromUnknown(value: unknown): AgentModelConfig | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const config = value as Record<string, unknown>;
+  const result: AgentModelConfig = {};
+
+  if (typeof config.provider === "string") {
+    result.provider = config.provider as LLMProvider;
+  }
+
+  for (const field of ROLE_FIELDS) {
+    if (typeof config[field] === "string" && config[field]) {
+      result[field] = config[field] as string;
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+async function loadAgentModelConfig(
+  characterId: string | null | undefined,
+): Promise<AgentModelConfig | null> {
+  if (!characterId) {
+    return null;
+  }
+
+  try {
+    const { getCharacter } = await import("@/lib/characters/queries");
+    const character = await getCharacter(characterId);
+    return getAgentModelConfigFromUnknown(
+      (character?.metadata as Record<string, unknown> | null)?.modelConfig,
+    );
+  } catch (error) {
+    console.warn(
+      `[SESSION-RESOLVER] Failed to load agent model config for character ${characterId}:`,
+      error,
+    );
+    return null;
+  }
+}
+
+function resolveEffectiveProvider(
+  sessionConfig: SessionModelConfig | null,
+  agentConfig: AgentModelConfig | null,
+  settings: AppSettings,
+): { provider: LLMProvider; source: ModelConfigSource } {
+  const providerCandidates: Array<{ provider?: LLMProvider; source: ModelConfigSource }> = [
+    { provider: sessionConfig?.sessionProvider, source: "session" },
+    { provider: agentConfig?.provider, source: "agent" },
+    { provider: settings.llmProvider, source: "global" },
+  ];
+
+  for (const candidate of providerCandidates) {
+    if (!candidate.provider) {
+      continue;
+    }
+
+    if (isProviderOperational(candidate.provider)) {
+      return { provider: candidate.provider, source: candidate.source };
+    }
+
+    console.warn(
+      `[SESSION-RESOLVER] ${candidate.source} provider "${candidate.provider}" is unavailable, trying the next fallback layer`,
+    );
+  }
+
+  return {
+    provider: resolveProviderWithFallback(settings.llmProvider, "anthropic"),
+    source: "provider-default",
+  };
+}
+
+function pickCompatibleModel(
+  fieldName: RoleField,
+  provider: LLMProvider,
+  candidates: CandidateValue[],
+  providerDefault: string,
+): { model: string; source: ModelConfigSource } {
+  for (const candidate of candidates) {
+    const resolved = resolveModelForProvider(candidate.model, provider, providerDefault, fieldName);
+    if (resolved === candidate.model) {
+      return { model: candidate.model, source: candidate.source };
+    }
+
+    if (resolved === providerDefault) {
+      console.warn(
+        `[SESSION-RESOLVER] Skipping incompatible ${candidate.source} ${fieldName} "${candidate.model}" for provider "${provider}"`,
+      );
+    }
+  }
+
+  return { model: providerDefault, source: "provider-default" };
+}
+
+function resolveEffectiveModelConfig(input: {
+  sessionConfig: SessionModelConfig | null;
+  agentConfig: AgentModelConfig | null;
+  settings: AppSettings;
+}): ResolvedSessionModelScope {
+  const { sessionConfig, agentConfig, settings } = input;
+  const globalConfig = getGlobalModelConfig(settings);
+  const providerResolution = resolveEffectiveProvider(sessionConfig, agentConfig, settings);
+  const provider = providerResolution.provider;
+
+  const chatResolution = pickCompatibleModel(
+    "chatModel",
+    provider,
+    [
+      sessionConfig?.sessionChatModel
+        ? { model: sessionConfig.sessionChatModel, source: "session" }
+        : null,
+      agentConfig?.chatModel
+        ? { model: agentConfig.chatModel, source: "agent" }
+        : null,
+      globalConfig.chatModel
+        ? { model: globalConfig.chatModel, source: "global" }
+        : null,
+    ].filter((value): value is CandidateValue => value !== null),
+    DEFAULT_MODELS[provider],
+  );
+
+  const researchResolution = pickCompatibleModel(
+    "researchModel",
+    provider,
+    [
+      sessionConfig?.sessionResearchModel
+        ? { model: sessionConfig.sessionResearchModel, source: "session" }
+        : null,
+      agentConfig?.researchModel
+        ? { model: agentConfig.researchModel, source: "agent" }
+        : null,
+      globalConfig.researchModel
+        ? { model: globalConfig.researchModel, source: "global" }
+        : null,
+      { model: chatResolution.model, source: chatResolution.source },
+    ].filter((value): value is CandidateValue => value !== null),
+    DEFAULT_MODELS[provider],
+  );
+
+  const visionResolution = pickCompatibleModel(
+    "visionModel",
+    provider,
+    [
+      sessionConfig?.sessionVisionModel
+        ? { model: sessionConfig.sessionVisionModel, source: "session" }
+        : null,
+      agentConfig?.visionModel
+        ? { model: agentConfig.visionModel, source: "agent" }
+        : null,
+      globalConfig.visionModel
+        ? { model: globalConfig.visionModel, source: "global" }
+        : null,
+      { model: chatResolution.model, source: chatResolution.source },
+    ].filter((value): value is CandidateValue => value !== null),
+    DEFAULT_MODELS[provider],
+  );
+
+  const utilityResolution = pickCompatibleModel(
+    "utilityModel",
+    provider,
+    [
+      sessionConfig?.sessionUtilityModel
+        ? { model: sessionConfig.sessionUtilityModel, source: "session" }
+        : null,
+      agentConfig?.utilityModel
+        ? { model: agentConfig.utilityModel, source: "agent" }
+        : null,
+      globalConfig.utilityModel
+        ? { model: globalConfig.utilityModel, source: "global" }
+        : null,
+    ].filter((value): value is CandidateValue => value !== null),
+    UTILITY_MODELS[provider],
+  );
+
+  return {
+    effectiveConfig: {
+      provider,
+      chatModel: chatResolution.model,
+      researchModel: researchResolution.model,
+      visionModel: visionResolution.model,
+      utilityModel: utilityResolution.model,
+    },
+    sources: {
+      provider: providerResolution.source,
+      chatModel: chatResolution.source,
+      researchModel: researchResolution.source,
+      visionModel: visionResolution.source,
+      utilityModel: utilityResolution.source,
+    },
+    sessionConfig,
+    agentConfig,
+    globalConfig,
+  };
+}
+
 export function extractSessionModelConfig(
   metadata: Record<string, unknown> | null | undefined,
 ): SessionModelConfig | null {
@@ -109,134 +314,144 @@ export function extractSessionModelConfig(
   return hasOverride ? config : null;
 }
 
-// ---------------------------------------------------------------------------
-// Resolve model for a session (with fallback to global)
-// ---------------------------------------------------------------------------
+export function resolveSessionModelScope(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): ResolvedSessionModelScope {
+  const settings = options.settings ?? loadSettings();
+  const sessionConfig = extractSessionModelConfig(sessionMetadata);
 
-/**
- * Resolve the chat model for a session.
- *
- * Priority:
- *   1. sessionMetadata.sessionChatModel (per-session override)
- *   2. Global chatModel from settings-manager.ts
- *   3. Provider default
- */
+  return resolveEffectiveModelConfig({
+    sessionConfig,
+    agentConfig: options.agentModelConfig ?? null,
+    settings,
+  });
+}
+
+export async function resolveSessionModelScopeForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<ResolvedSessionModelScope> {
+  const settings = options.settings ?? loadSettings();
+  const agentConfig =
+    options.agentModelConfig ??
+    (await loadAgentModelConfig(options.characterId ?? getCharacterIdFromMetadata(sessionMetadata)));
+
+  return resolveSessionModelScope(sessionMetadata, {
+    ...options,
+    settings,
+    agentModelConfig: agentConfig,
+  });
+}
+
+export function getSessionModelId(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): string {
+  return resolveSessionModelScope(sessionMetadata, options).effectiveConfig.chatModel;
+}
+
+export async function getSessionModelIdForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<string> {
+  return (await resolveSessionModelScopeForSession(sessionMetadata, options)).effectiveConfig.chatModel;
+}
+
+export function getSessionProvider(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): LLMProvider {
+  return resolveSessionModelScope(sessionMetadata, options).effectiveConfig.provider;
+}
+
+export async function getSessionProviderForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<LLMProvider> {
+  return (await resolveSessionModelScopeForSession(sessionMetadata, options)).effectiveConfig.provider;
+}
+
 export function resolveSessionChatModel(
   sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
 ): LanguageModel {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (!config?.sessionChatModel) {
-    // No session override — use global
-    return getChatModel();
-  }
-
-  const modelId = config.sessionChatModel;
-  console.log(`[SESSION-RESOLVER] Using session chat model override: ${modelId}`);
-
-  try {
-    return getModelByName(modelId);
-  } catch (error) {
-    console.warn(`[SESSION-RESOLVER] Failed to load session model "${modelId}", falling back to global:`, error);
-    return getChatModel();
-  }
+  const scope = resolveSessionModelScope(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.chatModel);
 }
 
-/**
- * Resolve the primary language model for a session's streamText call.
- * This is the main entry point used by app/api/chat/route.ts.
- *
- * If the session has a model override, it returns that model.
- * Otherwise it returns getLanguageModel() (current behavior).
- */
+export async function resolveSessionChatModelForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<LanguageModel> {
+  const scope = await resolveSessionModelScopeForSession(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.chatModel);
+}
+
 export function resolveSessionLanguageModel(
   sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
 ): LanguageModel {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (!config?.sessionChatModel) {
-    return getLanguageModel();
-  }
-
-  const modelId = config.sessionChatModel;
-  console.log(`[SESSION-RESOLVER] Using session language model override: ${modelId}`);
-
-  try {
-    return getModelByName(modelId);
-  } catch (error) {
-    console.warn(`[SESSION-RESOLVER] Failed to load session model "${modelId}", falling back to global:`, error);
-    return getLanguageModel();
-  }
+  const scope = resolveSessionModelScope(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.chatModel);
 }
 
-/**
- * Resolve the research model for a session.
- */
+export async function resolveSessionLanguageModelForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<LanguageModel> {
+  const scope = await resolveSessionModelScopeForSession(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.chatModel);
+}
+
 export function resolveSessionResearchModel(
   sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
 ): LanguageModel {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (!config?.sessionResearchModel) {
-    return getResearchModel();
-  }
-
-  const modelId = config.sessionResearchModel;
-  console.log(`[SESSION-RESOLVER] Using session research model override: ${modelId}`);
-
-  try {
-    return getModelByName(modelId);
-  } catch (error) {
-    console.warn(`[SESSION-RESOLVER] Failed to load session research model "${modelId}", falling back to global:`, error);
-    return getResearchModel();
-  }
+  const scope = resolveSessionModelScope(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.researchModel);
 }
 
-/**
- * Resolve the vision model for a session.
- */
+export async function resolveSessionResearchModelForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<LanguageModel> {
+  const scope = await resolveSessionModelScopeForSession(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.researchModel);
+}
+
 export function resolveSessionVisionModel(
   sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
 ): LanguageModel {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (!config?.sessionVisionModel) {
-    return getVisionModel();
-  }
-
-  const modelId = config.sessionVisionModel;
-  console.log(`[SESSION-RESOLVER] Using session vision model override: ${modelId}`);
-
-  try {
-    return getModelByName(modelId);
-  } catch (error) {
-    console.warn(`[SESSION-RESOLVER] Failed to load session vision model "${modelId}", falling back to global:`, error);
-    return getVisionModel();
-  }
+  const scope = resolveSessionModelScope(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.visionModel);
 }
 
-/**
- * Resolve the utility model for a session.
- */
+export async function resolveSessionVisionModelForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<LanguageModel> {
+  const scope = await resolveSessionModelScopeForSession(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.visionModel);
+}
+
 export function resolveSessionUtilityModel(
   sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
 ): LanguageModel {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (!config?.sessionUtilityModel) {
-    return getUtilityModel();
-  }
-
-  const modelId = config.sessionUtilityModel;
-  console.log(`[SESSION-RESOLVER] Using session utility model override: ${modelId}`);
-
-  try {
-    return getModelByName(modelId);
-  } catch (error) {
-    console.warn(`[SESSION-RESOLVER] Failed to load session utility model "${modelId}", falling back to global:`, error);
-    return getUtilityModel();
-  }
+  const scope = resolveSessionModelScope(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.utilityModel);
 }
 
-/**
- * Build the session model config object to store in session.metadata.
- * Only includes non-empty values.
- */
+export async function resolveSessionUtilityModelForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<LanguageModel> {
+  const scope = await resolveSessionModelScopeForSession(sessionMetadata, options);
+  return getLanguageModelForProvider(scope.effectiveConfig.provider, scope.effectiveConfig.utilityModel);
+}
+
 export function buildSessionModelMetadata(
   config: SessionModelConfig,
 ): Record<string, string> {
@@ -249,10 +464,6 @@ export function buildSessionModelMetadata(
   return result;
 }
 
-/**
- * Clear all session model overrides from metadata.
- * Returns a new metadata object with session model keys removed.
- */
 export function clearSessionModelMetadata(
   metadata: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -263,59 +474,58 @@ export function clearSessionModelMetadata(
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// Session-aware provider/display helpers
-// ---------------------------------------------------------------------------
-
-/** Provider display name map (matches model-bag.constants.ts) */
-const PROVIDER_NAMES: Record<string, string> = {
-  anthropic: "Anthropic",
-  openrouter: "OpenRouter",
-  antigravity: "Antigravity",
-  codex: "OpenAI Codex",
-  claudecode: "Claude Code",
-  kimi: "Moonshot Kimi",
-  ollama: "Ollama",
-};
-
-/**
- * Get the display name for the LLM being used in a session.
- * Returns session override info if present, otherwise the global display name.
- *
- * Example: "OpenRouter (moonshotai/kimi-k2.5)" or "Claude Code (claude-sonnet-4-5)"
- */
 export function getSessionDisplayName(
   sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
 ): string {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (config?.sessionChatModel) {
-    const providerName = config.sessionProvider
-      ? (PROVIDER_NAMES[config.sessionProvider] || config.sessionProvider)
-      : "Unknown";
-    return `${providerName} (${config.sessionChatModel})`;
+  const scope = resolveSessionModelScope(sessionMetadata, options);
+  const providerName = PROVIDER_NAMES[scope.effectiveConfig.provider] || scope.effectiveConfig.provider;
+
+  if (
+    scope.sources.chatModel === "global" &&
+    scope.sources.provider === "global" &&
+    !options.agentModelConfig
+  ) {
+    return getProviderDisplayName();
   }
-  // No session override — use global
-  return getProviderDisplayName();
+
+  return `${providerName} (${scope.effectiveConfig.chatModel})`;
 }
 
-/**
- * Get the appropriate temperature for a session's provider.
- * Checks session-level provider override before falling back to global.
- *
- * This is critical for providers like Kimi that require fixed temperature values.
- */
+export async function getSessionDisplayNameForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  options: SessionResolverOptions = {},
+): Promise<string> {
+  const scope = await resolveSessionModelScopeForSession(sessionMetadata, options);
+  const providerName = PROVIDER_NAMES[scope.effectiveConfig.provider] || scope.effectiveConfig.provider;
+
+  if (scope.sources.chatModel === "global" && scope.sources.provider === "global") {
+    return getProviderDisplayName();
+  }
+
+  return `${providerName} (${scope.effectiveConfig.chatModel})`;
+}
+
 export function getSessionProviderTemperature(
   sessionMetadata: Record<string, unknown> | null | undefined,
   requestedTemp: number,
+  options: SessionResolverOptions = {},
 ): number {
-  const config = extractSessionModelConfig(sessionMetadata);
-  if (config?.sessionProvider) {
-    // Session has a provider override — check provider-specific temperature rules
-    if (config.sessionProvider === "kimi") {
-      return 1; // Kimi K2.5 fixed value
-    }
-    return requestedTemp;
-  }
-  // No session override — use global provider temperature logic
-  return getProviderTemperature(requestedTemp);
+  const provider = getSessionProvider(sessionMetadata, options);
+  return provider === "kimi" ? 1 : requestedTemp;
+}
+
+export async function getSessionProviderTemperatureForSession(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  requestedTemp: number,
+  options: SessionResolverOptions = {},
+): Promise<number> {
+  const provider = (await resolveSessionModelScopeForSession(sessionMetadata, options)).effectiveConfig.provider;
+  return provider === "kimi" ? 1 : requestedTemp;
+}
+
+export function getAgentModelConfigFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): AgentModelConfig | null {
+  return getAgentModelConfigFromUnknown(metadata?.modelConfig);
 }

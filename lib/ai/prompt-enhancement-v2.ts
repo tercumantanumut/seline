@@ -27,8 +27,8 @@ import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
 import { decideMemoryInjection } from "./prompt-enhancement-memory";
 import {
-  getSessionProviderTemperature,
-  resolveSessionUtilityModel,
+  getSessionProviderTemperatureForSession,
+  resolveSessionUtilityModelForSession,
 } from "./session-model-resolver";
 import { extname, basename } from "path";
 
@@ -429,14 +429,14 @@ export async function enhancePromptWithLLM(
 
     const llmResult = await Promise.race([
       generateText({
-        model: resolveSessionUtilityModel(options.sessionMetadata),
+        model: await resolveSessionUtilityModelForSession(options.sessionMetadata),
         system: ENHANCEMENT_SYSTEM_PROMPT,
         messages: [
           ...session.messages,
           { role: "user" as const, content: enhancementRequest },
         ],
         maxOutputTokens: 3000,
-        temperature: getSessionProviderTemperature(options.sessionMetadata, 0.3),
+        temperature: await getSessionProviderTemperatureForSession(options.sessionMetadata, 0.3),
       }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ]);

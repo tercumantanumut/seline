@@ -44,6 +44,8 @@ export function WorkflowCard({
   onContinueChat,
   onNewChat,
   onEditIdentity,
+  onEditModelDefaults,
+  onManageSkills,
   onEditTools,
   onEditFolders,
   onEditMcp,
@@ -72,6 +74,8 @@ export function WorkflowCard({
   onContinueChat: (id: string) => void;
   onNewChat: (id: string) => void;
   onEditIdentity: (c: CharacterSummary) => void;
+  onEditModelDefaults: (c: CharacterSummary) => void;
+  onManageSkills: (c: CharacterSummary) => void;
   onEditTools: (c: CharacterSummary) => void;
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
@@ -297,6 +301,8 @@ export function WorkflowCard({
                     onContinueChat={onContinueChat}
                     onNewChat={onNewChat}
                     onEditIdentity={onEditIdentity}
+                    onEditModelDefaults={onEditModelDefaults}
+                    onManageSkills={onManageSkills}
                     onEditTools={onEditTools}
                     onEditFolders={onEditFolders}
                     onEditMcp={onEditMcp}
@@ -336,6 +342,8 @@ export function WorkflowCard({
                         onContinueChat={onContinueChat}
                         onNewChat={onNewChat}
                         onEditIdentity={onEditIdentity}
+                        onEditModelDefaults={onEditModelDefaults}
+                        onManageSkills={onManageSkills}
                         onEditTools={onEditTools}
                         onEditFolders={onEditFolders}
                         onEditMcp={onEditMcp}
@@ -388,6 +396,8 @@ export function WorkflowSection({
   onContinueChat,
   onNewChat,
   onEditIdentity,
+  onEditModelDefaults,
+  onManageSkills,
   onEditTools,
   onEditFolders,
   onEditMcp,
@@ -422,6 +432,8 @@ export function WorkflowSection({
   onContinueChat: (id: string) => void;
   onNewChat: (id: string) => void;
   onEditIdentity: (c: CharacterSummary) => void;
+  onEditModelDefaults: (c: CharacterSummary) => void;
+  onManageSkills: (c: CharacterSummary) => void;
   onEditTools: (c: CharacterSummary) => void;
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
@@ -502,6 +514,8 @@ export function WorkflowSection({
               onContinueChat={onContinueChat}
               onNewChat={onNewChat}
               onEditIdentity={onEditIdentity}
+              onEditModelDefaults={onEditModelDefaults}
+              onManageSkills={onManageSkills}
               onEditTools={onEditTools}
               onEditFolders={onEditFolders}
               onEditMcp={onEditMcp}

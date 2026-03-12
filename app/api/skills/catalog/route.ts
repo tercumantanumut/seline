@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { getAllCatalogSkills, SYSTEM_SKILLS } from "@/lib/skills/catalog";
+import { getAllCatalogSkills, getCatalogCollections, SYSTEM_SKILLS } from "@/lib/skills/catalog";
 import type { CatalogSkillWithStatus } from "@/lib/skills/catalog/types";
 import { listSkillsForUser } from "@/lib/skills/queries";
 
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
     const characterId = req.nextUrl.searchParams.get("characterId") || undefined;
 
-    const installedSkills = await listSkillsForUser(dbUser.id, { all: true, limit: 500, characterId });
+    const installedSkills = await listSkillsForUser(dbUser.id, { all: true, limit: 1000, characterId });
     const installedByCatalogId = new Map<string, { id: string; isEnabled: boolean }>();
 
     for (const skill of installedSkills) {
@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       catalog,
       systemSkills,
+      collections: getCatalogCollections(),
       installedSkills,
     });
   } catch (error) {

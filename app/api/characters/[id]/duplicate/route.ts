@@ -15,6 +15,8 @@ import {
   buildDuplicateCharacterName,
   buildDuplicateDisplayName,
   buildDuplicateMetadata,
+  filterDuplicableFolders,
+  mapDuplicateFolderStatus,
 } from "@/lib/characters/duplicate";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -59,8 +61,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         .from(agentSyncFolders)
         .where(eq(agentSyncFolders.characterId, id));
 
-      if (sourceFolders.length > 0) {
-        const duplicatedFolders: InferInsertModel<typeof agentSyncFolders>[] = sourceFolders.map((folder) => ({
+      const ownFolders = filterDuplicableFolders(sourceFolders);
+
+      if (ownFolders.length > 0) {
+        const duplicatedFolders: InferInsertModel<typeof agentSyncFolders>[] = ownFolders.map((folder) => ({
           userId: dbUser.id,
           characterId: newCharacter.id,
           folderPath: folder.folderPath,
@@ -69,7 +73,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           recursive: folder.recursive,
           includeExtensions: folder.includeExtensions as string[],
           excludePatterns: folder.excludePatterns as string[],
-          status: "pending",
+          status: mapDuplicateFolderStatus(folder.status),
           indexingMode: folder.indexingMode,
           syncMode: folder.syncMode,
           syncCadenceMinutes: folder.syncCadenceMinutes,

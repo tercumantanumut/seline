@@ -15,13 +15,13 @@ interface ToolCallBadgeProps {
 const statusStyles: Record<ToolCallBadgeStatus, string> = {
   running: "bg-background/80 backdrop-blur-md border-terminal-amber/40",
   completed: "bg-background/80 backdrop-blur-md border-terminal-green/40",
-  error: "bg-background/80 backdrop-blur-md border-red-400/40",
+  error: "bg-background/80 backdrop-blur-md border-destructive/40",
 };
 
 const statusIconStyles: Record<ToolCallBadgeStatus, string> = {
   running: "text-terminal-amber",
   completed: "text-terminal-green",
-  error: "text-red-500",
+  error: "text-destructive",
 };
 
 const statusIcons: Record<ToolCallBadgeStatus, FC<{ className?: string }>> = {

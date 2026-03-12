@@ -7,6 +7,8 @@ const aiMocks = vi.hoisted(() => ({
 const resolverMocks = vi.hoisted(() => ({
   resolveSessionUtilityModel: vi.fn(() => ({ id: "session-utility" })),
   getSessionProviderTemperature: vi.fn(() => 0.4),
+  resolveSessionUtilityModelForSession: vi.fn(async () => ({ id: "session-utility" })),
+  getSessionProviderTemperatureForSession: vi.fn(async () => 0.4),
 }));
 
 const dbMocks = vi.hoisted(() => ({
@@ -37,11 +39,11 @@ describe("generateSessionTitle", () => {
     await generateSessionTitle("session-1", "Find utility model issue root cause");
 
     expect(dbMocks.getSession).toHaveBeenCalledWith("session-1");
-    expect(resolverMocks.resolveSessionUtilityModel).toHaveBeenCalledWith({
+    expect(resolverMocks.resolveSessionUtilityModelForSession).toHaveBeenCalledWith({
       sessionProvider: "codex",
       sessionUtilityModel: "gpt-5.3-codex-medium",
     });
-    expect(resolverMocks.getSessionProviderTemperature).toHaveBeenCalledWith(
+    expect(resolverMocks.getSessionProviderTemperatureForSession).toHaveBeenCalledWith(
       {
         sessionProvider: "codex",
         sessionUtilityModel: "gpt-5.3-codex-medium",

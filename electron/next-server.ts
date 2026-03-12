@@ -7,7 +7,10 @@ import { debugLog, debugError, debugVerbose } from "./debug-logger";
 // Constants
 // ---------------------------------------------------------------------------
 
+/** Port the H2 proxy listens on — what the renderer connects to. */
 export const PROD_SERVER_PORT = 3456;
+/** Port the Next.js standalone server actually listens on (internal, HTTP/1.1). */
+export const NEXT_INTERNAL_PORT = 3457;
 const WATCHER_RESOURCE_ERROR_REGEX = /(EMFILE|ENOSPC|EBADF|EAGAIN|too many open files|System limit for number of file watchers reached)/i;
 const MAX_SERVER_RESTARTS = 3;
 const RESTART_RESET_INTERVAL = 5 * 60 * 1000;
@@ -204,7 +207,7 @@ export async function startNextServer(opts: StartNextServerOptions): Promise<voi
         env: {
           ...process.env,
           NODE_ENV: "production",
-          PORT: String(PROD_SERVER_PORT),
+          PORT: String(NEXT_INTERNAL_PORT),
           HOSTNAME: "localhost",
           LOCAL_DATA_PATH: path.join(opts.userDataPath, "data"),
           NEXT_TELEMETRY_DISABLED: "1",

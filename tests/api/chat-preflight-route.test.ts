@@ -18,6 +18,8 @@ const contextWindowMocks = vi.hoisted(() => ({
 const sessionModelResolverMocks = vi.hoisted(() => ({
   getSessionModelId: vi.fn(() => "claude-sonnet"),
   getSessionProvider: vi.fn(() => "anthropic"),
+  getSessionModelIdForSession: vi.fn(async () => "claude-sonnet"),
+  getSessionProviderForSession: vi.fn(async () => "anthropic"),
 }));
 
 vi.mock("@/lib/auth/local-auth", () => authMocks);

@@ -36,6 +36,7 @@ import {
   parseTransportErrorResponse,
   shouldIgnoreUseChatError,
 } from "@/lib/chat/transport-errors";
+import { getLastUserMessageId, shouldAutoRetryClientChat } from "@/lib/chat/client-retry";
 import { parseChatPreflightResponse } from "@/lib/chat/preflight";
 
 // ============================================================================
@@ -315,6 +316,7 @@ const TOOL_INPUT_BATCH_MAX_CHARS = Number.isFinite(envToolInputMax)
   ? envToolInputMax
   : 8192;
 const loggedSanitizerToolCallIds = new Set<string>();
+const DEBUG_CHAT = process.env.NEXT_PUBLIC_DEBUG_CHAT === "true";
 
 class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
   private wrapStreamWithRecovery(
@@ -594,10 +596,12 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
               // Drop it to prevent the "argsText can only be appended" crash.
               const availChunk = chunk as UIMessageChunk & { toolCallId: string };
               if (availChunk.toolCallId && toolCallsWithDeltas.has(availChunk.toolCallId)) {
-                console.warn(
-                  `[ChatTransport] Dropping conflicting tool-input-available for ${availChunk.toolCallId} ` +
-                    `(had prior streaming deltas). Runtime will finalize from deltas.`
-                );
+                if (DEBUG_CHAT) {
+                  console.warn(
+                    `[ChatTransport] Dropping conflicting tool-input-available for ${availChunk.toolCallId} ` +
+                      `(had prior streaming deltas). Runtime will finalize from deltas.`
+                  );
+                }
                 return; // Drop this chunk
               }
               clearTimer();
@@ -612,10 +616,12 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
               // The subsequent tool-output-error will preserve the streamed input.
               const errChunk = chunk as UIMessageChunk & { toolCallId: string };
               if (errChunk.toolCallId && toolCallsWithDeltas.has(errChunk.toolCallId)) {
-                console.warn(
-                  `[ChatTransport] Dropping tool-input-error for ${errChunk.toolCallId} ` +
-                    `(had prior streaming deltas). Subsequent tool-output-error will preserve input.`
-                );
+                if (DEBUG_CHAT) {
+                  console.warn(
+                    `[ChatTransport] Dropping tool-input-error for ${errChunk.toolCallId} ` +
+                      `(had prior streaming deltas). Subsequent tool-output-error will preserve input.`
+                  );
+                }
                 return;
               }
               clearTimer();
@@ -654,7 +660,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
           if (
             TOOL_INPUT_BATCH_ENABLED &&
             rawToolInputDeltaChunks > 0 &&
-            process.env.NODE_ENV !== "production"
+            DEBUG_CHAT
           ) {
             console.log(
               `[ChatTransport] tool-input-delta batching: raw=${rawToolInputDeltaChunks}, emitted=${emittedToolInputDeltaChunks}`,
@@ -957,6 +963,10 @@ export const ChatProvider: FC<ChatProviderProps> = ({
   const safeMessages = useMemo(() => sanitizeMessagesForInit(initialMessages ?? []), [initialMessages]);
 
   const chatStatusRef = useRef("ready");
+  const autoRetryAttemptRef = useRef(0);
+  const autoRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTrackedUserMessageIdRef = useRef<string | undefined>(undefined);
+  const MAX_CLIENT_AUTO_RETRIES = 2;
 
   const chat = useChat({
     id: sessionId,
@@ -967,10 +977,41 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     // uuidRegex check, causing the server to assign new UUIDs — the resulting
     // ID mismatch creates phantom branches in assistant-ui's MessageRepository.
     generateId: () => crypto.randomUUID(),
+    onFinish: ({ isError }) => {
+      if (!isError) {
+        autoRetryAttemptRef.current = 0;
+      }
+    },
     // Suppress user-triggered abort noise, but surface request-start failures.
     onError: (error) => {
       if (shouldIgnoreUseChatError(error, chatStatusRef.current)) {
         return;
+      }
+
+      if (
+        autoRetryTimerRef.current == null &&
+        autoRetryAttemptRef.current < MAX_CLIENT_AUTO_RETRIES &&
+        shouldAutoRetryClientChat({ error, messages: chat.messages })
+      ) {
+        const retryMessageId = getLastUserMessageId(chat.messages);
+        if (retryMessageId) {
+          const attempt = autoRetryAttemptRef.current + 1;
+          autoRetryAttemptRef.current = attempt;
+          const delayMs = Math.min(1500 * attempt, 4000);
+          console.warn("[ChatProvider] Auto-retrying recoverable chat error", {
+            attempt,
+            delayMs,
+            message: error.message,
+          });
+          chat.clearError();
+          autoRetryTimerRef.current = setTimeout(() => {
+            autoRetryTimerRef.current = null;
+            void chat.regenerate({ messageId: retryMessageId }).catch((retryError) => {
+              console.error("[ChatProvider] Auto-retry request failed:", retryError);
+            });
+          }, delayMs);
+          return;
+        }
       }
 
       console.error("[ChatProvider] useChat error:", error.message);
@@ -992,6 +1033,66 @@ export const ChatProvider: FC<ChatProviderProps> = ({
   useEffect(() => {
     chatStatusRef.current = chat.status;
   }, [chat.status]);
+
+  useEffect(() => {
+    const lastUserMessageId = getLastUserMessageId(chat.messages);
+    if (lastUserMessageId && lastUserMessageId !== lastTrackedUserMessageIdRef.current) {
+      autoRetryAttemptRef.current = 0;
+      if (autoRetryTimerRef.current) {
+        clearTimeout(autoRetryTimerRef.current);
+        autoRetryTimerRef.current = null;
+      }
+    }
+    lastTrackedUserMessageIdRef.current = lastUserMessageId;
+  }, [chat.messages]);
+
+  useEffect(() => {
+    return () => {
+      if (autoRetryTimerRef.current) {
+        clearTimeout(autoRetryTimerRef.current);
+        autoRetryTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (chat.status !== "error") {
+      return;
+    }
+    if (autoRetryTimerRef.current) {
+      return;
+    }
+    if (autoRetryAttemptRef.current >= MAX_CLIENT_AUTO_RETRIES) {
+      return;
+    }
+    if (!chat.error) {
+      return;
+    }
+    if (!shouldAutoRetryClientChat({ error: chat.error, messages: chat.messages })) {
+      return;
+    }
+
+    const retryMessageId = getLastUserMessageId(chat.messages);
+    if (!retryMessageId) {
+      return;
+    }
+
+    const attempt = autoRetryAttemptRef.current + 1;
+    autoRetryAttemptRef.current = attempt;
+    const delayMs = Math.min(1500 * attempt, 4000);
+    console.warn("[ChatProvider] Scheduling client-side retry from chat error state", {
+      attempt,
+      delayMs,
+      message: chat.error.message,
+    });
+    chat.clearError();
+    autoRetryTimerRef.current = setTimeout(() => {
+      autoRetryTimerRef.current = null;
+      void chat.regenerate({ messageId: retryMessageId }).catch((retryError) => {
+        console.error("[ChatProvider] Client-side retry failed:", retryError);
+      });
+    }, delayMs);
+  }, [chat, chat.error, chat.messages, chat.status]);
 
   // Recovery callback: sanitize messages to clear broken tool-call state
   // so the error boundary can re-render without hitting the same error.

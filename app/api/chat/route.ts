@@ -1,5 +1,13 @@
 import { stat } from "node:fs/promises";
-import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, type UserModelMessage } from "ai";
+import {
+  createUIMessageStreamResponse,
+  streamText,
+  stepCountIs,
+  type ModelMessage,
+  type Tool,
+  type UIMessageChunk,
+  type UserModelMessage,
+} from "ai";
 import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid, ensureCodexTokenValid } from "@/lib/ai/providers";
 import { registerAllTools } from "@/lib/ai/tool-registry";
 import { AI_CONFIG } from "@/lib/ai/config";
@@ -7,7 +15,12 @@ import { getPrimarySyncFolder } from "@/lib/vectordb/sync-folder-crud";
 import { shouldUseCache } from "@/lib/ai/cache/config";
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
 import { ContextWindowManager, isDelegatedToolName } from "@/lib/context-window";
-import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
+import {
+  getSessionDisplayNameForSession,
+  getSessionProviderTemperatureForSession,
+  resolveSessionLanguageModelForSession,
+  resolveSessionModelScopeForSession,
+} from "@/lib/ai/session-model-resolver";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, updateMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn, getInjectedMessageIds, getSessionWithMessages } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
@@ -25,7 +38,7 @@ import {
   buildUserInjectionContent,
   buildStopSystemMessage,
 } from "@/lib/background-tasks/live-prompt-helpers";
-import { combineAbortSignals } from "@/lib/utils/abort";
+
 import { createHeartbeatStream } from "@/lib/utils/heartbeat-stream";
 import {
     classifyRecoverability,
@@ -89,6 +102,10 @@ import {
 import { tagIntermediateDelegationParts } from "./delegation-scope-tagging";
 import { createThinkTagFilter, shouldFilterThinkTags } from "@/lib/ai/streaming/think-tag-filter";
 import { detectEmotion } from "@/lib/emotion";
+import {
+  isUiChunkCommittable,
+  shouldAttemptPrecommitRecovery,
+} from "./ui-stream-recovery";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -316,8 +333,12 @@ export async function POST(req: Request) {
     console.debug(`[CHAT API] Context injection: isNew=${isNewSession}, tracking=${JSON.stringify(contextTracking)}, inject=${injectContext}`);
 
     // ── Context window pre-flight check ───────────────────────────────────────
-    const currentModelId = getSessionModelId(sessionMetadata);
-    const currentProvider = getSessionProvider(sessionMetadata);
+    const resolvedSessionModels = await resolveSessionModelScopeForSession(sessionMetadata, {
+      characterId,
+      settings: appSettings,
+    });
+    const currentModelId = resolvedSessionModels.effectiveConfig.chatModel;
+    const currentProvider = resolvedSessionModels.effectiveConfig.provider;
     const contextCheck = await ContextWindowManager.preFlightCheck(
       sessionId,
       currentModelId,
@@ -581,7 +602,7 @@ export async function POST(req: Request) {
       pluginRoots,
       allowedPluginNames,
       workflowPromptContextInput,
-      provider: getSessionProvider(sessionMetadata),
+      provider: currentProvider,
     });
 
     const {
@@ -718,9 +739,13 @@ export async function POST(req: Request) {
     }
 
     // ── Stream setup ───────────────────────────────────────────────────────────
-    const provider = getSessionProvider(sessionMetadata);
+    const provider = currentProvider;
     configuredProvider = provider;
-    console.debug(`[CHAT API] Using LLM: ${getSessionDisplayName(sessionMetadata)}, inject=${injectContext}, caching=${useCaching ? "on" : "off"}`);
+    const sessionDisplayName = await getSessionDisplayNameForSession(sessionMetadata, {
+      characterId,
+      settings: appSettings,
+    });
+    console.debug(`[CHAT API] Using LLM: ${sessionDisplayName}, inject=${injectContext}, caching=${useCaching ? "on" : "off"}`);
 
     // Think-tag filter: strip <think>...</think> blocks from non-Anthropic providers.
     // NOTE: This filter currently operates on text deltas as they are persisted to
@@ -729,12 +754,16 @@ export async function POST(req: Request) {
     // the DB-persisted (already-filtered) content when it re-fetches.
     // TODO: For true real-time filtering on the client, consider applying the filter
     // as a TransformStream on the SSE response, or filtering client-side.
-    const thinkTagFilter = shouldFilterThinkTags(provider, currentModelId)
-      ? createThinkTagFilter()
-      : null;
-    if (thinkTagFilter) {
-      console.debug(`[CHAT API] Think-tag filtering enabled for provider=${provider}, model=${currentModelId}`);
-    }
+    let thinkTagFilter: ReturnType<typeof createThinkTagFilter> | null = null;
+    const recreateThinkTagFilter = () => {
+      thinkTagFilter = shouldFilterThinkTags(provider, currentModelId)
+        ? createThinkTagFilter()
+        : null;
+      if (thinkTagFilter) {
+        console.debug(`[CHAT API] Think-tag filtering enabled for provider=${provider}, model=${currentModelId}`);
+      }
+    };
+    recreateThinkTagFilter();
 
     const runFinalized = { value: false };
 
@@ -804,7 +833,28 @@ export async function POST(req: Request) {
       }
     };
 
-    const streamAbortSignal = combineAbortSignals([req.signal, chatAbortController.signal]);
+    // Decouple run lifetime from client connection. Previously req.signal was
+    // combined here, meaning a renderer crash/reload (which closes the HTTP
+    // connection) would abort the LLM call and cancel the run. Now only the
+    // explicit user-stop controller can abort the computation. The onFinish
+    // callback still fires and persists results to DB even if the client is gone.
+    const streamAbortSignal = chatAbortController.signal;
+
+    // Track client disconnect separately for graceful transport teardown.
+    // When this fires, we stop piping chunks but let the LLM call finish.
+    let clientDisconnected = false;
+    const markClientDisconnected = () => {
+      if (clientDisconnected) return;
+      clientDisconnected = true;
+      console.log(`[CHAT API] Client disconnected (session=${sessionId}, run=${runId}) — LLM call continues, onFinish will persist results`);
+    };
+    // Check if already aborted before attaching listener (AbortSignal doesn't
+    // replay past aborts to late listeners).
+    if (req.signal.aborted) {
+      markClientDisconnected();
+    } else {
+      req.signal.addEventListener("abort", markClientDisconnected, { once: true });
+    }
 
     // Build shared callback context
     const callbackCtx = {
@@ -821,7 +871,7 @@ export async function POST(req: Request) {
       discoveredTools,
       previouslyDiscoveredTools,
       initialActiveToolNames,
-      assistantMessageId,
+      getAssistantMessageId: () => assistantMessageId,
       contextTracking,
       injectContext,
       toolLoadingMode,
@@ -843,7 +893,10 @@ export async function POST(req: Request) {
         () => withRunContext(
         { runId, sessionId, pipelineName: "chat", characterId: characterId || undefined },
         async () => streamText({
-          model: resolveSessionLanguageModel(sessionMetadata),
+          model: await resolveSessionLanguageModelForSession(sessionMetadata, {
+            characterId,
+            settings: appSettings,
+          }),
           ...(injectContext && { system: systemPromptValue }),
           messages: cachedMessages,
           tools: allToolsWithMCP,
@@ -853,7 +906,11 @@ export async function POST(req: Request) {
           // execute results from triggering a new SDK query (infinite loop).
           // The SDK agent's entire multi-turn work happens inside step 0's fetch.
           stopWhen: stepCountIs(provider === "claudecode" ? 1 : AI_CONFIG.maxSteps),
-          temperature: getSessionProviderTemperature(sessionMetadata, initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature),
+          temperature: await getSessionProviderTemperatureForSession(
+            sessionMetadata,
+            initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature,
+            { characterId, settings: appSettings },
+          ),
           toolChoice: AI_CONFIG.toolChoice,
           prepareStep: async ({ stepNumber, messages: stepMessages }) => {
             let activeToolSet: Set<string>;
@@ -1008,7 +1065,8 @@ export async function POST(req: Request) {
               console.warn(`[CHAT API] Non-fatal tool error in Claude Code run (skipping finalization): ${errorMessage}`);
               return;
             }
-            await finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
+            // Let the UI stream wrapper decide whether this is eligible for
+            // pre-commit recovery. It will finalize the run if recovery is not possible.
           },
           onChunk: shouldEmitProgress
             ? async ({ chunk }) => {
@@ -1085,106 +1143,258 @@ export async function POST(req: Request) {
 
     const STREAM_RECOVERY_MAX_ATTEMPTS = 7;
     let result: Awaited<ReturnType<typeof createStreamResult>>;
-    const schemaRecoveredTools = new Set<string>();
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        result = await createStreamResult();
-        if (attempt > 0) {
-          await appendRunEvent({ runId, eventType: "llm_request_completed", level: "info", pipelineName: "chat", data: { attempt, reason: "stream_recovered", outcome: "recovered" } });
-        }
-        break;
-      } catch (error) {
-        const schemaError = parseInvalidToolSchemaError(error);
-        if (schemaError && !schemaRecoveredTools.has(schemaError.toolName)) {
-          const recovered = disableToolForSchemaRecovery(
-            {
-              allToolsWithMCP,
-              initialActiveToolNames,
-              initialActiveTools,
-              discoveredTools,
-              previouslyDiscoveredTools,
-            },
-            schemaError.toolName
-          );
 
-          if (recovered) {
-            schemaRecoveredTools.add(schemaError.toolName);
-            console.warn(
-              `[CHAT API] Recovered from invalid schema for tool "${schemaError.toolName}" by disabling it for this run: ${schemaError.reason}`
-            );
-            if (runId) {
-              await appendRunEvent({
-                runId,
-                eventType: "tool_failed",
-                level: "warn",
-                pipelineName: "chat",
-                data: {
-                  attempt: attempt + 1,
-                  toolName: schemaError.toolName,
-                  reason: schemaError.reason,
-                  outcome: "tool_disabled_retrying",
-                },
-              });
-            }
-            continue;
+    const createStreamResultWithRecovery = async (startAttempt = 0) => {
+      const schemaRecoveredTools = new Set<string>();
+      for (let attempt = startAttempt; ; attempt += 1) {
+        try {
+          const created = await createStreamResult();
+          if (attempt > 0) {
+            await appendRunEvent({ runId, eventType: "llm_request_completed", level: "info", pipelineName: "chat", data: { attempt, reason: "stream_recovered", outcome: "recovered" } });
           }
+          return { result: created, attempt };
+        } catch (error) {
+          const schemaError = parseInvalidToolSchemaError(error);
+          if (schemaError && !schemaRecoveredTools.has(schemaError.toolName)) {
+            const recovered = disableToolForSchemaRecovery(
+              {
+                allToolsWithMCP,
+                initialActiveToolNames,
+                initialActiveTools,
+                discoveredTools,
+                previouslyDiscoveredTools,
+              },
+              schemaError.toolName
+            );
+
+            if (recovered) {
+              schemaRecoveredTools.add(schemaError.toolName);
+              console.warn(
+                `[CHAT API] Recovered from invalid schema for tool "${schemaError.toolName}" by disabling it for this run: ${schemaError.reason}`
+              );
+              if (runId) {
+                await appendRunEvent({
+                  runId,
+                  eventType: "tool_failed",
+                  level: "warn",
+                  pipelineName: "chat",
+                  data: {
+                    attempt: attempt + 1,
+                    toolName: schemaError.toolName,
+                    reason: schemaError.reason,
+                    outcome: "tool_disabled_retrying",
+                  },
+                });
+              }
+              continue;
+            }
+          }
+
+          const classification = classifyRecoverability({ provider, error, message: error instanceof Error ? error.message : String(error) });
+          const retry = shouldRetry({ classification, attempt, maxAttempts: STREAM_RECOVERY_MAX_ATTEMPTS, aborted: streamAbortSignal.aborted });
+
+          if (runId) {
+            const delay = retry ? getBackoffDelayMs(attempt) : 0;
+            await appendRunEvent({ runId, eventType: "llm_request_failed", level: retry ? "info" : "warn", pipelineName: "chat", data: { attempt: attempt + 1, reason: classification.reason, recoverable: classification.recoverable, delayMs: delay, outcome: retry ? "retrying" : "exhausted" } });
+          }
+
+          if (!retry) throw error;
+
+          const delay = getBackoffDelayMs(attempt);
+          console.debug("[CHAT API] Retrying stream creation", { attempt: attempt + 1, reason: classification.reason, delayMs: delay, provider });
+          await sleepWithAbort(delay, streamAbortSignal);
         }
-
-        const classification = classifyRecoverability({ provider, error, message: error instanceof Error ? error.message : String(error) });
-        const retry = shouldRetry({ classification, attempt, maxAttempts: STREAM_RECOVERY_MAX_ATTEMPTS, aborted: streamAbortSignal.aborted });
-
-        if (runId) {
-          const delay = retry ? getBackoffDelayMs(attempt) : 0;
-          await appendRunEvent({ runId, eventType: "llm_request_failed", level: retry ? "info" : "warn", pipelineName: "chat", data: { attempt: attempt + 1, reason: classification.reason, recoverable: classification.recoverable, delayMs: delay, outcome: retry ? "retrying" : "exhausted" } });
-        }
-
-        if (!retry) throw error;
-
-        const delay = getBackoffDelayMs(attempt);
-        console.debug("[CHAT API] Retrying stream creation", { attempt: attempt + 1, reason: classification.reason, delayMs: delay, provider });
-        await sleepWithAbort(delay, streamAbortSignal);
       }
-    }
+    };
 
-    const response = result!.toUIMessageStreamResponse({
-      generateMessageId: () => assistantMessageId,
-      consumeSseStream: ({ stream }) =>
-        consumeStream({
-          stream,
-          onError: (error) => {
-            const errorMessage = normalizeStreamError(error).message;
-            if (provider === "claudecode" && isNonFatalToolError(error)) {
-              console.warn(`[CHAT API] Non-fatal tool error in Claude Code SSE stream (skipping finalization): ${errorMessage}`);
+    let requestAttempt = 0;
+    ({ result, attempt: requestAttempt } = await createStreamResultWithRecovery());
+
+    const resetStreamingStateForRetry = () => {
+      if (!streamingState) return;
+      streamingState.parts = [];
+      streamingState.toolCallParts = new Map();
+      streamingState.loggedIncompleteToolCalls = new Set();
+      streamingState.messageId = undefined;
+      streamingState.isCreating = false;
+      streamingState.lastBroadcastAt = 0;
+      streamingState.lastBroadcastSignature = "";
+      streamingState.pendingBroadcast = false;
+      streamingState.stepOffset = undefined;
+      streamingState.provenance = undefined;
+      // Rotate message ID to avoid UNIQUE constraint if prior attempt persisted a row
+      assistantMessageId = crypto.randomUUID();
+    };
+
+    const buildUiMessageStream = () =>
+      result!.toUIMessageStream({
+        generateMessageId: () => assistantMessageId,
+        messageMetadata: ({ part }) => {
+          if (part.type === "finish-step" && part.usage) {
+            const anthropicMeta = (part as any).providerMetadata?.anthropic || {};
+            const cacheRead = anthropicMeta.cacheReadInputTokens || (part.usage as any).cache_read_input_tokens || 0;
+            const cacheWrite = anthropicMeta.cacheCreationInputTokens || (part.usage as any).cache_creation_input_tokens || 0;
+            const basePricePerToken = 3 / 1_000_000;
+            const estimatedSavingsUsd = cacheRead > 0 ? 0.9 * basePricePerToken * cacheRead : 0;
+            return {
+              custom: {
+                usage: { inputTokens: part.usage.inputTokens, outputTokens: part.usage.outputTokens, totalTokens: part.usage.totalTokens },
+                ...(cacheRead > 0 || cacheWrite > 0 ? { cache: { cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, estimatedSavingsUsd } } : {}),
+              },
+            };
+          }
+          return undefined;
+        },
+        onError: (error) => normalizeStreamError(error).message,
+      });
+
+    let activeUiReader: ReadableStreamDefaultReader<UIMessageChunk> | null = null;
+    const uiStream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        let closed = false;
+        let clientCommitted = false;
+        let bufferedChunks: UIMessageChunk[] = [];
+
+        const emitChunk = (chunk: UIMessageChunk) => {
+          if (closed) return;
+          try {
+            controller.enqueue(chunk);
+          } catch {
+            // Controller already cancelled (client disconnected) — stop enqueuing
+            closed = true;
+          }
+        };
+
+        const closeStream = () => {
+          if (closed) return;
+          closed = true;
+          try { controller.close(); } catch { /* already closed/cancelled */ }
+        };
+
+        const finalizeAndEmitError = async (errorMessage: string, sourceError?: unknown) => {
+          // Always finalize the run on provider error — even if client is gone.
+          // Previously we skipped finalizeFailedRun when clientDisconnected, but
+          // onFinish only fires on successful completion. If the provider errors
+          // after disconnect, nothing else would finalize the run, leaving it
+          // stuck in "in_progress" forever.
+          await finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError, streamAborted: streamAbortSignal.aborted });
+          if (!closed && !clientDisconnected) {
+            emitChunk({ type: "error", errorText: `Streaming interrupted: ${errorMessage}` } as UIMessageChunk);
+          }
+          closeStream();
+        };
+
+        const preparePrecommitRetry = async (errorMessage: string, sourceError?: unknown) => {
+          // No point retrying if client is gone — the LLM call continues in
+          // background and onFinish will persist results when it completes.
+          if (clientDisconnected) return false;
+
+          const { retry, classification } = shouldAttemptPrecommitRecovery({
+            provider,
+            error: sourceError,
+            errorMessage,
+            attempt: requestAttempt,
+            maxAttempts: STREAM_RECOVERY_MAX_ATTEMPTS,
+            aborted: streamAbortSignal.aborted,
+            clientCommitted,
+            streamingState,
+          });
+
+          if (!retry) return false;
+
+          const delay = getBackoffDelayMs(requestAttempt);
+          if (runId) {
+            await appendRunEvent({ runId, eventType: "llm_request_failed", level: "info", pipelineName: "chat", data: { attempt: requestAttempt + 1, reason: classification.reason, recoverable: classification.recoverable, delayMs: delay, outcome: "retrying_precommit" } });
+          }
+          console.warn("[CHAT API] Retrying recoverable pre-commit UI stream failure", { attempt: requestAttempt + 1, reason: classification.reason, delayMs: delay, provider });
+          resetStreamingStateForRetry();
+          recreateThinkTagFilter();
+          bufferedChunks = [];
+          clientCommitted = false;
+          await sleepWithAbort(delay, streamAbortSignal);
+          ({ result, attempt: requestAttempt } = await createStreamResultWithRecovery(requestAttempt + 1));
+          return true;
+        };
+
+        const pump = async () => {
+          while (!closed) {
+            let shouldRestart = false;
+            activeUiReader = buildUiMessageStream().getReader();
+            try {
+              while (!closed) {
+                const { done, value } = await activeUiReader.read();
+                if (done) {
+                  if (!clientCommitted && bufferedChunks.length > 0) {
+                    for (const pendingChunk of bufferedChunks) {
+                      emitChunk(pendingChunk);
+                    }
+                    bufferedChunks = [];
+                    clientCommitted = true;
+                  }
+                  closeStream();
+                  return;
+                }
+
+                if (value.type === "error") {
+                  shouldRestart = await preparePrecommitRetry(value.errorText ?? "Unknown stream error");
+                  if (shouldRestart) break;
+                  await finalizeAndEmitError(value.errorText ?? "Unknown stream error");
+                  return;
+                }
+
+                if (!clientCommitted && !isUiChunkCommittable(value)) {
+                  bufferedChunks.push(value);
+                  continue;
+                }
+
+                if (!clientCommitted) {
+                  for (const pendingChunk of bufferedChunks) {
+                    emitChunk(pendingChunk);
+                  }
+                  bufferedChunks = [];
+                  clientCommitted = true;
+                }
+
+                emitChunk(value);
+              }
+            } catch (error) {
+              const errorMessage = normalizeStreamError(error).message;
+              shouldRestart = await preparePrecommitRetry(errorMessage, error);
+              if (!shouldRestart) {
+                await finalizeAndEmitError(errorMessage, error);
+                return;
+              }
+            } finally {
+              try {
+                activeUiReader?.releaseLock();
+              } catch {
+                // no-op
+              }
+            }
+
+            if (!shouldRestart) {
+              closeStream();
               return;
             }
-            void finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
-          },
-        }),
-      onError: (error) => {
-        const errorMessage = normalizeStreamError(error).message;
-        if (provider === "claudecode" && isNonFatalToolError(error)) {
-          console.warn(`[CHAT API] Non-fatal tool error in Claude Code UI stream (skipping finalization): ${errorMessage}`);
-          return "Non-fatal tool error — agent is self-correcting.";
-        }
-        void finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
-        return `Streaming interrupted: ${errorMessage}`;
+          }
+        };
+
+        void pump();
       },
-      messageMetadata: ({ part }) => {
-        if (part.type === 'finish-step' && part.usage) {
-          const anthropicMeta = (part as any).providerMetadata?.anthropic || {};
-          const cacheRead = anthropicMeta.cacheReadInputTokens || (part.usage as any).cache_read_input_tokens || 0;
-          const cacheWrite = anthropicMeta.cacheCreationInputTokens || (part.usage as any).cache_creation_input_tokens || 0;
-          const basePricePerToken = 3 / 1_000_000;
-          const estimatedSavingsUsd = cacheRead > 0 ? 0.9 * basePricePerToken * cacheRead : 0;
-          return {
-            custom: {
-              usage: { inputTokens: part.usage.inputTokens, outputTokens: part.usage.outputTokens, totalTokens: part.usage.totalTokens },
-              ...(cacheRead > 0 || cacheWrite > 0 ? { cache: { cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, estimatedSavingsUsd } } : {}),
-            },
-          };
-        }
-        return undefined;
+      async cancel(_reason) {
+        // Mark client as gone so the pump stops emitting and finalizeAndEmitError
+        // skips writing to the closed transport.
+        markClientDisconnected();
+        // Do NOT cancel activeUiReader — cancellation propagates upstream through
+        // the AI SDK stream and can abort the LLM call, defeating the signal
+        // decoupling. Instead, let the pump detect the closed controller naturally
+        // (emitChunk/closeStream catch the error) and exit gracefully while the
+        // LLM computation continues in the background.
       },
+    });
+
+    const response = createUIMessageStreamResponse({
+      stream: uiStream,
     });
     response.headers.set("X-Session-Id", sessionId);
 

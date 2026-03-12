@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
-import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
+import {
+    convertDBMessagesToUIMessages,
+    countVisibleConversationMessages,
+} from "@/lib/messages/converter";
 import type { TaskEvent, TaskStatus, UnifiedTask } from "@/lib/background-tasks/types";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
@@ -98,10 +101,9 @@ export function useBackgroundProcessing({
                 }
             });
             if (hasInjectedMessage) {
-                const conversationMessageCount = data.messages.filter(
-                    (m: any) => m.role === "user" || m.role === "assistant"
-                ).length;
-                notifySessionUpdate(sessionId, { messageCount: conversationMessageCount });
+                notifySessionUpdate(sessionId, {
+                    messageCount: countVisibleConversationMessages(data.messages),
+                });
                 return;
             }
         }
@@ -109,10 +111,9 @@ export function useBackgroundProcessing({
         lastMessageSigRef.current = sig;
 
         const uiMessages = convertDBMessagesToUIMessages(data.messages);
-        const conversationMessageCount = data.messages.filter((message) => message.role === "user" || message.role === "assistant").length;
 
         notifySessionUpdate(sessionId, {
-            messageCount: conversationMessageCount,
+            messageCount: countVisibleConversationMessages(data.messages),
         });
 
         // Update session state for sidebar / session switching
@@ -362,6 +363,7 @@ export function useSessionManager({
         append?: boolean;
         overrideCursor?: string | null;
         preserveExtra?: boolean;
+        signal?: AbortSignal;
     }) => {
         const silent = options?.silent ?? false;
         const append = options?.append ?? false;
@@ -379,7 +381,7 @@ export function useSessionManager({
             if (dateRange !== "all") params.set("dateRange", dateRange);
             const { data, error } = await resilientFetch<{ sessions: SessionInfo[]; nextCursor?: string; totalCount?: number }>(
                 `/api/sessions?${params.toString()}`,
-                { retries: 0 }
+                { retries: 0, signal: options?.signal }
             );
             if (error || !data) return false;
             const pageSessions = sortSessionsByUpdatedAt((data.sessions || []) as SessionInfo[]);
@@ -426,9 +428,7 @@ export function useSessionManager({
 
         const dbMessages = (data.messages || []) as DBMessage[];
         const uiMessages = convertDBMessagesToUIMessages(dbMessages);
-        const conversationalMessageCount = dbMessages.filter(
-            (message) => message.role === "user" || message.role === "assistant"
-        ).length;
+        const conversationalMessageCount = countVisibleConversationMessages(dbMessages);
 
         return { uiMessages, conversationalMessageCount };
     }, []);

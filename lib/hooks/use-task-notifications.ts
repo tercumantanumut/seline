@@ -27,6 +27,12 @@ import type {
 import { formatDuration } from "@/lib/utils/timestamp";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
+const DEBUG_CHAT =
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_DEBUG_CHAT === "true";
+
+/** Batch interval for progress events — only the latest per-runId is processed each flush. */
+const BATCH_FLUSH_MS = 250;
+
 interface SSEMessage {
   type: "connected" | "heartbeat" | "task:started" | "task:completed" | "task:progress";
   data?: TaskEvent;
@@ -481,6 +487,12 @@ export function useTaskNotifications() {
   const hasConnectedOnceRef = useRef(false);
   const wasDisconnectedRef = useRef(false);
   const lastEventReceivedAtRef = useRef<number | null>(null);
+  // Layer 2: Progress event batching — dedup per-runId, flush on timer
+  const progressBatchRef = useRef<Map<string, TaskEvent>>(new Map());
+  const batchFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Layer 5: Visibility-aware budget — drop progress events when window is hidden
+  const isWindowVisibleRef = useRef(true);
+  const reconcileOnFocusRef = useRef<(() => Promise<void>) | null>(null);
   const addTask = useUnifiedTasksStore((state) => state.addTask);
   const updateTask = useUnifiedTasksStore((state) => state.updateTask);
   const completeTask = useUnifiedTasksStore((state) => state.completeTask);
@@ -888,11 +900,11 @@ export function useTaskNotifications() {
         try {
           lastEventReceivedAtRef.current = Date.now();
           const message: SSEMessage = JSON.parse(event.data);
-          console.log("[TaskNotifications] Received message:", message.type);
+          if (DEBUG_CHAT) console.log("[TaskNotifications] Received message:", message.type);
 
           switch (message.type) {
             case "connected":
-              console.log("[TaskNotifications] Connected to event stream");
+              if (DEBUG_CHAT) console.log("[TaskNotifications] Connected to event stream");
               break;
             case "heartbeat":
               break;
@@ -908,7 +920,27 @@ export function useTaskNotifications() {
               break;
             case "task:progress":
               if (message.data) {
-                handleTaskProgressRef.current(message.data);
+                // Layer 2: Batch progress events — keep only latest per runId
+                const runId = "runId" in message.data ? (message.data as TaskProgressEvent).runId : undefined;
+                if (runId) {
+                  progressBatchRef.current.set(runId, message.data);
+                  if (batchFlushTimerRef.current === null) {
+                    batchFlushTimerRef.current = setTimeout(() => {
+                      batchFlushTimerRef.current = null;
+                      const batch = progressBatchRef.current;
+                      progressBatchRef.current = new Map();
+                      // Layer 5: Skip processing when window is hidden —
+                      // reconcileTasks on focus-regain will resync state.
+                      if (!isWindowVisibleRef.current) return;
+                      for (const evt of batch.values()) {
+                        handleTaskProgressRef.current(evt);
+                      }
+                    }, BATCH_FLUSH_MS);
+                  }
+                } else {
+                  // No runId — process immediately (shouldn't happen, but safe fallback)
+                  handleTaskProgressRef.current(message.data);
+                }
               }
               break;
           }
@@ -945,13 +977,71 @@ export function useTaskNotifications() {
     });
 
     return () => {
-      console.log("[TaskNotifications] Cleaning up SSE connection");
+      if (DEBUG_CHAT) console.log("[TaskNotifications] Cleaning up SSE connection");
       cleanupConnection();
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
+      if (batchFlushTimerRef.current !== null) {
+        clearTimeout(batchFlushTimerRef.current);
+        batchFlushTimerRef.current = null;
+      }
+      progressBatchRef.current.clear();
       reconnectAttemptsRef.current = 0;
     };
   }, [isLoading, user?.id]);
+
+  // Layer 5: Visibility-aware budget
+  // When window loses focus, progress events are still batched but the flush
+  // discards them. On focus-regain, reconcile from server.
+  useEffect(() => {
+    const setVisible = (visible: boolean) => {
+      const wasHidden = !isWindowVisibleRef.current;
+      isWindowVisibleRef.current = visible;
+      if (visible && wasHidden) {
+        // Reconcile task state after returning from background
+        resilientFetch<{ tasks: UnifiedTask[] }>("/api/tasks/active").then(({ data }) => {
+          if (!data) return;
+          const store = useUnifiedTasksStore.getState();
+          const syncStore = useSessionSyncStore.getState();
+          const serverRunIds = new Set(data.tasks.map((t) => t.runId));
+          // Remove tasks that completed while hidden
+          for (const task of store.tasks) {
+            if (!serverRunIds.has(task.runId)) {
+              store.completeTask(task);
+              if (task.sessionId) {
+                syncStore.setActiveRun(task.sessionId, null);
+                syncStore.setSessionActivity(task.sessionId, null);
+              }
+            }
+          }
+          // Add/update tasks that started or progressed while hidden
+          for (const task of data.tasks) {
+            const existing = store.tasks.find((t) => t.runId === task.runId);
+            if (existing) store.updateTask(task.runId, task);
+            else store.addTask(task);
+          }
+        });
+      }
+    };
+
+    // Browser-level visibility (fallback, works even outside Electron)
+    const handleVisibility = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // Electron-specific: window blur/focus (more reliable on macOS)
+    const electronAPI = (window as unknown as { electronAPI?: { ipc?: { on?: (ch: string, cb: (...args: unknown[]) => void) => void } } }).electronAPI;
+    if (electronAPI?.ipc?.on) {
+      electronAPI.ipc.on("window:visibility-changed", (visible: unknown) => {
+        if (typeof visible === "boolean") setVisible(visible);
+      });
+    }
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      const api = (window as unknown as { electronAPI?: { ipc?: { removeAllListeners?: (ch: string) => void } } }).electronAPI;
+      api?.ipc?.removeAllListeners?.("window:visibility-changed");
+    };
+  }, []);
 }

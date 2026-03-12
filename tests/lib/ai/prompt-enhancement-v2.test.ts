@@ -7,6 +7,8 @@ const aiMocks = vi.hoisted(() => ({
 const resolverMocks = vi.hoisted(() => ({
   resolveSessionUtilityModel: vi.fn(() => ({ id: "session-utility" })),
   getSessionProviderTemperature: vi.fn(() => 0.3),
+  resolveSessionUtilityModelForSession: vi.fn(async () => ({ id: "session-utility" })),
+  getSessionProviderTemperatureForSession: vi.fn(async () => 0.3),
 }));
 
 const memoryMocks = vi.hoisted(() => ({
@@ -103,10 +105,10 @@ describe("enhancePromptWithLLM session-scoped memory behavior", () => {
       includeMemories: false,
     });
 
-    expect(resolverMocks.resolveSessionUtilityModel).toHaveBeenCalledWith({
+    expect(resolverMocks.resolveSessionUtilityModelForSession).toHaveBeenCalledWith({
       sessionProvider: "codex",
       sessionUtilityModel: "gpt-5.3-codex-medium",
     });
-    expect(resolverMocks.getSessionProviderTemperature).toHaveBeenCalled();
+    expect(resolverMocks.getSessionProviderTemperatureForSession).toHaveBeenCalled();
   });
 });

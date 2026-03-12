@@ -7,7 +7,7 @@
 
 import { generateText } from 'ai';
 import { getModelByName, getResearchModel } from '../providers';
-import { getSessionProviderTemperature } from '../session-model-resolver';
+import { getSessionProviderTemperatureForSession } from '../session-model-resolver';
 import { executeSearches, isSearchAvailable } from './search';
 import {
   RESEARCH_PLANNER_PROMPT,
@@ -29,7 +29,12 @@ import type {
 
 export type EventEmitter = (event: DeepResearchEvent) => void;
 
-function resolveResearchGenerationConfig(config: Partial<DeepResearchConfig>) {
+interface ResearchGenerationConfig {
+  model: ReturnType<typeof getResearchModel>;
+  temperature: number;
+}
+
+async function resolveResearchGenerationConfig(config: Partial<DeepResearchConfig>): Promise<ResearchGenerationConfig> {
   let model = getResearchModel();
   if (config.researchModel) {
     try {
@@ -39,7 +44,7 @@ function resolveResearchGenerationConfig(config: Partial<DeepResearchConfig>) {
     }
   }
 
-  const requestedTemperature = getSessionProviderTemperature(
+  const requestedTemperature = await getSessionProviderTemperatureForSession(
     config.sessionProvider ? { sessionProvider: config.sessionProvider } : null,
     0.7
   );
@@ -100,7 +105,7 @@ function parseJsonResponse<T>(text: string): T {
 async function planResearch(
   state: DeepResearchState,
   emit: EventEmitter,
-  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
+  generationConfig: ResearchGenerationConfig,
   abortSignal?: AbortSignal
 ): Promise<ResearchPlan> {
   emitPhaseChange(emit, 'planning', 'Creating research plan...');
@@ -131,7 +136,7 @@ async function planResearch(
 async function generateSearchQueries(
   plan: ResearchPlan,
   emit: EventEmitter,
-  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
+  generationConfig: ResearchGenerationConfig,
   abortSignal?: AbortSignal
 ): Promise<string[]> {
   emit({
@@ -209,7 +214,7 @@ async function generateDraftReport(
   plan: ResearchPlan,
   findings: ResearchFinding[],
   emit: EventEmitter,
-  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
+  generationConfig: ResearchGenerationConfig,
   abortSignal?: AbortSignal
 ): Promise<DraftReport> {
   emitPhaseChange(emit, 'drafting', 'Writing draft report...');
@@ -260,7 +265,7 @@ async function refineDraft(
   draft: DraftReport,
   plan: ResearchPlan,
   emit: EventEmitter,
-  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
+  generationConfig: ResearchGenerationConfig,
   abortSignal?: AbortSignal
 ): Promise<{ gaps: string[]; searches: string[] }> {
   emitPhaseChange(emit, 'refining', `Refining report (iteration ${draft.iteration})...`);
@@ -310,7 +315,7 @@ async function generateFinalReport(
   plan: ResearchPlan,
   findings: ResearchFinding[],
   emit: EventEmitter,
-  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
+  generationConfig: ResearchGenerationConfig,
   abortSignal?: AbortSignal
 ): Promise<FinalReport> {
   emitPhaseChange(emit, 'finalizing', 'Generating final report...');
@@ -382,7 +387,7 @@ export async function runDeepResearch(
   const state = createInitialState(userQuery, config);
   const maxIterations = config.maxIterations ?? 3;
   const abortSignal = config.abortSignal;
-  const generationConfig = resolveResearchGenerationConfig(config);
+  const generationConfig = await resolveResearchGenerationConfig(config);
 
   try {
     // Check if search is available

@@ -6,9 +6,10 @@
  * Connects to the CDP screencast SSE stream and renders real-time
  * browser frames as a blurred, dimmed backdrop behind chat messages.
  *
- * Self-contained: probes the SSE endpoint every 5s to detect when a
- * browser session becomes active. Fades in with first frame, fades
- * out when the session closes (SSE returns 404).
+ * Event-driven: listens for background-task-progress events containing
+ * chromium tool calls to detect when a browser session becomes active.
+ * No blind polling — only probes the SSE endpoint after seeing evidence
+ * of browser activity.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -22,6 +23,44 @@ interface BrowserBackdropProps {
   onActiveChange?: (active: boolean) => void;
 }
 
+/** Tool names that indicate a browser session may be active */
+const BROWSER_TOOL_NAMES = new Set([
+  "chromium_workspace",
+  "chromiumWorkspace",
+  "chromium-workspace",
+  "browser",
+]);
+
+function hasBrowserToolCall(detail: unknown): boolean {
+  if (!detail || typeof detail !== "object") return false;
+  const event = detail as Record<string, unknown>;
+
+  // Check progressContent for tool calls with browser-related tool names
+  const parts = Array.isArray(event.progressContent) ? event.progressContent : [];
+  for (const part of parts) {
+    if (part && typeof part === "object") {
+      const p = part as Record<string, unknown>;
+      if (
+        (p.type === "tool-call" || p.type === "tool-result") &&
+        typeof p.toolName === "string" &&
+        BROWSER_TOOL_NAMES.has(p.toolName)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  // Check progressText for browser-related keywords
+  if (typeof event.progressText === "string") {
+    const lower = event.progressText.toLowerCase();
+    if (lower.includes("browser") || lower.includes("chromium") || lower.includes("screencast")) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function BrowserBackdrop({ sessionId, className, onActiveChange }: BrowserBackdropProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -29,6 +68,8 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
   const [isConnected, setIsConnected] = useState(false);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const probeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Tracks whether we've seen browser tool activity for this session
+  const [browserDetected, setBrowserDetected] = useState(false);
 
   const cleanupStream = useCallback(() => {
     if (eventSourceRef.current) {
@@ -55,10 +96,46 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
     onActiveChange?.(hasFrame);
   }, [hasFrame, onActiveChange]);
 
+  // Listen for browser tool calls in background-task-progress events
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId) return;
+
+    const handleProgress = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail || typeof detail !== "object") return;
+      const evt = detail as Record<string, unknown>;
+      // Only care about progress events for this session
+      if (evt.sessionId !== sessionId) return;
+      if (hasBrowserToolCall(detail)) {
+        setBrowserDetected(true);
+      }
+    };
+
+    const handleCompleted = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail || typeof detail !== "object") return;
+      const task = (detail as Record<string, unknown>).task as Record<string, unknown> | undefined;
+      if (task?.sessionId === sessionId) {
+        // Run completed — if no active stream, reset browser detection
+        if (!eventSourceRef.current) {
+          setBrowserDetected(false);
+        }
+      }
+    };
+
+    window.addEventListener("background-task-progress", handleProgress);
+    window.addEventListener("background-task-completed", handleCompleted);
+    return () => {
+      window.removeEventListener("background-task-progress", handleProgress);
+      window.removeEventListener("background-task-completed", handleCompleted);
+    };
+  }, [sessionId]);
+
+  // Connect to screencast stream only when browser activity is detected
+  useEffect(() => {
+    if (!sessionId || !browserDetected) {
       cleanupAll();
-      setHasFrame(false);
+      if (!browserDetected) setHasFrame(false);
       return;
     }
 
@@ -94,6 +171,7 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
         if (mounted) {
           setIsConnected(false);
           setHasFrame(false);
+          setBrowserDetected(false);
         }
       });
 
@@ -104,38 +182,54 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
           setIsConnected(false);
           // Fade out after losing connection
           setTimeout(() => {
-            if (mounted && !eventSourceRef.current) setHasFrame(false);
+            if (mounted && !eventSourceRef.current) {
+              setHasFrame(false);
+              setBrowserDetected(false);
+            }
           }, 1500);
         }
       };
     };
 
-    // Probe: check if a screencast is active, then connect
+    // Probe once to check if screencast is already active, then connect
     const probe = async () => {
       if (!mounted || eventSourceRef.current) return;
       try {
         const res = await fetch(`/api/browser/${sessionId}/stream`, {
           method: "HEAD",
         });
-        // If not 404, a screencast is running — connect
-        if (res.ok || res.status === 200) {
+        if (res.ok) {
           connectStream();
+        } else {
+          // Screencast not ready yet — retry a few times then give up
+          // (the agent may still be navigating before screencast starts)
+          probeIntervalRef.current = setInterval(async () => {
+            if (!mounted || eventSourceRef.current) {
+              if (probeIntervalRef.current) clearInterval(probeIntervalRef.current);
+              return;
+            }
+            try {
+              const r = await fetch(`/api/browser/${sessionId}/stream`, { method: "HEAD" });
+              if (r.ok) {
+                if (probeIntervalRef.current) clearInterval(probeIntervalRef.current);
+                connectStream();
+              }
+            } catch { /* ignore */ }
+          }, 3000);
         }
       } catch {
         // Network error, ignore
       }
     };
 
-    // Initial probe + periodic retry
     void probe();
-    probeIntervalRef.current = setInterval(probe, 5000);
 
     return () => {
       mounted = false;
       cleanupAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [sessionId, browserDetected]);
 
   return (
     <div

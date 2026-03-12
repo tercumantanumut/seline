@@ -153,6 +153,14 @@ export function useContextStatus({
     };
   }, [autoFetch, sessionId, fetchStatus]);
 
+  // Refresh when model config changes (agent defaults, session overrides, etc.)
+  useEffect(() => {
+    if (!sessionId) return;
+    const handler = () => void fetchStatus();
+    window.addEventListener("seline:model-config-changed", handler);
+    return () => window.removeEventListener("seline:model-config-changed", handler);
+  }, [sessionId, fetchStatus]);
+
   // Refresh once when tab becomes visible again after being hidden.
   useEffect(() => {
     if (!sessionId || !pauseWhenHidden || typeof document === "undefined") return;

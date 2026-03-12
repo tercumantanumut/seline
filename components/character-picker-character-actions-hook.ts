@@ -4,7 +4,19 @@ import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { resilientFetch, resilientPatch, resilientDelete, resilientPost } from "@/lib/utils/resilient-fetch";
-import type { CharacterSummary } from "@/components/character-picker-types";
+import type {
+  AgentModelConfigDraft,
+  CharacterSummary,
+  IdentityEditorFormState,
+} from "@/components/character-picker-types";
+
+const EMPTY_AGENT_MODEL_CONFIG: AgentModelConfigDraft = {
+  provider: "",
+  chatModel: "",
+  researchModel: "",
+  visionModel: "",
+  utilityModel: "",
+};
 
 export function useCharacterActions(
   t: ReturnType<typeof useTranslations>,
@@ -13,13 +25,15 @@ export function useCharacterActions(
 ) {
   // Identity editor state
   const [identityEditorOpen, setIdentityEditorOpen] = useState(false);
+  const [identityEditorDefaultTab, setIdentityEditorDefaultTab] = useState<"basic" | "models" | "advanced">("basic");
   const [identityEditingCharacter, setIdentityEditingCharacter] = useState<CharacterSummary | null>(null);
-  const [identityForm, setIdentityForm] = useState({
+  const [identityForm, setIdentityForm] = useState<IdentityEditorFormState>({
     name: "",
     displayName: "",
     tagline: "",
     purpose: "",
     systemPromptOverride: "",
+    modelConfig: { ...EMPTY_AGENT_MODEL_CONFIG },
   });
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [isSavingIdentity, setIsSavingIdentity] = useState(false);
@@ -70,7 +84,8 @@ export function useCharacterActions(
   };
 
   // Identity actions
-  const openIdentityEditor = async (character: CharacterSummary) => {
+  const openIdentityEditor = async (character: CharacterSummary, tab: "basic" | "models" | "advanced" = "basic") => {
+    setIdentityEditorDefaultTab(tab);
     setIdentityEditingCharacter(character);
     const metadata = character.metadata as any;
     setIdentityForm({
@@ -79,6 +94,13 @@ export function useCharacterActions(
       tagline: character.tagline || "",
       purpose: character.metadata?.purpose || "",
       systemPromptOverride: metadata?.systemPromptOverride || "",
+      modelConfig: {
+        provider: metadata?.modelConfig?.provider || "",
+        chatModel: metadata?.modelConfig?.chatModel || "",
+        researchModel: metadata?.modelConfig?.researchModel || "",
+        visionModel: metadata?.modelConfig?.visionModel || "",
+        utilityModel: metadata?.modelConfig?.utilityModel || "",
+      },
     });
 
     const { data: promptData } = await resilientFetch<{ prompt?: string }>(
@@ -88,10 +110,21 @@ export function useCharacterActions(
     setIdentityEditorOpen(true);
   };
 
+  const openModelDefaults = (character: CharacterSummary) => openIdentityEditor(character, "models");
+
   const saveIdentity = async () => {
     if (!identityEditingCharacter) return;
     setIsSavingIdentity(true);
     try {
+      const modelConfig = {
+        provider: identityForm.modelConfig.provider || undefined,
+        chatModel: identityForm.modelConfig.chatModel || undefined,
+        researchModel: identityForm.modelConfig.researchModel || undefined,
+        visionModel: identityForm.modelConfig.visionModel || undefined,
+        utilityModel: identityForm.modelConfig.utilityModel || undefined,
+      };
+      const hasModelConfig = Object.values(modelConfig).some(Boolean);
+
       const { error } = await resilientPatch(`/api/characters/${identityEditingCharacter.id}`, {
         character: {
           name: identityForm.name,
@@ -101,11 +134,14 @@ export function useCharacterActions(
         metadata: {
           purpose: identityForm.purpose || undefined,
           systemPromptOverride: identityForm.systemPromptOverride || undefined,
+          modelConfig: hasModelConfig ? modelConfig : undefined,
         },
       });
       if (!error) {
         setIdentityEditorOpen(false);
         await loadCharacters();
+        // Notify model bag / context-status to refresh immediately
+        window.dispatchEvent(new Event("seline:model-config-changed"));
       }
     } catch (error) {
       console.error("Failed to save identity:", error);
@@ -293,12 +329,14 @@ export function useCharacterActions(
     // Identity
     identityEditorOpen,
     setIdentityEditorOpen,
+    identityEditorDefaultTab,
     editingCharacter: identityEditingCharacter,
     identityForm,
     setIdentityForm,
     generatedPrompt,
     isSavingIdentity,
     openIdentityEditor,
+    openModelDefaults,
     saveIdentity,
 
     // Delete

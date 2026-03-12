@@ -314,6 +314,10 @@ export const useSessionSyncStore = create<SessionSyncState>((set, get) => ({
   },
 
   setActiveRun: (sessionId, runId) => {
+    const current = get().activeRuns.get(sessionId);
+    // Skip no-op: same runId already set, or clearing when already absent
+    if (runId ? current === runId : !current) return;
+
     set((state) => {
       const newActiveRuns = new Map(state.activeRuns);
       if (runId) {

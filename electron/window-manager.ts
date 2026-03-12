@@ -137,6 +137,8 @@ export interface CreateWindowOptions {
   dataDir: string;
   mediaDir: string;
   prodServerPort: number;
+  /** When true, load via HTTPS (HTTP/2 proxy). Falls back to HTTP if false. */
+  prodUseHttps?: boolean;
   preloadPath: string;
   devServerUrl: string;
   waitForServer: (url: string, timeoutMs: number) => Promise<boolean>;
@@ -168,8 +170,8 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com data:; " +
           "img-src 'self' data: blob: https: http://localhost:*; " +
-          "media-src 'self' data: blob: https://*.amazonaws.com https://*.cloudfront.net https://assets.mixkit.co https://*.mixkit.co http://localhost:*; " +
-          "connect-src 'self' blob: https://api.anthropic.com https://openrouter.ai ws://localhost:* http://localhost:*; " +
+          "media-src 'self' data: blob: https://*.amazonaws.com https://*.cloudfront.net https://assets.mixkit.co https://*.mixkit.co http://localhost:* https://localhost:*; " +
+          "connect-src 'self' blob: https://api.anthropic.com https://openrouter.ai ws://localhost:* wss://localhost:* http://localhost:* https://localhost:*; " +
           "worker-src 'self' blob:; " +
           "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com;",
         ],
@@ -197,6 +199,13 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
       sandbox: true, // Enable sandbox for additional security
       webSecurity: true,
       allowRunningInsecureContent: false,
+      // Keep renderer alive when window is hidden/backgrounded. Without this,
+      // macOS aggressively throttles timers/JS (1/min), which can stall active
+      // streaming connections and cause the gray-screen-on-resume bug.
+      // Tradeoff: background activity (SSE polling, animations) stays hot,
+      // costing some battery. Acceptable for a local-first agent app where
+      // background work is the primary use case.
+      backgroundThrottling: false,
     },
     show: false, // Don't show until ready to prevent visual flash
   });
@@ -216,6 +225,11 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
   // DEBUG: Add error event handlers to catch page loading issues
   // ============================================================================
 
+  let loadFailRetries = 0;
+  let loadRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  const MAX_LOAD_RETRIES = 3;
+  const LOAD_RETRY_BASE_MS = 1500;
+
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     debugError("[Window] did-fail-load event:", {
       errorCode,
@@ -223,10 +237,38 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
       validatedURL,
       isMainFrame,
     });
+    // Retry main frame load failures (e.g. server temporarily unavailable
+    // after waking from sleep). Subframe failures are ignored.
+    // -3 = ERR_ABORTED (intentional navigation), skip retry for that.
+    if (isMainFrame && errorCode !== -3) {
+      if (loadFailRetries >= MAX_LOAD_RETRIES) {
+        debugError(`[Window] Main frame load failed ${loadFailRetries} times, giving up. Last error: ${errorDescription}`);
+        return;
+      }
+      loadFailRetries++;
+      const delay = LOAD_RETRY_BASE_MS * Math.pow(2, loadFailRetries - 1);
+      debugLog(`[Window] Retrying main frame load (attempt ${loadFailRetries}/${MAX_LOAD_RETRIES}, delay ${delay}ms)`);
+      if (loadRetryTimer) clearTimeout(loadRetryTimer);
+      loadRetryTimer = setTimeout(() => {
+        loadRetryTimer = null;
+        mainWindow?.webContents.reload();
+      }, delay);
+    }
   });
+
+  let crashRetries = 0;
+  let crashRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  const MAX_CRASH_RETRIES = 3;
+  const CRASH_RETRY_BASE_MS = 500;
 
   mainWindow.webContents.on("did-finish-load", () => {
     debugLog("[Window] did-finish-load - Page loaded successfully");
+    // Reset retry counters and cancel any pending retry timers.
+    // A stale timer from a prior failure could reload a healthy renderer.
+    loadFailRetries = 0;
+    crashRetries = 0;
+    if (loadRetryTimer) { clearTimeout(loadRetryTimer); loadRetryTimer = null; }
+    if (crashRetryTimer) { clearTimeout(crashRetryTimer); crashRetryTimer = null; }
   });
 
   mainWindow.webContents.on("dom-ready", () => {
@@ -235,6 +277,25 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     debugError("[Window] render-process-gone:", details);
+    // Renderer is already dead — all client-side transports are gone.
+    // Reload to restore the UI. Backend processes (agent work, MCP, etc.)
+    // continue unaffected in the Node server process. The chat API route
+    // decouples run lifetime from req.signal, so the reload won't cancel
+    // any in-progress LLM calls.
+    if (details.reason !== "clean-exit") {
+      if (crashRetries >= MAX_CRASH_RETRIES) {
+        debugError(`[Window] Renderer crashed ${crashRetries} times, giving up. Last reason: ${details.reason}`);
+        return;
+      }
+      crashRetries++;
+      const delay = CRASH_RETRY_BASE_MS * Math.pow(2, crashRetries - 1);
+      debugLog(`[Window] Reloading after renderer crash (reason: ${details.reason}, attempt ${crashRetries}/${MAX_CRASH_RETRIES}, delay ${delay}ms)`);
+      if (crashRetryTimer) clearTimeout(crashRetryTimer);
+      crashRetryTimer = setTimeout(() => {
+        crashRetryTimer = null;
+        mainWindow?.webContents.reload();
+      }, delay);
+    }
   });
 
   mainWindow.webContents.on("unresponsive", () => {
@@ -269,8 +330,9 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
     // Open DevTools in development
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, load from embedded Next.js server
-    const serverUrl = `http://localhost:${opts.prodServerPort}`;
+    // In production, load from embedded Next.js server (via HTTP/2 proxy if available)
+    const protocol = opts.prodUseHttps ? "https" : "http";
+    const serverUrl = `${protocol}://localhost:${opts.prodServerPort}`;
 
     debugLog("[Window] Production mode - checking server health before loading");
 
@@ -295,10 +357,18 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
     mainWindow?.focus();
   });
 
+  // Forward window visibility to renderer for transport budget (Layer 5)
+  mainWindow.on("blur", () => {
+    mainWindow?.webContents.send("window:visibility-changed", false);
+  });
+  mainWindow.on("focus", () => {
+    mainWindow?.webContents.send("window:visibility-changed", true);
+  });
+
   // Handle external links - open in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
-    // Allow same-origin navigation
-    if (targetUrl.startsWith("http://localhost") || targetUrl.startsWith("file://")) {
+    // Allow same-origin navigation (HTTP or HTTPS localhost)
+    if (targetUrl.startsWith("http://localhost") || targetUrl.startsWith("https://localhost") || targetUrl.startsWith("file://")) {
       return { action: "allow" };
     }
     // Open external links in default browser

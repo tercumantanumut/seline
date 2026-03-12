@@ -175,6 +175,7 @@
     "react-shiki": "^0.9.0",
     "remark-gfm": "^4.0.1",
     "remotion": "^4.0.382",
+    "selfsigned": "^5.5.0",
     "simple-git": "^3.32.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.0",

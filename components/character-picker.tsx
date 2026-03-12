@@ -50,6 +50,7 @@ import { useCharacterActions } from "@/components/character-picker-character-act
 import { useTheme } from "@/components/theme/theme-provider";
 import { Avatar3DModelSelector } from "@/components/avatar-3d/avatar-model-selector";
 
+
 export function CharacterPicker() {
   const router = useRouter();
   const { homepageBackground } = useTheme();
@@ -66,6 +67,7 @@ export function CharacterPicker() {
 
   const t = useTranslations("picker");
   const tDeps = useTranslations("picker.toolEditor.dependencyWarnings");
+
 
   // Session sync
   useSessionSync({ enablePolling: true, pollingInterval: 10000 });
@@ -377,6 +379,8 @@ export function CharacterPicker() {
             onContinueChat={handleContinueChat}
             onNewChat={handleNewChat}
             onEditIdentity={charActions.openIdentityEditor}
+            onEditModelDefaults={charActions.openModelDefaults}
+            onManageSkills={(c) => router.push(`/agents/${c.id}/skills`)}
             onEditTools={toolEditor.openToolEditor}
             onEditFolders={charActions.openFolderManager}
             onEditMcp={charActions.openMcpToolEditor}
@@ -447,6 +451,8 @@ export function CharacterPicker() {
               onContinueChat={handleContinueChat}
               onNewChat={handleNewChat}
               onEditIdentity={charActions.openIdentityEditor}
+              onEditModelDefaults={charActions.openModelDefaults}
+              onManageSkills={(c) => router.push(`/agents/${c.id}/skills`)}
               onEditTools={toolEditor.openToolEditor}
               onEditFolders={charActions.openFolderManager}
               onEditMcp={charActions.openMcpToolEditor}
@@ -579,6 +585,7 @@ export function CharacterPicker() {
           generatedPrompt={charActions.generatedPrompt}
           isSaving={charActions.isSavingIdentity}
           onSave={charActions.saveIdentity}
+          defaultTab={charActions.identityEditorDefaultTab}
         />
 
         <McpRemovalWarningDialog

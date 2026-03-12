@@ -1,10 +1,12 @@
 "use client";
 
 import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SkillIcon } from "@/components/skills/skill-icon";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { formatCategoryLabel } from "@/components/skills/catalog-display";
 
 interface SkillCardModel {
   id: string;
@@ -38,18 +40,25 @@ export function SkillCard({
   const isInstalled = variant === "installed";
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className={cn(
-        "flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-all",
+        "flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-all cursor-pointer",
         "border-terminal-border bg-white/50 hover:border-terminal-green/30",
         isInstalled && isEnabled ? "border-terminal-green/20 bg-terminal-green/[0.02]" : ""
       )}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } }}
     >
       <SkillIcon icon={skill.icon} displayName={skill.displayName} size={32} className="shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-mono text-sm font-semibold text-terminal-dark">{skill.displayName}</p>
+        <div className="flex items-center gap-2">
+          <p className="truncate font-mono text-sm font-semibold text-terminal-dark">{skill.displayName}</p>
+          <Badge variant="outline" className="shrink-0 border-accent/30 font-mono text-[9px] uppercase tracking-wide text-accent/80">
+            {formatCategoryLabel(skill.category)}
+          </Badge>
+        </div>
         <p className="mt-1 line-clamp-2 text-xs text-terminal-muted">{skill.shortDescription}</p>
       </div>
 
@@ -97,6 +106,6 @@ export function SkillCard({
           {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         </Button>
       )}
-    </button>
+    </div>
   );
 }

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#FFF7ED"/>
+  <rect width="64" height="64" rx="14" fill="url(#grad)" fill-opacity="0.15"/>
+  <!-- Main sparkle -->
+  <path d="M32 12 L35 25 L48 28 L35 31 L32 44 L29 31 L16 28 L29 25 Z" fill="#F59E0B" stroke="#D97706" stroke-width="1"/>
+  <!-- Small sparkle top-right -->
+  <path d="M46 14 L47.5 19 L52.5 20.5 L47.5 22 L46 27 L44.5 22 L39.5 20.5 L44.5 19 Z" fill="#FBBF24" stroke="#F59E0B" stroke-width="0.5"/>
+  <!-- Small sparkle bottom-left -->
+  <path d="M18 37 L19.5 42 L24.5 43.5 L19.5 45 L18 50 L16.5 45 L11.5 43.5 L16.5 42 Z" fill="#FBBF24" stroke="#F59E0B" stroke-width="0.5"/>
+  <!-- Tiny dot accents -->
+  <circle cx="42" cy="38" r="1.5" fill="#FCD34D"/>
+  <circle cx="22" cy="18" r="1.5" fill="#FCD34D"/>
+  <circle cx="50" cy="44" r="1" fill="#FDE68A"/>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="64" y2="64">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+</svg>

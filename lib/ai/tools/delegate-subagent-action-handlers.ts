@@ -249,27 +249,6 @@ async function handleStart(
     };
   }
 
-  // 3b. Prevent duplicate delegation to the same sub-agent
-  for (const [existingId, existingDel] of activeDelegations.entries()) {
-    if (
-      existingDel.delegateId === resolution.candidate.agentId &&
-      existingDel.delegatorId === characterId &&
-      !existingDel.settled
-    ) {
-      return {
-        success: false,
-        delegationId: existingId,
-        sessionId: existingDel.sessionId,
-        delegateAgent: existingDel.delegateName,
-        error:
-          `Active delegation already exists to "${existingDel.delegateName}" (${existingId}). ` +
-          `Use observe/continue/stop instead of starting a new one.`,
-        availableAgents,
-        delegations: buildDelegationsSummary(characterId),
-      };
-    }
-  }
-
   // 4. Load the sub-agent character
   const subAgent = await getCharacterFull(resolution.candidate.agentId);
   if (!subAgent) {

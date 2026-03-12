@@ -11,7 +11,9 @@
     "retry": "Tekrar dene",
     "email": "E-posta",
     "password": "Şifre",
-    "confirmPassword": "Şifreyi doğrula"
+    "confirmPassword": "Şifreyi doğrula",
+    "create": "Oluştur",
+    "notFound": "Bulunamadı."
   },
   "onboarding": {
     "welcome": {
@@ -404,6 +406,7 @@
     "mcpTools": "MCP Araçları",
     "menu": {
       "editInfo": "Bilgileri Düzenle",
+      "modelDefaults": "Model Varsayılanları",
       "manageTools": "Araçları Yönet",
       "syncFolders": "Klasörleri Senkronize Et",
       "mcpTools": "MCP Araçları",
@@ -411,7 +414,8 @@
       "dashboard": "Kontrol Paneli",
       "duplicate": "Çoğalt",
       "delete": "Sil",
-      "avatar3d": "3D Avatar"
+      "avatar3d": "3D Avatar",
+      "manageSkills": "Beceriler"
     },
     "mcpToolsTitle": "MCP Araçlarını Yapılandır",
     "plugins": {
@@ -540,6 +544,7 @@
       "subtitle": "Ajan detaylarını ve davranışını güncelle",
       "tabs": {
         "basic": "Temel Bilgiler",
+        "models": "Model Varsayılanları",
         "advanced": "Özel İstem"
       },
       "fields": {
@@ -573,6 +578,37 @@
           "helper": "Otomatik oluşturulan sistem istemini kendi isteminizle değiştirin",
           "warning": "⚠️ Özel istemler tüm otomatik oluşturulan talimatları değiştirir. Bunu yalnızca ajanın davranışı üzerinde tam kontrole ihtiyacınız varsa kullanın.",
           "clear": "Özel istemi temizle"
+        }
+      },
+      "modelConfig": {
+        "title": "Ajan model varsayılanları",
+        "description": "Bu ajan için kalıcı varsayılanlar seçin. Oturum override'ları yalnızca mevcut sohbet için bunların üzerine yazar.",
+        "precedence": "Çözümleme sırası: oturum geçersiz kılma -> ajan varsayılanı -> global fallback -> sağlayıcı varsayılanı",
+        "providerLabel": "Sağlayıcı",
+        "providerInherit": "Global sağlayıcıyı kullan ({provider})",
+        "providerHelper": "Aşağıdaki tüm model rolleri {provider} sağlayıcısına göre doğrulanır.",
+        "roleInherit": "Devralınan varsayılanı kullan ({model})",
+        "roleFallback": "Bu rol boşsa veya uyumsuzsa {source} yoluna geri düşer.",
+        "agentProviderFallback": "bu ajanın {provider} sağlayıcı zinciri",
+        "globalFallback": "{provider} için global/sağlayıcı fallback zinciri",
+        "customModel": "özel model",
+        "roles": {
+          "chat": {
+            "label": "Ana sohbet modeli",
+            "helper": "Bu ajanın birincil konuşma modeli."
+          },
+          "research": {
+            "label": "Araştırma modeli",
+            "helper": "Derin araştırma ve uzun analizlerde kullanılır."
+          },
+          "vision": {
+            "label": "Görsel modeli",
+            "helper": "Burada yalnızca görsel desteği olan modeller listelenir."
+          },
+          "utility": {
+            "label": "Yardımcı model",
+            "helper": "Arka plan ve yardımcı görevlerde kullanılır."
+          }
         }
       }
     },
@@ -1927,7 +1963,10 @@
     "save": {
       "cta": "Değişiklikleri Kaydet",
       "saving": "Kaydediliyor...",
-      "saved": "Kaydedildi!"
+      "saved": "Kaydedildi!",
+      "savedToast": "Ayarlar kaydedildi",
+      "unsaved": "Kaydedilmemiş değişiklikler",
+      "shortcut": "Kaydetmek için {shortcut} tuşlarına basın"
     },
     "nav": {
       "apiKeys": "API Anahtarları",
@@ -2380,6 +2419,7 @@
         "whisperModelLabel": "Whisper Modeli",
         "whisperDownloaded": "İndirildi",
         "whisperDownload": "İndir",
+        "whisperDownloadInProgress": "İndiriliyor...",
         "whisperSelectModel": "Bir model seçin",
         "whisperMultilingual": " · ~99 dili destekler",
         "whisperEnglishOnly": " · Yalnızca İngilizce",
@@ -2680,24 +2720,6 @@
     "usingDefault": "Varsayılan kullanılıyor",
     "close": "Kapat",
     "enterToAssign": "Enter + ↵",
-    "sessionOverride": {
-      "loadingConfig": "Model yapılandırması yükleniyor...",
-      "updateFailed": "Oturum modeli güncellenemedi",
-      "updateSuccess": "Oturum modeli güncellendi",
-      "clearFailed": "Geçersiz kılmalar temizlenemedi",
-      "clearSuccess": "Oturum modeli geçersiz kılmaları temizlendi",
-      "chatModel": "Sohbet Modeli",
-      "researchModel": "Araştırma Modeli",
-      "visionModel": "Görüntü Modeli",
-      "utilityModel": "Yardımcı Model",
-      "clearAllOverrides": "Tüm geçersiz kılmaları temizle",
-      "helpText": "Boş = global ayarı kullan. Yalnızca bu oturum için geçersiz kılmak üzere model kimliği girin.",
-      "globalLabel": "global:",
-      "providerDefault": "(sağlayıcı varsayılanı)",
-      "modelLabel": "Model",
-      "globalStatus": "Global",
-      "overrideBadge": "GEÇERSİZ"
-    },
     "providerFilter": {
       "all": "Tümü",
       "activeProvider": "{name} (aktif sağlayıcı)",
@@ -3500,6 +3522,95 @@
       "saveFailed": "Beceri kaydedilemedi",
       "runFailed": "Beceri çalıştırılamadı",
       "copyFailed": "Beceri kopyalanamadı"
+    },
+    "catalog": {
+      "title": "Beceri Kataloğu",
+      "description": "Ajanlarınızı genişletmek için beceriler keşfedin ve yükleyin.",
+      "search": "Beceri ara...",
+      "selectAgent": "Ajan seçin",
+      "noResults": "Aramanızla eşleşen beceri bulunamadı.",
+      "noSkills": "Mevcut beceri yok.",
+      "install": "Yükle",
+      "installing": "Yükleniyor...",
+      "installed": "Yüklendi",
+      "installSuccess": "{name} yüklendi",
+      "installFailed": "Yükleme başarısız",
+      "alreadyInstalled": "Zaten yüklü",
+      "requirements": "Gereksinimler",
+      "source": "Kaynak",
+      "bundled": "Dahili",
+      "platforms": "Platformlar",
+      "categories": {
+        "design": "Tasarım",
+        "deploy": "Dağıtım",
+        "dev-tools": "Geliştirici Araçları",
+        "productivity": "Verimlilik",
+        "creative": "Yaratıcı",
+        "docs": "Dokümantasyon",
+        "security": "Güvenlik",
+        "engineering": "Mühendislik",
+        "paid-media": "Ücretli Medya",
+        "sales": "Satış",
+        "marketing": "Pazarlama",
+        "product": "Ürün",
+        "project-management": "Proje Yönetimi",
+        "testing": "Test",
+        "support": "Destek",
+        "spatial-computing": "Mekansal Bilişim",
+        "specialized": "Uzmanlık",
+        "game-development": "Oyun Geliştirme"
+      },
+      "retry": "Yeniden Dene",
+      "skillFallback": "Beceri",
+      "selectAgentFirst": "Önce bir ajan seçin",
+      "collectionsTitle": "Koleksiyonlar",
+      "collectionInstallFailed": "Koleksiyon yüklenemedi",
+      "collectionInstallPartial": "{installed} beceri yüklendi, {failed} başarısız oldu.",
+      "collectionInstallSuccess": "{installed} beceri yüklendi, {skipped} atlandı.",
+      "toggleFailed": "Beceri durumu güncellenemedi",
+      "uninstallSuccess": "Beceri kaldırıldı",
+      "uninstallFailed": "Beceri kaldırılamadı",
+      "alreadyInstalledOnAgent": "Bu beceri zaten bu ajana kurulu",
+      "emptySearchSkills": "Aramanızla eşleşen özel beceri yok.",
+      "emptyCustomSkills": "Henüz özel beceri yok.",
+      "emptyCustomSkillsHint": "Kendiniz bir beceri oluşturun veya aşağıdaki katalogdan yükleyin.",
+      "collectionCard": {
+        "skillsCount": "{count} beceri · {installed} kurulu",
+        "source": "Kaynak",
+        "installing": "Yükleniyor...",
+        "installed": "Kuruldu",
+        "install": "{count} beceriyi yükle"
+      },
+      "chooseSkills": "Becerileri seç",
+      "removeInstalled": "Kurulanları kaldır",
+      "selectionRequired": "En az bir beceri seçin",
+      "selectionUninstallSuccess": "{removed} kurulu beceri kaldırıldı.",
+      "selectionUninstallPartial": "{removed} kurulu beceri kaldırıldı, {failed} kaldırma başarısız oldu.",
+      "selectionInstallTitle": "Yüklenecek becerileri seçin",
+      "selectionInstallDescription": "Bu ajana eklemek istediğiniz becerileri seçin.",
+      "selectionUninstallTitle": "Kurulu becerileri kaldır",
+      "selectionUninstallDescription": "Bu ajandan kaldırmak istediğiniz kurulu becerileri seçin.",
+      "selectionDialog": {
+        "skillsTitle": "Beceriler",
+        "selectAll": "Tümünü seç",
+        "clear": "Temizle",
+        "installedBadge": "Kurulu",
+        "selectionSummary": "Seçim",
+        "selectedSkills": "{count} beceri seçildi",
+        "singleAgentHelp": "Uygulamadan önce eklemek veya kaldırmak istediğiniz becerileri seçin.",
+        "applying": "Uygulanıyor...",
+        "searchPlaceholder": "Beceri ara...",
+        "filterAll": "Tümü",
+        "filterNotInstalled": "Kurulu değil",
+        "filterInstalled": "Kurulu",
+        "filterSelected": "Seçili",
+        "noMatch": "Filtrelerle eşleşen beceri bulunamadı."
+      },
+      "detail": {
+        "active": "Aktif",
+        "disabled": "Devre dışı",
+        "uninstall": "Kaldır"
+      }
     }
   },
   "schedules": {
