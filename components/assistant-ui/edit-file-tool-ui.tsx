@@ -115,10 +115,10 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
   const statusColor = !result
     ? "text-terminal-muted"
     : result.status === "success"
-      ? "text-emerald-600"
+      ? "text-terminal-green"
       : result.status === "warning"
-        ? "text-amber-600"
-        : "text-red-600";
+        ? "text-terminal-amber"
+        : "text-destructive";
 
   return (
     <div className="my-1 rounded-md border border-border bg-terminal-cream/50 font-mono text-xs overflow-hidden">
@@ -147,7 +147,7 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
         {/* Error message in collapsed header (truncated) */}
         {result?.status === "error" && result.message && (
           <span 
-            className="text-red-600 text-[10px] truncate max-w-[150px] ml-1" 
+            className="text-destructive text-[10px] truncate max-w-[150px] ml-1" 
             title={result.message}
           >
             {result.message}
@@ -157,7 +157,7 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
         {result?.diagnostics && (result.diagnostics.errors > 0 || result.diagnostics.warnings > 0) && (
           <span className={cn(
             "ml-1 shrink-0",
-            result.diagnostics.errors > 0 ? "text-red-600" : "text-amber-600"
+            result.diagnostics.errors > 0 ? "text-destructive" : "text-terminal-amber"
           )}>
             {result.diagnostics.errors > 0 && `${result.diagnostics.errors}E`}
             {result.diagnostics.errors > 0 && result.diagnostics.warnings > 0 && " "}
@@ -192,7 +192,7 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
                 <button
                   type="button"
                   onClick={() => setShowFullDiff(!showFullDiff)}
-                  className="text-[11px] text-blue-600 hover:text-blue-700 underline"
+                  className="text-[11px] text-accent hover:text-accent/80 underline"
                 >
                   {showFullDiff ? `▲ ${t("showLess")}` : `▼ ${t("showAll", { count: diffLines.length })}`}
                 </button>
@@ -245,12 +245,12 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
                   {hasMultipleIssues && (
                     <div className="text-[11px] flex gap-2">
                       {errors > 0 && (
-                        <span className="text-red-600 font-medium">
+                        <span className="text-destructive font-medium">
                           {t("errors", { count: errors })}
                         </span>
                       )}
                       {warnings > 0 && (
-                        <span className="text-amber-600 font-medium">
+                        <span className="text-terminal-amber font-medium">
                           {t("warnings", { count: warnings })}
                         </span>
                       )}

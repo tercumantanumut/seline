@@ -78,7 +78,7 @@ export function SkillCollectionCard({
         {collection.categories.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {collection.categories.map((category) => (
-              <Badge key={category} variant="outline" className="font-mono text-[10px] uppercase tracking-wide">
+              <Badge key={category} variant="outline" className="border-accent/30 font-mono text-[10px] uppercase tracking-wide text-accent/80">
                 {formatCategoryLabel(category)}
               </Badge>
             ))}

@@ -81,9 +81,9 @@ export function TerminalOutput({
   const typeStyles = {
     default: "text-terminal-text",
     success: "text-terminal-green",
-    error: "text-red-400",
+    error: "text-destructive",
     warning: "text-terminal-amber",
-    info: "text-blue-400",
+    info: "text-accent",
   };
 
   return (

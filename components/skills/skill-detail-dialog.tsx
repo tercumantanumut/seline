@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, Download, Check, ExternalLink, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Dialog,
   DialogContent,
@@ -38,9 +39,9 @@ export function SkillDetailDialog({
   installLabel,
   installDisabled = !characterId,
 }: SkillDetailDialogProps) {
+  const t = useTranslations("skills.catalog");
   const [installing, setInstalling] = useState(false);
 
-  // Reset installing state when dialog closes or skill changes
   useEffect(() => {
     if (!open) setInstalling(false);
   }, [open]);
@@ -72,7 +73,6 @@ export function SkillDetailDialog({
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          {/* Category & Tags */}
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="outline" className="font-mono text-xs capitalize">
               {skill.category}
@@ -84,16 +84,14 @@ export function SkillDetailDialog({
             ))}
           </div>
 
-          {/* Overview */}
           {skill.overview && (
             <p className="text-sm text-terminal-muted leading-relaxed">{skill.overview}</p>
           )}
 
-          {/* Dependencies */}
           {skill.dependencies && skill.dependencies.length > 0 && (
             <div className="space-y-2">
               <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-terminal-muted">
-                Requirements
+                {t("requirements")}
               </h3>
               <div className="space-y-1.5">
                 {skill.dependencies.map((dep) => (
@@ -118,27 +116,24 @@ export function SkillDetailDialog({
             </div>
           )}
 
-          {/* Source info */}
           <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted">
-            <span>Source:</span>
+            <span>{t("source")}:</span>
             {skill.installSource.type === "bundled" ? (
-              <Badge variant="outline" className="text-[10px]">Bundled</Badge>
+              <Badge variant="outline" className="text-[10px]">{t("bundled")}</Badge>
             ) : (
               <span className="truncate">{skill.installSource.repo}/{skill.installSource.path}</span>
             )}
           </div>
 
-          {/* Platform restrictions */}
           {skill.platforms && skill.platforms.length > 0 && (
             <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted">
-              <span>Platforms:</span>
+              <span>{t("platforms")}:</span>
               {skill.platforms.map((p) => (
                 <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
               ))}
             </div>
           )}
 
-          {/* Install / Status */}
           <div className="flex items-center justify-end gap-3 pt-2">
             {skill.isInstalled ? (
               <>
@@ -150,7 +145,7 @@ export function SkillDetailDialog({
                       className="data-[state=checked]:bg-terminal-green"
                     />
                     <span className="text-xs font-mono text-terminal-muted">
-                      {skill.isEnabled ? "Active" : "Disabled"}
+                      {skill.isEnabled ? t("detail.active") : t("detail.disabled")}
                     </span>
                   </div>
                 )}
@@ -161,13 +156,13 @@ export function SkillDetailDialog({
                     className="gap-2 font-mono text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
                   >
                     <Trash2 className="h-4 w-4" />
-                    Uninstall
+                    {t("detail.uninstall")}
                   </Button>
                 )}
                 {!onToggle && !onUninstall && (
                   <Button disabled variant="outline" className="gap-2 font-mono">
                     <Check className="h-4 w-4 text-terminal-green" />
-                    Installed
+                    {t("installed")}
                   </Button>
                 )}
               </>
@@ -182,7 +177,7 @@ export function SkillDetailDialog({
                 ) : (
                   <Download className="h-4 w-4" />
                 )}
-                {installing ? "Installing..." : installLabel || "Install"}
+                {installing ? t("installing") : installLabel || t("install")}
               </Button>
             )}
           </div>
