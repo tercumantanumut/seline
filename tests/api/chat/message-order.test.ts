@@ -15,7 +15,10 @@ import {
 } from "@/lib/db/queries";
 import { nextOrderingIndex, allocateOrderingIndices, validateSessionOrdering } from "@/lib/session/message-ordering";
 import { getSessionWithMessages } from "@/lib/db/queries-sessions";
-import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
+import {
+  convertDBMessagesToUIMessages,
+  countVisibleConversationMessages,
+} from "@/lib/messages/converter";
 
 describe("Message Ordering", () => {
   const TEST_USER_ID = "test-user";
@@ -528,5 +531,64 @@ describe("Message Ordering", () => {
       (part) => typeof part.type === "string" && part.type.startsWith("tool-")
     );
     expect(secondToolParts).toHaveLength(0);
+  });
+
+  it("hides injected live-prompt user messages during post-background reconciliation", async () => {
+    const session = await createSession({ title: "Injected live prompt resume", userId: TEST_USER_ID });
+    if (!session) throw new Error("Failed to create session");
+
+    await createMessage({
+      sessionId: session.id,
+      role: "user",
+      orderingIndex: 1,
+      content: [{ type: "text", text: "Original prompt" }],
+    });
+
+    const preInjectionAssistant = await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      orderingIndex: 2,
+      content: [{ type: "text", text: "First assistant segment" }],
+      metadata: { livePromptInjected: true },
+    });
+
+    await createMessage({
+      sessionId: session.id,
+      role: "user",
+      orderingIndex: 3,
+      content: [{ type: "text", text: "Live prompt follow-up" }],
+      metadata: { livePromptInjected: true },
+    });
+
+    const postInjectionAssistant = await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      orderingIndex: 4,
+      content: [{ type: "text", text: "Second assistant segment" }],
+    });
+
+    expect(preInjectionAssistant?.id).toBeTruthy();
+    expect(postInjectionAssistant?.id).toBeTruthy();
+
+    const persisted = await getMessages(session.id);
+    const uiMessages = convertDBMessagesToUIMessages(persisted as any);
+
+    expect(countVisibleConversationMessages(persisted as any)).toBe(3);
+    expect(uiMessages).toHaveLength(3);
+    expect(uiMessages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "assistant",
+    ]);
+    expect(uiMessages.map((message) => message.id)).toEqual([
+      persisted[0].id,
+      preInjectionAssistant!.id,
+      postInjectionAssistant!.id,
+    ]);
+    expect(
+      uiMessages.some((message) =>
+        message.parts.some((part: any) => part.type === "text" && part.text === "Live prompt follow-up")
+      )
+    ).toBe(false);
   });
 });

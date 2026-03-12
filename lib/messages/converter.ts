@@ -44,7 +44,7 @@ export type DBContentPart =
   | DBToolCallPart
   | DBToolResultPart;
 
-interface DBMessage {
+export interface DBMessage {
   id: string;
   role: "user" | "assistant" | "system" | "tool";
   content: unknown;
@@ -53,6 +53,32 @@ interface DBMessage {
   metadata?: unknown;
   tokenCount?: number | null;
   toolCallId?: string | null;  // For role="tool" messages, references the parent tool call
+}
+
+function parseMessageMetadata(metadata: unknown): Record<string, unknown> | null {
+  if (!metadata) return null;
+  if (typeof metadata === "string") {
+    try {
+      const parsed = JSON.parse(metadata);
+      return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null;
+    } catch {
+      return null;
+    }
+  }
+  return typeof metadata === "object" ? metadata as Record<string, unknown> : null;
+}
+
+export function isInjectedLivePromptUserMessage(dbMessage: Pick<DBMessage, "role" | "metadata">): boolean {
+  if (dbMessage.role !== "user") return false;
+  const metadata = parseMessageMetadata(dbMessage.metadata);
+  return metadata?.livePromptInjected === true;
+}
+
+export function countVisibleConversationMessages(dbMessages: Pick<DBMessage, "role" | "metadata">[]): number {
+  return dbMessages.filter((message) => {
+    if (message.role !== "user" && message.role !== "assistant") return false;
+    return !isInjectedLivePromptUserMessage(message);
+  }).length;
 }
 
 /**
@@ -443,6 +469,7 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
   for (const dbMsg of sortedMessages) {
     // Skip system/tool messages - tool results are merged into assistant turns.
     if (dbMsg.role === "system" || dbMsg.role === "tool") continue;
+    if (isInjectedLivePromptUserMessage(dbMsg)) continue;
 
     const content = dbMsg.content as DBContentPart[];
     if (!Array.isArray(content) || content.length === 0) {
