@@ -31,6 +31,123 @@ const REFERENCE_DIRS = ["references", "reference", "docs"];
 const ASSET_DIRS = ["assets", "asset", "resources"];
 const BLOCKED_EXTENSIONS = [".exe", ".dll", ".so", ".dylib", ".app", ".bat", ".cmd"];
 
+interface ParsedFrontmatter {
+  data: Record<string, unknown>;
+  content: string;
+}
+
+function stripWrappingQuotes(value: string): string {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+
+  return value;
+}
+
+function parseLenientFrontmatter(source: string): ParsedFrontmatter {
+  const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (!match) {
+    return { data: {}, content: source };
+  }
+
+  const frontmatterBlock = match[1];
+  const body = source.slice(match[0].length);
+  const data: Record<string, unknown> = {};
+  const lines = frontmatterBlock.split(/\r?\n/);
+  let currentArrayKey: string | null = null;
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\t/g, "  ");
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      currentArrayKey = null;
+      continue;
+    }
+
+    const arrayMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (arrayMatch && currentArrayKey) {
+      const existing = Array.isArray(data[currentArrayKey]) ? [...(data[currentArrayKey] as string[])] : [];
+      existing.push(stripWrappingQuotes(arrayMatch[1].trim()));
+      data[currentArrayKey] = existing;
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf(":");
+    if (separatorIndex === -1) {
+      currentArrayKey = null;
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+
+    if (!key) {
+      currentArrayKey = null;
+      continue;
+    }
+
+    if (!rawValue) {
+      currentArrayKey = key;
+      data[key] = [];
+      continue;
+    }
+
+    currentArrayKey = null;
+    data[key] = stripWrappingQuotes(rawValue);
+  }
+
+  return {
+    data,
+    content: body,
+  };
+}
+
+function parseMarkdownFrontmatter(source: string): ParsedFrontmatter {
+  try {
+    const parsed = matter(source);
+    return {
+      data: (parsed.data || {}) as Record<string, unknown>,
+      content: parsed.content,
+    };
+  } catch {
+    return parseLenientFrontmatter(source);
+  }
+}
+
+function parseSkillMarkdown(source: string): Omit<ParsedSkillPackage, "scripts" | "references" | "assets" | "files"> {
+  const parsed = parseMarkdownFrontmatter(source);
+  const frontmatter = parsed.data;
+  const name = typeof frontmatter.name === "string" ? frontmatter.name.trim() : "";
+  const description = typeof frontmatter.description === "string" ? frontmatter.description.trim() : "";
+
+  if (!name) {
+    throw new Error("SKILL.md must include 'name' in frontmatter");
+  }
+
+  if (!description) {
+    throw new Error("SKILL.md must include 'description' in frontmatter");
+  }
+
+  return {
+    name,
+    description,
+    license: typeof frontmatter.license === "string" ? frontmatter.license : undefined,
+    compatibility: typeof frontmatter.compatibility === "string" ? frontmatter.compatibility : undefined,
+    allowedTools: Array.isArray(frontmatter["allowed-tools"])
+      ? frontmatter["allowed-tools"].map((tool) => String(tool).trim()).filter(Boolean)
+      : undefined,
+    metadata:
+      frontmatter.metadata && typeof frontmatter.metadata === "object" && !Array.isArray(frontmatter.metadata)
+        ? (frontmatter.metadata as Record<string, unknown>)
+        : undefined,
+    promptTemplate: parsed.content.trim(),
+  };
+}
+
 export async function parseSkillPackage(zipBuffer: Buffer): Promise<ParsedSkillPackage> {
   const zip = await JSZip.loadAsync(zipBuffer);
 
@@ -45,19 +162,11 @@ export async function parseSkillPackage(zipBuffer: Buffer): Promise<ParsedSkillP
 
   // Parse SKILL.md
   const skillMdContent = await skillMdEntry.async("string");
-  const { data: frontmatter, content: body } = matter(skillMdContent);
-
-  if (!frontmatter.name || typeof frontmatter.name !== "string") {
-    throw new Error("SKILL.md must include 'name' in frontmatter");
-  }
-
-  if (!frontmatter.description || typeof frontmatter.description !== "string") {
-    throw new Error("SKILL.md must include 'description' in frontmatter");
-  }
+  const parsedMarkdown = parseSkillMarkdown(skillMdContent);
 
   // Determine the skill root directory
-  const skillRoot = skillMdEntry.name === "SKILL.md" 
-    ? "" 
+  const skillRoot = skillMdEntry.name === "SKILL.md"
+    ? ""
     : skillMdEntry.name.slice(0, skillMdEntry.name.lastIndexOf("/"));
 
   // Extract all other files
@@ -70,10 +179,10 @@ export async function parseSkillPackage(zipBuffer: Buffer): Promise<ParsedSkillP
     if (entry.dir || filePath === skillMdEntry.name) continue;
 
     // Skip files outside the skill root
-    if (skillRoot && !filePath.startsWith(skillRoot + "/")) continue;
+    if (skillRoot && !filePath.startsWith(`${skillRoot}/`)) continue;
 
-    const relativePath = skillRoot 
-      ? filePath.slice(skillRoot.length + 1) 
+    const relativePath = skillRoot
+      ? filePath.slice(skillRoot.length + 1)
       : filePath;
 
     const ext = path.extname(relativePath).toLowerCase();
@@ -115,15 +224,7 @@ export async function parseSkillPackage(zipBuffer: Buffer): Promise<ParsedSkillP
   }
 
   return {
-    name: frontmatter.name,
-    description: frontmatter.description,
-    license: frontmatter.license,
-    compatibility: frontmatter.compatibility,
-    allowedTools: Array.isArray(frontmatter["allowed-tools"]) 
-      ? frontmatter["allowed-tools"] 
-      : undefined,
-    metadata: frontmatter.metadata,
-    promptTemplate: body.trim(),
+    ...parsedMarkdown,
     scripts,
     references,
     assets,
@@ -136,26 +237,10 @@ export async function parseSkillPackage(zipBuffer: Buffer): Promise<ParsedSkillP
  */
 export async function parseSingleSkillMd(fileBuffer: Buffer, filename: string): Promise<ParsedSkillPackage> {
   const content = fileBuffer.toString("utf-8");
-  const { data: frontmatter, content: body } = matter(content);
-
-  if (!frontmatter.name || typeof frontmatter.name !== "string") {
-    throw new Error("SKILL.md must include 'name' in frontmatter");
-  }
-
-  if (!frontmatter.description || typeof frontmatter.description !== "string") {
-    throw new Error("SKILL.md must include 'description' in frontmatter");
-  }
+  const parsedMarkdown = parseSkillMarkdown(content);
 
   return {
-    name: frontmatter.name,
-    description: frontmatter.description,
-    license: frontmatter.license,
-    compatibility: frontmatter.compatibility,
-    allowedTools: Array.isArray(frontmatter["allowed-tools"]) 
-      ? frontmatter["allowed-tools"] 
-      : undefined,
-    metadata: frontmatter.metadata,
-    promptTemplate: body.trim(),
+    ...parsedMarkdown,
     scripts: [],
     references: [],
     assets: [],

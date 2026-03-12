@@ -21,6 +21,8 @@ interface SkillDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   characterId: string | null;
   onInstall: (catalogSkillId: string) => Promise<void>;
+  installLabel?: string;
+  installDisabled?: boolean;
   onToggle?: (catalogSkillId: string, installedSkillId: string, enabled: boolean) => Promise<void>;
   onUninstall?: (catalogSkillId: string, installedSkillId: string) => Promise<void>;
 }
@@ -33,6 +35,8 @@ export function SkillDetailDialog({
   onInstall,
   onToggle,
   onUninstall,
+  installLabel,
+  installDisabled = !characterId,
 }: SkillDetailDialogProps) {
   const [installing, setInstalling] = useState(false);
 
@@ -44,7 +48,6 @@ export function SkillDetailDialog({
   if (!skill) return null;
 
   const handleInstall = async () => {
-    if (!characterId) return;
     setInstalling(true);
     try {
       await onInstall(skill.id);
@@ -171,7 +174,7 @@ export function SkillDetailDialog({
             ) : (
               <Button
                 onClick={handleInstall}
-                disabled={installing || !characterId}
+                disabled={installing || installDisabled}
                 className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono"
               >
                 {installing ? (
@@ -179,7 +182,7 @@ export function SkillDetailDialog({
                 ) : (
                   <Download className="h-4 w-4" />
                 )}
-                {installing ? "Installing..." : "Install"}
+                {installing ? "Installing..." : installLabel || "Install"}
               </Button>
             )}
           </div>

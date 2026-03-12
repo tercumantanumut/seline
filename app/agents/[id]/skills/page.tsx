@@ -10,11 +10,10 @@ import { Loader2, AlertCircle, Plus, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SkillImportDropzone } from "@/components/skills/skill-import-dropzone";
 import { SkillCard } from "@/components/skills/skill-card";
+import { SkillCatalogPage } from "@/components/skills/skill-catalog-page";
 import { SkillSearch } from "@/components/skills/skill-search";
 import { SkillSection } from "@/components/skills/skill-section";
-import { SkillDetailDialog } from "@/components/skills/skill-detail-dialog";
 import { toast } from "sonner";
-import type { CatalogSkillWithStatus, SkillCategory } from "@/lib/skills/catalog/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,31 +45,12 @@ type CharacterBasic = {
   displayName?: string | null;
 };
 
-const CATEGORY_LABELS: Record<SkillCategory, string> = {
-  design: "Design",
-  deploy: "Deploy",
-  "dev-tools": "Dev Tools",
-  productivity: "Productivity",
-  creative: "Creative",
-  docs: "Docs",
-  security: "Security",
-};
-
-const CATEGORY_ORDER: SkillCategory[] = [
-  "dev-tools",
-  "deploy",
-  "design",
-  "productivity",
-  "creative",
-  "docs",
-  "security",
-];
-
 export default function AgentSkillsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: characterId } = use(params);
   const t = useTranslations("skills");
   const tc = useTranslations("common");
   const router = useRouter();
+  const catalogT = useTranslations("skills.catalog");
 
   const [character, setCharacter] = useState<CharacterBasic | null>(null);
   const [skills, setSkills] = useState<SkillRecord[]>([]);
@@ -82,26 +62,17 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
   const [search, setSearch] = useState("");
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
 
-  // Catalog state
-  const [catalog, setCatalog] = useState<CatalogSkillWithStatus[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true);
-  const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
-  const [selectedSkill, setSelectedSkill] = useState<CatalogSkillWithStatus | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Load character + agent skills + catalog all on mount
+  // Load character and agent skills on mount
   useEffect(() => {
     let mounted = true;
 
     async function loadData() {
       try {
         setIsLoading(true);
-        setCatalogLoading(true);
-
-        const [characterRes, skillsRes, catalogRes] = await Promise.all([
+        const [characterRes, skillsRes] = await Promise.all([
           fetch(`/api/characters/${characterId}`),
           fetch(`/api/skills?characterId=${encodeURIComponent(characterId)}`),
-          fetch(`/api/skills/catalog?characterId=${encodeURIComponent(characterId)}`),
         ]);
 
         if (!mounted) return;
@@ -113,23 +84,15 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
 
         const characterData = await characterRes.json();
         const skillsData = skillsRes.ok ? await skillsRes.json() : { skills: [] };
-        const catalogData = catalogRes.ok ? await catalogRes.json() : { catalog: [], systemSkills: [] };
 
         setCharacter(characterData.character || null);
         setSkills(Array.isArray(skillsData.skills) ? skillsData.skills : []);
-
-        const allCatalog: CatalogSkillWithStatus[] = [
-          ...(Array.isArray(catalogData.systemSkills) ? catalogData.systemSkills : []),
-          ...(Array.isArray(catalogData.catalog) ? catalogData.catalog : []),
-        ];
-        setCatalog(allCatalog);
       } catch (err) {
         console.error("Failed to load skills page:", err);
         if (mounted) setError(tc("somethingWentWrong"));
       } finally {
         if (mounted) {
           setIsLoading(false);
-          setCatalogLoading(false);
         }
       }
     }
@@ -163,44 +126,6 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
     );
   }, [customSkills, search]);
 
-  // Filtered catalog skills by search
-  const filteredCatalog = useMemo(() => {
-    if (!search.trim()) return catalog;
-    const q = search.toLowerCase();
-    return catalog.filter(
-      (s) =>
-        s.displayName.toLowerCase().includes(q) ||
-        s.shortDescription.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q) ||
-        s.tags.some((tag) => tag.toLowerCase().includes(q))
-    );
-  }, [catalog, search]);
-
-  // Group catalog by category (same logic as SkillCatalogPage)
-  const grouped = useMemo(() => {
-    const map = new Map<string, CatalogSkillWithStatus[]>();
-    for (const skill of filteredCatalog) {
-      const existing = map.get(skill.category) || [];
-      existing.push(skill);
-      map.set(skill.category, existing);
-    }
-    const result: Array<{ category: string; label: string; skills: CatalogSkillWithStatus[] }> = [];
-    const seen = new Set<string>();
-    for (const cat of CATEGORY_ORDER) {
-      const catSkills = map.get(cat);
-      if (catSkills && catSkills.length > 0) {
-        result.push({ category: cat, label: CATEGORY_LABELS[cat], skills: catSkills });
-      }
-      seen.add(cat);
-    }
-    for (const [cat, catSkills] of map) {
-      if (!seen.has(cat) && catSkills.length > 0) {
-        result.push({ category: cat, label: cat.charAt(0).toUpperCase() + cat.slice(1), skills: catSkills });
-      }
-    }
-    return result;
-  }, [filteredCatalog]);
-
   // Toggle skill status (active/archived) — works for both custom and catalog-installed skills
   const handleToggleSkill = useCallback(async (skillId: string, enabled: boolean, catalogId?: string) => {
     setTogglingIds((prev) => new Set(prev).add(skillId));
@@ -214,14 +139,9 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
       setSkills((prev) =>
         prev.map((s) => (s.id === skillId ? { ...s, status: enabled ? "active" : "archived" } : s))
       );
-      // Sync catalog state if this is a catalog-installed skill
-      if (catalogId) {
-        setCatalog((prev) => prev.map((s) => s.id === catalogId ? { ...s, isEnabled: enabled } : s));
-        setSelectedSkill((prev) => prev?.id === catalogId ? { ...prev, isEnabled: enabled } : prev);
-      }
     } catch (err) {
       console.error("Toggle error:", err);
-      toast.error("Failed to update skill status");
+      toast.error(catalogT("toggleFailed"));
     } finally {
       setTogglingIds((prev) => {
         const next = new Set(prev);
@@ -248,91 +168,6 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
       setSkillToDelete(null);
     }
   };
-
-  // Uninstall a catalog skill (delete the installed copy, update catalog state)
-  const handleUninstallCatalogSkill = useCallback(async (catalogSkillId: string, installedSkillId: string) => {
-    setTogglingIds((prev) => new Set(prev).add(installedSkillId));
-    try {
-      const res = await fetch(`/api/skills/${installedSkillId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to uninstall skill");
-      setCatalog((prev) =>
-        prev.map((s) =>
-          s.id === catalogSkillId ? { ...s, isInstalled: false, installedSkillId: null, isEnabled: null } : s
-        )
-      );
-      setSelectedSkill((prev) =>
-        prev?.id === catalogSkillId ? { ...prev, isInstalled: false, installedSkillId: null, isEnabled: null } : prev
-      );
-      await reloadSkills();
-      toast.success("Skill uninstalled");
-    } catch (err) {
-      console.error("Uninstall error:", err);
-      toast.error("Failed to uninstall skill");
-    } finally {
-      setTogglingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(installedSkillId);
-        return next;
-      });
-    }
-  }, []);
-
-  // Install catalog skill
-  const handleInstallCatalogSkill = useCallback(async (catalogSkillId: string) => {
-    setInstallingIds((prev) => new Set(prev).add(catalogSkillId));
-    try {
-      const res = await fetch("/api/skills/catalog/install", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ catalogSkillId, characterId }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (res.status === 409) {
-        toast.info("Skill is already installed on this agent");
-        setCatalog((prev) =>
-          prev.map((s) =>
-            s.id === catalogSkillId
-              ? { ...s, isInstalled: true, installedSkillId: data.existingSkillId ?? s.installedSkillId, isEnabled: true }
-              : s
-          )
-        );
-        return;
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to install skill");
-      }
-
-      toast.success(`${data.name || "Skill"} installed`);
-
-      setCatalog((prev) =>
-        prev.map((s) =>
-          s.id === catalogSkillId
-            ? { ...s, isInstalled: true, installedSkillId: data.skillId, isEnabled: true }
-            : s
-        )
-      );
-
-      setSelectedSkill((prev) =>
-        prev?.id === catalogSkillId
-          ? { ...prev, isInstalled: true, installedSkillId: data.skillId, isEnabled: true }
-          : prev
-      );
-
-      await reloadSkills();
-    } catch (err) {
-      console.error("Catalog install error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to install skill");
-    } finally {
-      setInstallingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(catalogSkillId);
-        return next;
-      });
-    }
-  }, [characterId]);
 
   if (isLoading) {
     return (
@@ -408,7 +243,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
           <SkillSearch value={search} onChange={setSearch} className="max-w-full" />
 
           {/* Your Skills section — always visible */}
-          <SkillSection title="Your Skills" count={filteredCustomSkills.length}>
+          <SkillSection title={t("mySkills")} count={filteredCustomSkills.length}>
             {filteredCustomSkills.length > 0 ? (
               filteredCustomSkills.map((skill) => (
                 <SkillCard
@@ -431,68 +266,21 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
             ) : (
               <div className="col-span-full rounded-lg border border-dashed border-terminal-border bg-terminal-cream/50 p-6 text-center">
                 <p className="font-mono text-sm text-terminal-muted">
-                  {search ? "No custom skills match your search." : "No custom skills yet."}
+                  {search ? catalogT("emptySearchSkills") : catalogT("emptyCustomSkills")}
                 </p>
                 {!search && (
                   <p className="mt-1.5 text-xs text-terminal-muted">
-                    Create your own or install from the catalog below.
+                    {catalogT("emptyCustomSkillsHint")}
                   </p>
                 )}
               </div>
             )}
           </SkillSection>
 
-          {/* Catalog loading */}
-          {catalogLoading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-terminal-green" />
-            </div>
-          )}
-
-          {/* Catalog sections grouped by category */}
-          {grouped.map(({ category, label, skills: catSkills }) => (
-            <SkillSection key={category} title={label} count={catSkills.length}>
-              {catSkills.map((skill) => (
-                <SkillCard
-                  key={skill.id}
-                  skill={skill}
-                  variant={skill.isInstalled ? "installed" : "catalog"}
-                  isEnabled={skill.isEnabled ?? false}
-                  isBusy={
-                    installingIds.has(skill.id) ||
-                    (skill.installedSkillId ? togglingIds.has(skill.installedSkillId) : false)
-                  }
-                  onInstall={skill.isInstalled ? undefined : () => handleInstallCatalogSkill(skill.id)}
-                  onToggle={
-                    skill.isInstalled && skill.installedSkillId
-                      ? (enabled) => handleToggleSkill(skill.installedSkillId!, enabled, skill.id)
-                      : undefined
-                  }
-                  onDelete={
-                    skill.isInstalled && skill.installedSkillId
-                      ? () => handleUninstallCatalogSkill(skill.id, skill.installedSkillId!)
-                      : undefined
-                  }
-                  onClick={() => {
-                    setSelectedSkill(skill);
-                    setDialogOpen(true);
-                  }}
-                />
-              ))}
-            </SkillSection>
-          ))}
-
-          {/* Detail dialog */}
-          <SkillDetailDialog
-            skill={selectedSkill}
-            open={dialogOpen}
-            onOpenChange={setDialogOpen}
-            characterId={characterId}
-            onInstall={handleInstallCatalogSkill}
-            onToggle={async (catalogId, installedId, enabled) => {
-              await handleToggleSkill(installedId, enabled, catalogId);
-            }}
-            onUninstall={handleUninstallCatalogSkill}
+          <SkillCatalogPage
+            embedded
+            initialCharacterId={characterId}
+            hideCharacterSelector
           />
         </div>
       </ScrollArea>
