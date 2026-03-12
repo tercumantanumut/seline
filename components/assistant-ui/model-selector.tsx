@@ -199,6 +199,8 @@ export const ModelSelector: FC<ModelSelectorProps> = ({ sessionId, status }) => 
         }
         toast.success(t("switched", { name: model.name }));
         setOpen(false);
+        // Notify context-status to refresh immediately
+        window.dispatchEvent(new Event("seline:model-config-changed"));
       } catch {
         toast.error(t("switchFailed"));
       } finally {

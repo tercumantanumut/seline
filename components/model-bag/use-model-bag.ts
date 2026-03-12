@@ -158,6 +158,7 @@ export function useModelBag() {
         isSaving: false,
       }));
       toast.success(t("roleUpdated", { role }));
+      window.dispatchEvent(new Event("seline:model-config-changed"));
     },
     [],
   );
@@ -183,6 +184,7 @@ export function useModelBag() {
       }
       await fetchSettings();
       toast.success(t("providerSwitched", { name: PROVIDER_DISPLAY_NAMES[provider] }));
+      window.dispatchEvent(new Event("seline:model-config-changed"));
     },
     [fetchSettings],
   );

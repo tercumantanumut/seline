@@ -3,6 +3,16 @@ import { SYSTEM_SKILLS } from "./system-skills";
 
 export const SKILL_CATALOG: CatalogSkill[] = [
   {
+    id: "prompt-enhancer",
+    displayName: "Prompt Enhancer",
+    shortDescription: "Enrich prompts with codebase context for grounded, actionable results",
+    category: "dev-tools",
+    icon: "prompt-enhancer.svg",
+    defaultPrompt: "Enhance my prompt with relevant codebase context from synced folders.",
+    installSource: { type: "bundled" },
+    tags: ["enhance", "prompt", "context", "codebase", "grounding"],
+  },
+  {
     id: "figma",
     displayName: "Figma",
     shortDescription: "Use Figma MCP for design-to-code work",

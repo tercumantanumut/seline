@@ -22,7 +22,6 @@ import { useToolEditor } from "@/components/character-picker-tool-editor-hook";
 import type { CharacterSummary } from "@/components/character-picker-types";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
-import { SessionModelOverride } from "@/components/model-bag";
 import { getSessionActivityTimestamp } from "@/components/chat/chat-interface-utils";
 import type { SessionChannelType, SessionInfo } from "./types";
 import { parseAsUTC, getDateBucket } from "./sidebar-utils";
@@ -390,6 +389,7 @@ export function CharacterSidebar({
         generatedPrompt={charActions.generatedPrompt}
         isSaving={charActions.isSavingIdentity}
         onSave={charActions.saveIdentity}
+        defaultTab={charActions.identityEditorDefaultTab}
       />
 
       <McpRemovalWarningDialog
@@ -437,6 +437,7 @@ export function CharacterSidebar({
         onOpenChannelsDialog={() => setChannelsOpen(true)}
         onOpenFoldersDialog={() => setFoldersOpen(true)}
         onEditIdentity={() => charActions.openIdentityEditor(characterSummary)}
+        onEditModelDefaults={() => charActions.openModelDefaults(characterSummary)}
         onEditTools={() => toolEditor.openToolEditor(characterSummary)}
         onEditMcp={() => charActions.openMcpToolEditor(characterSummary)}
         onEditPlugins={() => charActions.openPluginEditor(characterSummary)}
@@ -446,12 +447,6 @@ export function CharacterSidebar({
         isDuplicating={charActions.isDuplicating}
         onDelete={() => charActions.openDeleteDialog(characterSummary)}
       />
-
-      {currentSessionId && (
-        <div className="px-4 pb-2">
-          <SessionModelOverride sessionId={currentSessionId} />
-        </div>
-      )}
 
       <SessionList
         sessions={sessions}

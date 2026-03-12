@@ -25,6 +25,7 @@ export function AgentCardInWorkflow({
   onContinueChat,
   onNewChat,
   onEditIdentity,
+  onEditModelDefaults,
   onEditTools,
   onEditFolders,
   onEditMcp,
@@ -48,6 +49,7 @@ export function AgentCardInWorkflow({
   onContinueChat: (id: string) => void;
   onNewChat: (id: string) => void;
   onEditIdentity: (c: CharacterSummary) => void;
+  onEditModelDefaults: (c: CharacterSummary) => void;
   onEditTools: (c: CharacterSummary) => void;
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
@@ -116,6 +118,7 @@ export function AgentCardInWorkflow({
         <AgentOverflowMenu
           character={character}
           onEditIdentity={onEditIdentity}
+          onEditModelDefaults={onEditModelDefaults}
           onEditTools={onEditTools}
           onEditFolders={onEditFolders}
           onEditMcp={onEditMcp}
@@ -221,6 +224,8 @@ export function AgentCardInWorkflow({
             <span className="font-mono text-[10px] text-terminal-muted">+{enabledTools.length - 3}</span>
           )}
         </div>
+
+
       </div>
 
       <div className="flex justify-start gap-1.5 px-4 pb-3 pt-0">

@@ -28,7 +28,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ContextWindowManager } from "@/lib/context-window";
 import { getSession } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
-import { getSessionModelId, getSessionProvider } from "@/lib/ai/session-model-resolver";
+import { getSessionModelIdForSession, getSessionProviderForSession } from "@/lib/ai/session-model-resolver";
 
 type RouteParams = {
   params: Promise<{ id: string }>;
@@ -50,10 +50,10 @@ export async function GET(
       );
     }
 
-    // Get model info from session metadata
+    // Get model info from session metadata (async to load agent defaults from DB)
     const sessionMetadata = (session.metadata as Record<string, unknown>) || {};
-    const modelId = getSessionModelId(sessionMetadata);
-    const provider = getSessionProvider(sessionMetadata);
+    const modelId = await getSessionModelIdForSession(sessionMetadata);
+    const provider = await getSessionProviderForSession(sessionMetadata);
 
     // Estimate system prompt length (approximate)
     const estimatedSystemPromptLength = 5000;
@@ -111,10 +111,10 @@ export async function POST(
       );
     }
 
-    // Get model info from session metadata
+    // Get model info from session metadata (async to load agent defaults from DB)
     const sessionMetadata = (session.metadata as Record<string, unknown>) || {};
-    const modelId = getSessionModelId(sessionMetadata);
-    const provider = getSessionProvider(sessionMetadata);
+    const modelId = await getSessionModelIdForSession(sessionMetadata);
+    const provider = await getSessionProviderForSession(sessionMetadata);
 
     // Estimate system prompt length
     const estimatedSystemPromptLength = 5000;

@@ -404,6 +404,7 @@
     "mcpTools": "MCP Araçları",
     "menu": {
       "editInfo": "Bilgileri Düzenle",
+      "modelDefaults": "Model Varsayılanları",
       "manageTools": "Araçları Yönet",
       "syncFolders": "Klasörleri Senkronize Et",
       "mcpTools": "MCP Araçları",
@@ -607,7 +608,7 @@
           }
         }
       }
-    }
+    },
     "deleteDialog": {
       "title": "Ajanı Sil",
       "description": "\"{name}\" ajanını silmek istediğinizden emin misiniz?",
@@ -2716,38 +2717,6 @@
     "usingDefault": "Varsayılan kullanılıyor",
     "close": "Kapat",
     "enterToAssign": "Enter + ↵",
-    "sessionOverride": {
-      "title": "Oturum model geçersiz kılmaları",
-      "description": "Buradaki değişiklikler yalnızca bu sohbeti etkiler. Ajan varsayılanları sonraki oturumlar için korunur.",
-      "precedence": "Aktif çözümleme sırası: oturum geçersiz kılma -> ajan varsayılanı -> global fallback -> sağlayıcı varsayılanı",
-      "loadingConfig": "Model yapılandırması yükleniyor...",
-      "updateFailed": "Oturum modeli güncellenemedi",
-      "updateSuccess": "Oturum modeli güncellendi",
-      "clearFailed": "Geçersiz kılmalar temizlenemedi",
-      "clearSuccess": "Oturum modeli geçersiz kılmaları temizlendi",
-      "provider": "Sağlayıcı",
-      "chatModel": "Sohbet Modeli",
-      "researchModel": "Araştırma Modeli",
-      "visionModel": "Görüntü Modeli",
-      "utilityModel": "Yardımcı Model",
-      "clearAllOverrides": "Tüm geçersiz kılmaları temizle",
-      "helpText": "Oturum override'ları yalnızca bu sohbette geçerlidir. Bir alanı boş bırakırsanız önce ajan varsayılanına, sonra global ayarlara düşer.",
-      "emptyValue": "Ayarlanmadı",
-      "clearField": "Temizle",
-      "sessionLabel": "Oturum",
-      "agentLabel": "Ajan",
-      "globalLabel": "Global",
-      "effectiveLabel": "Efektif",
-      "sourceLabel": "Kaynak",
-      "sourceSession": "oturum geçersiz kılması",
-      "sourceAgent": "ajan varsayılanı",
-      "sourceGlobal": "global fallback",
-      "sourceProviderDefault": "sağlayıcı varsayılanı",
-      "providerDefault": "(sağlayıcı varsayılanı)",
-      "modelLabel": "Model",
-      "globalStatus": "Global",
-      "overrideBadge": "GEÇERSİZ"
-    },
     "providerFilter": {
       "all": "Tümü",
       "activeProvider": "{name} (aktif sağlayıcı)",

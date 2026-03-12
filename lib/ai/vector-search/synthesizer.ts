@@ -22,8 +22,8 @@ import type {
   RawSearchResult,
 } from "./types";
 import {
-  getSessionProviderTemperature,
-  resolveSessionUtilityModel,
+  getSessionProviderTemperatureForSession,
+  resolveSessionUtilityModelForSession,
 } from "@/lib/ai/session-model-resolver";
 import { extname, basename, join, resolve, relative } from "path";
 
@@ -543,13 +543,13 @@ export async function synthesizeSearchResults(
     // Call the utility model with tools and timeout
     // Note: maxSteps enables multi-step tool calling in AI SDK 5.0+
     const generateOptions = {
-      model: resolveSessionUtilityModel(sessionMetadata),
+      model: await resolveSessionUtilityModelForSession(sessionMetadata),
       system: SYNTHESIS_SYSTEM_PROMPT,
       prompt: contextPrompt,
       tools,
       maxSteps: tools ? MAX_TOOL_STEPS : 1, // Only allow multi-step if tools are available
       maxOutputTokens: 4000,
-      temperature: getSessionProviderTemperature(sessionMetadata, 0.2),
+      temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.2),
     };
 
     const result = await Promise.race([
@@ -606,11 +606,11 @@ export async function synthesizeSearchResults(
       console.warn(`[VectorSearchSynthesizer] No text after ${toolCalls} tool calls, requesting final response`);
       try {
         const followUp = await generateText({
-          model: resolveSessionUtilityModel(sessionMetadata),
+          model: await resolveSessionUtilityModelForSession(sessionMetadata),
           system: SYNTHESIS_SYSTEM_PROMPT,
           prompt: contextPrompt + "\n\n## IMPORTANT\nYou have already read the relevant files. Now provide your JSON response with findings.",
           maxOutputTokens: 4000,
-          temperature: getSessionProviderTemperature(sessionMetadata, 0.2),
+          temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.2),
         });
         finalText = followUp.text || "";
         console.log(`[VectorSearchSynthesizer] Follow-up response: ${finalText.length} chars`);

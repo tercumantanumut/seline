@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { ContextWindowManager } from "@/lib/context-window";
-import { getSessionModelId, getSessionProvider } from "@/lib/ai/session-model-resolver";
+import { getSessionModelIdForSession, getSessionProviderForSession } from "@/lib/ai/session-model-resolver";
 
 const encoder = new TextEncoder();
 const HEARTBEAT_INTERVAL_MS = 15_000;
@@ -71,8 +71,8 @@ export async function POST(req: Request) {
           }
 
           const sessionMetadata = (session.metadata as Record<string, unknown>) || {};
-          const currentModelId = getSessionModelId(sessionMetadata);
-          const currentProvider = getSessionProvider(sessionMetadata);
+          const currentModelId = await getSessionModelIdForSession(sessionMetadata);
+          const currentProvider = await getSessionProviderForSession(sessionMetadata);
           const contextCheck = await ContextWindowManager.preFlightCheck(
             sessionId,
             currentModelId,

@@ -16,8 +16,8 @@ import { getSessionContent, getContentByUrls } from "./session-store";
 import type { SynthesisRequest, SynthesisResult, WebContentEntry } from "./types";
 import { logToolEvent } from "@/lib/ai/tool-registry/logging";
 import {
-  getSessionProviderTemperature,
-  resolveSessionUtilityModel,
+  getSessionProviderTemperatureForSession,
+  resolveSessionUtilityModelForSession,
 } from "@/lib/ai/session-model-resolver";
 
 // ============================================================================
@@ -272,11 +272,11 @@ Based on the web content above, provide a comprehensive answer to the user's que
     // Call the utility model with timeout
     const result = await Promise.race([
       generateText({
-        model: resolveSessionUtilityModel(sessionMetadata),
+        model: await resolveSessionUtilityModelForSession(sessionMetadata),
         system: SYNTHESIS_SYSTEM_PROMPT,
         prompt: synthesisPrompt,
         maxOutputTokens: 2000,
-        temperature: getSessionProviderTemperature(sessionMetadata, 0.3),
+        temperature: await getSessionProviderTemperatureForSession(sessionMetadata, 0.3),
         abortSignal,
       }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), SYNTHESIS_TIMEOUT_MS)),

@@ -100,7 +100,9 @@ models/**
 public/mocks/
 # Meilisearch data
 data.ms/
-
+sb-cli-reports/
+scripts/swebench/
+logs/
 # Redis data files
 *.rdb
 *.aof

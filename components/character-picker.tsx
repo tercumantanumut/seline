@@ -377,6 +377,7 @@ export function CharacterPicker() {
             onContinueChat={handleContinueChat}
             onNewChat={handleNewChat}
             onEditIdentity={charActions.openIdentityEditor}
+            onEditModelDefaults={charActions.openModelDefaults}
             onEditTools={toolEditor.openToolEditor}
             onEditFolders={charActions.openFolderManager}
             onEditMcp={charActions.openMcpToolEditor}
@@ -447,6 +448,7 @@ export function CharacterPicker() {
               onContinueChat={handleContinueChat}
               onNewChat={handleNewChat}
               onEditIdentity={charActions.openIdentityEditor}
+              onEditModelDefaults={charActions.openModelDefaults}
               onEditTools={toolEditor.openToolEditor}
               onEditFolders={charActions.openFolderManager}
               onEditMcp={charActions.openMcpToolEditor}
@@ -579,6 +581,7 @@ export function CharacterPicker() {
           generatedPrompt={charActions.generatedPrompt}
           isSaving={charActions.isSavingIdentity}
           onSave={charActions.saveIdentity}
+          defaultTab={charActions.identityEditorDefaultTab}
         />
 
         <McpRemovalWarningDialog

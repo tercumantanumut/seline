@@ -25,6 +25,7 @@ export function useCharacterActions(
 ) {
   // Identity editor state
   const [identityEditorOpen, setIdentityEditorOpen] = useState(false);
+  const [identityEditorDefaultTab, setIdentityEditorDefaultTab] = useState<"basic" | "models" | "advanced">("basic");
   const [identityEditingCharacter, setIdentityEditingCharacter] = useState<CharacterSummary | null>(null);
   const [identityForm, setIdentityForm] = useState<IdentityEditorFormState>({
     name: "",
@@ -83,7 +84,8 @@ export function useCharacterActions(
   };
 
   // Identity actions
-  const openIdentityEditor = async (character: CharacterSummary) => {
+  const openIdentityEditor = async (character: CharacterSummary, tab: "basic" | "models" | "advanced" = "basic") => {
+    setIdentityEditorDefaultTab(tab);
     setIdentityEditingCharacter(character);
     const metadata = character.metadata as any;
     setIdentityForm({
@@ -107,6 +109,8 @@ export function useCharacterActions(
     setGeneratedPrompt(promptData?.prompt || "");
     setIdentityEditorOpen(true);
   };
+
+  const openModelDefaults = (character: CharacterSummary) => openIdentityEditor(character, "models");
 
   const saveIdentity = async () => {
     if (!identityEditingCharacter) return;
@@ -136,6 +140,8 @@ export function useCharacterActions(
       if (!error) {
         setIdentityEditorOpen(false);
         await loadCharacters();
+        // Notify model bag / context-status to refresh immediately
+        window.dispatchEvent(new Event("seline:model-config-changed"));
       }
     } catch (error) {
       console.error("Failed to save identity:", error);
@@ -323,12 +329,14 @@ export function useCharacterActions(
     // Identity
     identityEditorOpen,
     setIdentityEditorOpen,
+    identityEditorDefaultTab,
     editingCharacter: identityEditingCharacter,
     identityForm,
     setIdentityForm,
     generatedPrompt,
     isSavingIdentity,
     openIdentityEditor,
+    openModelDefaults,
     saveIdentity,
 
     // Delete
