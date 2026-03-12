@@ -27,7 +27,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useActiveTaskSnapshot } from "@/lib/stores/unified-tasks-store";
+import { useActiveTaskCount, useActiveTasks } from "@/lib/stores/unified-tasks-store";
 import {
   useSessionActivity,
   useSessionSyncStore,
@@ -142,7 +142,8 @@ export function ActiveTasksIndicator() {
   const t = useTranslations("schedules.notifications");
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const { count, tasks } = useActiveTaskSnapshot();
+  const count = useActiveTaskCount();
+  const tasks = useActiveTasks();
   const latestIndicator = useLatestActivityLabel(tasks);
 
   // Don't render if no active tasks
@@ -190,17 +191,11 @@ export function ActiveTasksIndicator() {
           </h4>
         </div>
 
-        <div className="max-h-[18.5rem] overflow-y-auto sm:max-h-[min(18.5rem,calc(100vh-8rem))]">
+        <div className="max-h-64 overflow-y-auto">
           {tasks.map((task) => (
             <TaskRow key={task.runId} task={task} onNavigate={handleNavigate} />
           ))}
         </div>
-
-        {count > 4 && (
-          <div className="border-t border-terminal-green/20 px-3 py-2 text-xs font-mono text-terminal-muted">
-            {t("scrollToViewAll")}
-          </div>
-        )}
       </PopoverContent>
     </Popover>
   );

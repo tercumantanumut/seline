@@ -2993,7 +2993,6 @@
       "startedAt": "{time} itibarıyla başladı",
       "backgroundTask": "Arka plan görevi"
     },
-    "sessionActiveTasksDescription": "Bu sohbetteki tüm aktif görevleri ana sayfaya dönmeden takip edin.",
     "processingInBackground": "Ajan arka planda işliyor",
     "processingInBackgroundHint": "Yanıt hazır olduğunda otomatik görünecek",
     "backgroundRun": {
@@ -3952,8 +3951,7 @@
       "activeTasks": "{count} aktif görev",
       "startedAgo": "{time} önce başladı",
       "chatRun": "Sohbet çalışması",
-      "channelTask": "Kanal {channelType}",
-      "scrollToViewAll": "Tüm aktif görevleri görmek için kaydırın."
+      "channelTask": "Kanal {channelType}"
     }
   },
   "plugins": {

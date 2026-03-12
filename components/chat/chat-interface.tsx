@@ -12,7 +12,7 @@ import { GitBranchIcon, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
 import type { TaskEvent, TaskStatus } from "@/lib/background-tasks/types";
-import { useActiveTaskSnapshot, useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
+import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
 import { CharacterSidebar } from "@/components/chat/chat-sidebar";
 import { WorkspaceIndicator } from "@/components/workspace/workspace-indicator";
 import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
@@ -25,7 +25,7 @@ import { SentenceSplitter, StableStreamingLifecycle, StreamingTTSQueue } from "@
 import type { UIMessage } from "ai";
 import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupResponse } from "@/components/chat/chat-interface-types";
 import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
-import { ChatSidebarHeader, ScheduledRunBanner, SessionActiveTasksBanner } from "@/components/chat/chat-interface-parts";
+import { ChatSidebarHeader, ScheduledRunBanner } from "@/components/chat/chat-interface-parts";
 import { useBackgroundProcessing, useSessionManager } from "@/components/chat/chat-interface-hooks";
 import { ThemeChooserModal } from "@/components/theme/theme-chooser-modal";
 
@@ -388,14 +388,9 @@ export default function ChatInterface({
 
     const activeTasks = useUnifiedTasksStore((state) => state.tasks);
     const completeTask = useUnifiedTasksStore((state) => state.completeTask);
-    const { tasks: sessionActiveTasks } = useActiveTaskSnapshot(sessionId ? { sessionId } : null);
     const activeTaskForSession = sessionId
-        ? sessionActiveTasks.find((task) => task.type === "scheduled")
+        ? activeTasks.find((task) => task.sessionId === sessionId && task.type === "scheduled")
         : undefined;
-    const nonScheduledSessionActiveTasks = useMemo(
-        () => sessionActiveTasks.filter((task) => task.type !== "scheduled"),
-        [sessionActiveTasks]
-    );
 
     // Stable ref-based wrappers to break the circular dependency between
     // useBackgroundProcessing (needs sm callbacks) and useSessionManager (needs bg state).
@@ -1097,16 +1092,13 @@ export default function ChatInterface({
                                     )}
                                 </div>
                             )}
-                            {(activeRun || nonScheduledSessionActiveTasks.length > 0) && (
+                            {activeRun && (
                                 <div className="px-4 pt-2 space-y-2">
-                                    {activeRun && (
-                                        <ScheduledRunBanner
-                                            run={activeRun}
-                                            onCancel={handleCancelRun}
-                                            cancelling={isCancellingRun}
-                                        />
-                                    )}
-                                    <SessionActiveTasksBanner tasks={nonScheduledSessionActiveTasks} />
+                                    <ScheduledRunBanner
+                                        run={activeRun}
+                                        onCancel={handleCancelRun}
+                                        cancelling={isCancellingRun}
+                                    />
                                 </div>
                             )}
                             {avatarConfig.enabled && (
