@@ -30,6 +30,24 @@ const DEFAULT_TIMEOUT = 10_000;
 const DEFAULT_RETRIES = 2;
 const DEFAULT_BACKOFF = 1_000;
 
+function extractErrorMessage(raw: string, contentType: string, fallback: string): string {
+  if (!raw) return fallback;
+
+  if (contentType.includes("application/json")) {
+    try {
+      const parsed = JSON.parse(raw) as { error?: unknown; message?: unknown };
+      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error;
+      if (typeof parsed.message === "string" && parsed.message.trim()) return parsed.message;
+    } catch {
+      return "Invalid JSON response";
+    }
+  }
+
+  const text = raw.trim();
+  if (!text || text.startsWith("<!DOCTYPE") || text.startsWith("<html")) return fallback;
+  return text;
+}
+
 /**
  * Fetch with automatic timeout and retry.
  *
@@ -72,13 +90,14 @@ export async function resilientFetch<T = unknown>(
       clearTimeout(timeoutId);
       externalSignal?.removeEventListener("abort", onExternalAbort);
 
+      const contentType = response.headers.get("content-type") || "";
+      const raw = response.status === 204 || response.status === 205 ? "" : await response.text();
+
       // Don't retry client errors (4xx) — they won't succeed on retry
       if (response.ok) {
         if (response.status === 204 || response.status === 205) {
           return { data: null, error: null, timedOut: false, status: response.status };
         }
-        const contentType = response.headers.get("content-type") || "";
-        const raw = await response.text();
         if (!raw) {
           return { data: null, error: null, timedOut: false, status: response.status };
         }
@@ -93,9 +112,11 @@ export async function resilientFetch<T = unknown>(
         return { data: raw as unknown as T, error: null, timedOut: false, status: response.status };
       }
 
+      const errorMessage = extractErrorMessage(raw, contentType, `HTTP ${response.status}`);
+
       // Retry on server errors (5xx)
       if (response.status >= 500 && attempt < retries) {
-        lastError = `HTTP ${response.status}`;
+        lastError = errorMessage;
         onRetry?.(attempt + 1, new Error(lastError));
         await sleep(backoffMs * Math.pow(2, attempt));
         continue;
@@ -104,7 +125,7 @@ export async function resilientFetch<T = unknown>(
       // Non-retryable error
       return {
         data: null,
-        error: `HTTP ${response.status}`,
+        error: errorMessage,
         timedOut: false,
         status: response.status,
       };

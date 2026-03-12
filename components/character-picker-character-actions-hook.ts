@@ -308,7 +308,7 @@ export function useCharacterActions(
 
     setIsDuplicating(true);
     try {
-      const { data, error } = await resilientPost<{ character: { id: string } }>(
+      const { data, error } = await resilientPost<{ character?: { id: string }; error?: string }>(
         `/api/characters/${characterId}/duplicate`,
         {},
         // Duplication can copy folders, plugins, and images; default 10s is too short for larger agents.
@@ -319,7 +319,7 @@ export function useCharacterActions(
       toast.success(t("workflows.duplicateSuccess"));
     } catch (error) {
       console.error("Failed to duplicate agent:", error);
-      toast.error(t("workflows.duplicateFailed"));
+      toast.error(error instanceof Error ? error.message : t("workflows.duplicateFailed"));
     } finally {
       setIsDuplicating(false);
     }

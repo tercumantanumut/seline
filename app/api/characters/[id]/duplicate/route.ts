@@ -42,8 +42,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const duplicated = await db.transaction(async (tx) => {
-      const [newCharacter] = await tx
+    const duplicated = db.transaction((tx) => {
+      const newCharacter = tx
         .insert(characters)
         .values({
           userId: dbUser.id,
@@ -54,12 +54,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           isDefault: false,
           metadata: buildDuplicateMetadata(source.metadata),
         })
-        .returning();
+        .returning()
+        .get();
 
-      const sourceFolders = await tx
+      const sourceFolders = tx
         .select()
         .from(agentSyncFolders)
-        .where(eq(agentSyncFolders.characterId, id));
+        .where(eq(agentSyncFolders.characterId, id))
+        .all();
 
       const ownFolders = filterDuplicableFolders(sourceFolders);
 
@@ -86,33 +88,35 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           inheritedFromWorkflowId: null,
           inheritedFromAgentId: null,
         }));
-        await tx.insert(agentSyncFolders).values(duplicatedFolders);
+        tx.insert(agentSyncFolders).values(duplicatedFolders).run();
       }
 
-      const sourcePluginAssignments = await tx
+      const sourcePluginAssignments = tx
         .select()
         .from(agentPlugins)
-        .where(and(eq(agentPlugins.agentId, id), eq(agentPlugins.enabled, true)));
+        .where(and(eq(agentPlugins.agentId, id), eq(agentPlugins.enabled, true)))
+        .all();
 
       if (sourcePluginAssignments.length > 0) {
-        await tx.insert(agentPlugins).values(
+        tx.insert(agentPlugins).values(
           sourcePluginAssignments.map((assignment) => ({
             agentId: newCharacter.id,
             pluginId: assignment.pluginId,
             workflowId: null,
             enabled: true,
           }))
-        );
+        ).run();
       }
 
-      const sourceImages = await tx
+      const sourceImages = tx
         .select()
         .from(characterImages)
-        .where(eq(characterImages.characterId, id));
+        .where(eq(characterImages.characterId, id))
+        .all();
 
       if (sourceImages.length > 0) {
         // Keep original localPath/url references: image row deletion currently does not delete files.
-        await tx.insert(characterImages).values(
+        tx.insert(characterImages).values(
           sourceImages.map((image) => ({
             characterId: newCharacter.id,
             imageType: image.imageType,
@@ -129,7 +133,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             sortOrder: image.sortOrder,
             metadata: image.metadata,
           }))
-        );
+        ).run();
       }
 
       return newCharacter;
@@ -144,6 +148,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     ) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
-    return NextResponse.json({ error: "Failed to duplicate agent" }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to duplicate agent" },
+      { status: 500 }
+    );
   }
 }
