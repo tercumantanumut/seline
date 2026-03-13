@@ -53,6 +53,7 @@ const mocks = vi.hoisted(() => {
     lastRunTrigger: overrides.lastRunTrigger ?? null,
     inheritedFromWorkflowId: overrides.inheritedFromWorkflowId ?? null,
     inheritedFromAgentId: overrides.inheritedFromAgentId ?? null,
+    inheritedFromFolderId: overrides.inheritedFromFolderId ?? null,
     updatedAt: overrides.updatedAt ?? "2026-03-13T00:00:00.000Z",
   });
 
@@ -143,6 +144,7 @@ vi.mock("@/lib/db/sqlite-character-schema", () => ({
     folderPath: { name: "folderPath" },
     inheritedFromWorkflowId: { name: "inheritedFromWorkflowId" },
     inheritedFromAgentId: { name: "inheritedFromAgentId" },
+    inheritedFromFolderId: { name: "inheritedFromFolderId" },
   },
 }));
 

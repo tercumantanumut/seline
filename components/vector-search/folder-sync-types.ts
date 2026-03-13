@@ -32,6 +32,7 @@ export interface SyncFolder {
   isPrimary: boolean;
   inheritedFromWorkflowId?: string | null;
   inheritedFromAgentId?: string | null;
+  inheritedFromFolderId?: string | null;
 }
 
 export interface FolderAnalysis {

@@ -175,6 +175,7 @@ export const agentSyncFolders = sqliteTable(
     // Workflow inheritance tracking: set when a folder is copied to a member via workflow folder sharing
     inheritedFromWorkflowId: text("inherited_from_workflow_id"),
     inheritedFromAgentId: text("inherited_from_agent_id"),
+    inheritedFromFolderId: text("inherited_from_folder_id"), // Stable FK to source folder row (survives path renames)
     createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
     updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
   },

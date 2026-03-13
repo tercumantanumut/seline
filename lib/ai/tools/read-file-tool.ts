@@ -18,7 +18,6 @@ import {
   recordFileRead,
   findSimilarFiles,
 } from "@/lib/ai/filesystem";
-import { getAccessibleSyncFolders } from "@/lib/vectordb/accessible-sync-folders";
 import { findAgentDocumentByName, getAgentDocumentChunksByDocumentId } from "@/lib/db/queries";
 
 // ---------------------------------------------------------------------------
@@ -332,14 +331,10 @@ export function createReadFileTool(options: ReadFileToolOptions) {
       // STEP 2: Synced Folders (workspace-aware — worktree path is included if active)
       let syncedFolders: string[];
       try {
-        const accessibleFolders = characterId ? await getAccessibleSyncFolders(characterId) : [];
+        // resolveWorkspaceAwarePaths already includes shared workflow folders
+        // (via resolveSyncedFolderPaths → getAccessibleSyncFolders) and applies
+        // worktree isolation filtering. No extra merge needed.
         syncedFolders = await resolveWorkspaceAwarePaths(characterId, sessionId);
-        if (accessibleFolders.length > 0) {
-          const extraPaths = accessibleFolders
-            .map((folder) => folder.folderPath)
-            .filter((folderPath) => !syncedFolders.includes(folderPath));
-          syncedFolders = [...syncedFolders, ...extraPaths];
-        }
         if (syncedFolders.length === 0) {
           return {
             status: "error",

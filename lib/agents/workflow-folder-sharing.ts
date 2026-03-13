@@ -9,6 +9,7 @@ import { notifyFolderChange, onFolderChange, type FolderChangeEvent } from "@/li
 import { refreshWorkflowSharedResources } from "./workflow-db-helpers";
 
 let workflowFolderPropagationRegistered = false;
+let unsubscribeFolderPropagation: (() => void) | null = null;
 
 function cloneFolderForMember(
   folder: typeof agentSyncFolders.$inferSelect,
@@ -47,6 +48,7 @@ function cloneFolderForMember(
     lastRunTrigger: null,
     inheritedFromWorkflowId: workflowId,
     inheritedFromAgentId: sourceAgentId,
+    inheritedFromFolderId: folder.id,
   };
 }
 
@@ -105,35 +107,46 @@ async function propagateOwnFolderAdded(characterId: string, folderId: string): P
   await touchWorkflowSharedResources(context.membership.workflow.id, context.membership.workflow.initiatorId);
 }
 
-async function propagateOwnFolderRemoved(characterId: string, folderPath?: string): Promise<void> {
+async function propagateOwnFolderRemoved(characterId: string, folderId: string, folderPath?: string): Promise<void> {
   const context = await getWorkflowPropagationContext(characterId);
-  if (!context || !folderPath) return;
+  if (!context) return;
 
-  const inheritedRows = await db
-    .select({ id: agentSyncFolders.id, characterId: agentSyncFolders.characterId })
-    .from(agentSyncFolders)
-    .where(
-      and(
-        eq(agentSyncFolders.inheritedFromWorkflowId, context.membership.workflow.id),
-        eq(agentSyncFolders.inheritedFromAgentId, characterId),
-        eq(agentSyncFolders.folderPath, folderPath)
-      )
-    );
+  // Use stable folderId FK when available, fall back to folderPath for pre-migration rows
+  let inheritedRows = folderId
+    ? await db
+        .select({ id: agentSyncFolders.id, characterId: agentSyncFolders.characterId })
+        .from(agentSyncFolders)
+        .where(
+          and(
+            eq(agentSyncFolders.inheritedFromWorkflowId, context.membership.workflow.id),
+            eq(agentSyncFolders.inheritedFromFolderId, folderId)
+          )
+        )
+    : [];
+
+  // Fall back to folderPath match for rows created before inheritedFromFolderId migration
+  if (inheritedRows.length === 0 && folderPath) {
+    inheritedRows = await db
+      .select({ id: agentSyncFolders.id, characterId: agentSyncFolders.characterId })
+      .from(agentSyncFolders)
+      .where(
+        and(
+          eq(agentSyncFolders.inheritedFromWorkflowId, context.membership.workflow.id),
+          eq(agentSyncFolders.inheritedFromAgentId, characterId),
+          eq(agentSyncFolders.folderPath, folderPath)
+        )
+      );
+  }
 
   if (inheritedRows.length === 0) {
     await touchWorkflowSharedResources(context.membership.workflow.id, context.membership.workflow.initiatorId);
     return;
   }
 
+  const rowIds = inheritedRows.map((r) => r.id);
   await db
     .delete(agentSyncFolders)
-    .where(
-      and(
-        eq(agentSyncFolders.inheritedFromWorkflowId, context.membership.workflow.id),
-        eq(agentSyncFolders.inheritedFromAgentId, characterId),
-        eq(agentSyncFolders.folderPath, folderPath)
-      )
-    );
+    .where(inArray(agentSyncFolders.id, rowIds));
 
   for (const row of inheritedRows) {
     notifyFolderChange(row.characterId, { type: "removed", folderId: row.id, wasPrimary: false });
@@ -160,25 +173,40 @@ async function propagateOwnFolderUpdated(characterId: string, folderId: string):
 
   if (!folder || folder.inheritedFromWorkflowId) return;
 
-  const inheritedCopies = await db
+  // Use stable folderId FK when available, fall back to folderPath for pre-migration rows
+  const matchCondition = and(
+    eq(agentSyncFolders.inheritedFromWorkflowId, context.membership.workflow.id),
+    eq(agentSyncFolders.inheritedFromFolderId, folder.id)
+  );
+  const fallbackCondition = and(
+    eq(agentSyncFolders.inheritedFromWorkflowId, context.membership.workflow.id),
+    eq(agentSyncFolders.inheritedFromAgentId, characterId),
+    eq(agentSyncFolders.folderPath, folder.folderPath)
+  );
+
+  let inheritedCopies = await db
     .select({ id: agentSyncFolders.id, characterId: agentSyncFolders.characterId })
     .from(agentSyncFolders)
-    .where(
-      and(
-        eq(agentSyncFolders.inheritedFromWorkflowId, context.membership.workflow.id),
-        eq(agentSyncFolders.inheritedFromAgentId, characterId),
-        eq(agentSyncFolders.folderPath, folder.folderPath)
-      )
-    );
+    .where(matchCondition);
+
+  // Fall back to folderPath match for rows created before inheritedFromFolderId migration
+  if (inheritedCopies.length === 0) {
+    inheritedCopies = await db
+      .select({ id: agentSyncFolders.id, characterId: agentSyncFolders.characterId })
+      .from(agentSyncFolders)
+      .where(fallbackCondition);
+  }
 
   if (inheritedCopies.length === 0) {
     await touchWorkflowSharedResources(context.membership.workflow.id, context.membership.workflow.initiatorId);
     return;
   }
 
+  const copyIds = inheritedCopies.map((c) => c.id);
   await db
     .update(agentSyncFolders)
     .set({
+      folderPath: folder.folderPath,
       displayName: folder.displayName,
       recursive: folder.recursive,
       includeExtensions: folder.includeExtensions,
@@ -192,15 +220,10 @@ async function propagateOwnFolderUpdated(characterId: string, folderId: string):
       chunkSizeOverride: folder.chunkSizeOverride,
       chunkOverlapOverride: folder.chunkOverlapOverride,
       reindexPolicy: folder.reindexPolicy,
+      inheritedFromFolderId: folder.id, // Backfill for pre-migration rows
       updatedAt: new Date().toISOString(),
     })
-    .where(
-      and(
-        eq(agentSyncFolders.inheritedFromWorkflowId, context.membership.workflow.id),
-        eq(agentSyncFolders.inheritedFromAgentId, characterId),
-        eq(agentSyncFolders.folderPath, folder.folderPath)
-      )
-    );
+    .where(inArray(agentSyncFolders.id, copyIds));
 
   for (const copy of inheritedCopies) {
     notifyFolderChange(copy.characterId, { type: "updated", folderId: copy.id });
@@ -211,7 +234,7 @@ async function propagateOwnFolderUpdated(characterId: string, folderId: string):
 
 export async function propagateWorkflowFolderChange(characterId: string, event: FolderChangeEvent): Promise<void> {
   if (event.type === "added") return propagateOwnFolderAdded(characterId, event.folderId);
-  if (event.type === "removed") return propagateOwnFolderRemoved(characterId, event.folderPath);
+  if (event.type === "removed") return propagateOwnFolderRemoved(characterId, event.folderId, event.folderPath);
   if (event.type === "updated") return propagateOwnFolderUpdated(characterId, event.folderId);
   if (event.type === "primary_changed") return propagateOwnFolderPrimaryChanged(characterId);
 }
@@ -221,7 +244,7 @@ export function registerWorkflowFolderPropagation(): void {
   if (workflowFolderPropagationRegistered) return;
   workflowFolderPropagationRegistered = true;
 
-  onFolderChange(async (characterId, event: FolderChangeEvent) => {
+  unsubscribeFolderPropagation = onFolderChange(async (characterId, event: FolderChangeEvent) => {
     if (event.type === "mcp_reload_started" || event.type === "mcp_reload_completed" || event.type === "mcp_reload_failed") {
       return;
     }
@@ -235,6 +258,10 @@ export function registerWorkflowFolderPropagation(): void {
 }
 
 export function resetWorkflowFolderPropagationForTests(): void {
+  if (unsubscribeFolderPropagation) {
+    unsubscribeFolderPropagation();
+    unsubscribeFolderPropagation = null;
+  }
   workflowFolderPropagationRegistered = false;
 }
 
@@ -316,6 +343,7 @@ export async function syncSharedFoldersToSubAgents(
           lastRunTrigger: null,
           inheritedFromWorkflowId: input.workflowId,
           inheritedFromAgentId: input.initiatorId,
+          inheritedFromFolderId: folder.id,
         }).returning();
 
         if (inserted) {
@@ -419,6 +447,7 @@ export async function syncOwnFoldersToWorkflowMembers(input: {
           lastRunTrigger: null,
           inheritedFromWorkflowId: input.workflowId,
           inheritedFromAgentId: input.sourceAgentId,
+          inheritedFromFolderId: folder.id,
         }).returning();
 
         if (inserted) {
@@ -599,6 +628,7 @@ export async function shareFolderToWorkflowSubagents(input: {
         lastRunTrigger: null,
         inheritedFromWorkflowId: input.workflowId,
         inheritedFromAgentId: sourceAgentId,
+        inheritedFromFolderId: folder.inheritedFromFolderId ?? folder.id,
       }).returning();
 
       if (inserted) {
