@@ -21,20 +21,24 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
     // If window already exists, focus it
     const existing = sessionWindows.get(sessionId);
     if (existing && !existing.isDestroyed()) {
+      if (!existing.isVisible()) {
+        existing.show();
+      }
       existing.focus();
       return { success: true, reused: true };
     }
 
+    let win: BrowserWindow | null = null;
     try {
       let shown = false;
       const showWindow = () => {
-        if (shown || win.isDestroyed()) return;
+        if (!win || shown || win.isDestroyed()) return;
         shown = true;
         win.show();
         win.focus();
       };
 
-      const win = new BrowserWindow({
+      win = new BrowserWindow({
         width: 1280,
         height: 800,
         minWidth: 800,
@@ -68,6 +72,8 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
         : `http://localhost:${ctx.prodServerPort}`;
 
       await win.loadURL(`${baseUrl}/browser-session?sessionId=${sessionId}`);
+      // Final fallback: if both events were missed, still surface the window.
+      showWindow();
 
       win.on("closed", () => {
         sessionWindows.delete(sessionId);
@@ -77,6 +83,12 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
       debugLog(`[BrowserSession] Opened window for session ${sessionId.slice(0, 8)}…`);
       return { success: true };
     } catch (error) {
+      // loadURL can fail transiently on slower startup; ensure stale hidden windows
+      // are never kept in the reuse map.
+      sessionWindows.delete(sessionId);
+      if (win && !win.isDestroyed()) {
+        win.destroy();
+      }
       debugError(`[BrowserSession] Failed to open window:`, error);
       return { success: false, error: String(error) };
     }
