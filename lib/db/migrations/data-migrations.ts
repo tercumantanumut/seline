@@ -511,8 +511,8 @@ export function runDataMigrations(sqlite: Database.Database): void {
     console.warn("[SQLite Migration] Default agent MCP disable migration failed:", error);
   }
 
-  // Migration: Backfill sessions.message_count with conversational turns only
-  // (role=user|assistant). Older databases counted tool/system rows too.
+  // Migration: Backfill sessions.message_count with visible conversation turns only.
+  // Hidden live-prompt injected user rows must not count toward sidebar totals.
   try {
     const result = sqlite.prepare(`
       UPDATE sessions
@@ -521,20 +521,30 @@ export function runDataMigrations(sqlite: Database.Database): void {
         FROM messages
         WHERE messages.session_id = sessions.id
           AND messages.role IN ('user', 'assistant')
+          AND (
+            messages.role != 'user'
+            OR json_extract(messages.metadata, '$.livePromptInjected') IS NULL
+            OR json_extract(messages.metadata, '$.livePromptInjected') = 0
+          )
       ), 0)
       WHERE message_count != COALESCE((
         SELECT COUNT(*)
         FROM messages
         WHERE messages.session_id = sessions.id
           AND messages.role IN ('user', 'assistant')
+          AND (
+            messages.role != 'user'
+            OR json_extract(messages.metadata, '$.livePromptInjected') IS NULL
+            OR json_extract(messages.metadata, '$.livePromptInjected') = 0
+          )
       ), 0)
     `).run();
 
     if (result.changes > 0) {
-      console.log(`[SQLite Migration] Recomputed conversational message_count for ${result.changes} session(s)`);
+      console.log(`[SQLite Migration] Recomputed visible message_count for ${result.changes} session(s)`);
     }
   } catch (error) {
-    console.warn("[SQLite Migration] Conversational message_count migration failed:", error);
+    console.warn("[SQLite Migration] Visible message_count migration failed:", error);
   }
 
   // Migration: Add chromiumWorkspace to existing agents' enabledTools

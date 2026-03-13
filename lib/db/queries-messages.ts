@@ -3,6 +3,39 @@ import { sessions, messages, toolRuns } from "./sqlite-schema";
 import type { NewMessage, NewToolRun } from "./sqlite-schema";
 import { eq, desc, asc, and, sql, or, inArray } from "drizzle-orm";
 
+function parseMessageMetadata(metadata: NewMessage["metadata"]): Record<string, unknown> | null {
+  if (!metadata) return null;
+  if (typeof metadata === "string") {
+    try {
+      const parsed = JSON.parse(metadata);
+      return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null;
+    } catch {
+      return null;
+    }
+  }
+  return typeof metadata === "object" ? metadata as Record<string, unknown> : null;
+}
+
+function countsTowardVisibleConversation(message: Pick<NewMessage, "role" | "metadata">): boolean {
+  if (message.role !== "user" && message.role !== "assistant") return false;
+  if (message.role === "assistant") return true;
+  return parseMessageMetadata(message.metadata)?.livePromptInjected !== true;
+}
+
+function visibleConversationCountSql(sessionId: string) {
+  return sql<number>`COALESCE((
+    SELECT COUNT(*)
+    FROM ${messages}
+    WHERE ${messages.sessionId} = ${sessionId}
+      AND ${messages.role} IN ('user', 'assistant')
+      AND (
+        ${messages.role} != 'user'
+        OR json_extract(${messages.metadata}, '$.livePromptInjected') IS NULL
+        OR json_extract(${messages.metadata}, '$.livePromptInjected') = 0
+      )
+  ), 0)`;
+}
+
 // Messages
 export async function createMessage(data: NewMessage) {
   try {
@@ -14,13 +47,13 @@ export async function createMessage(data: NewMessage) {
     if (message) {
       const tokenCount = typeof message.tokenCount === "number" ? message.tokenCount : 0;
       const nowIso = new Date().toISOString();
-      const shouldIncrementMessageCount = message.role === "user" || message.role === "assistant";
+      const countsAsVisibleConversation = countsTowardVisibleConversation(message);
       await db
         .update(sessions)
         .set({
-          updatedAt: shouldIncrementMessageCount ? nowIso : sessions.updatedAt,
-          lastMessageAt: shouldIncrementMessageCount ? nowIso : sessions.lastMessageAt,
-          messageCount: shouldIncrementMessageCount
+          updatedAt: countsAsVisibleConversation ? nowIso : sessions.updatedAt,
+          lastMessageAt: countsAsVisibleConversation ? nowIso : sessions.lastMessageAt,
+          messageCount: countsAsVisibleConversation
             ? sql`${sessions.messageCount} + 1`
             : sessions.messageCount,
           totalTokenCount: sql`${sessions.totalTokenCount} + ${tokenCount}`,
@@ -68,11 +101,15 @@ export async function updateMessage(
     const previousTokenCount = existing?.tokenCount ?? 0;
     const nextTokenCount = updated.tokenCount ?? 0;
     const delta = nextTokenCount - previousTokenCount;
+    const visibilityChanged = existing
+      ? countsTowardVisibleConversation(existing) !== countsTowardVisibleConversation(updated)
+      : false;
     await db
       .update(sessions)
       .set({
         updatedAt: new Date().toISOString(),
         totalTokenCount: sql`${sessions.totalTokenCount} + ${delta}`,
+        ...(visibilityChanged ? { messageCount: visibleConversationCountSql(updated.sessionId) } : {}),
       })
       .where(eq(sessions.id, updated.sessionId));
   }
@@ -231,7 +268,7 @@ export async function deleteMessagesNotIn(
         .update(sessions)
         .set({
           updatedAt: new Date().toISOString(),
-          messageCount: sql`MAX(0, ${sessions.messageCount} - ${totalDeleted})`,
+          messageCount: visibleConversationCountSql(sessionId),
         })
         .where(eq(sessions.id, sessionId));
     }
