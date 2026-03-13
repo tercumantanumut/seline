@@ -13,7 +13,7 @@ import type { IpcHandlerContext } from "./ipc-handlers";
 // ---------------------------------------------------------------------------
 
 export function registerFileHandlers(ctx: IpcHandlerContext): void {
-  const { isDev, dataDir, mediaDir, prodServerPort } = ctx;
+  const { isDev, dataDir, mediaDir, prodServerPort, prodUseHttps } = ctx;
 
   // --------------------------------------------------------------------------
   // Settings handlers
@@ -109,7 +109,8 @@ export function registerFileHandlers(ctx: IpcHandlerContext): void {
       debugLog("[Command] Executing command via API:", options.command, options.args);
 
       const serverPort = isDev ? 3000 : prodServerPort;
-      const apiUrl = `http://localhost:${serverPort}/api/execute-command`;
+      const protocol = isDev ? "http" : (prodUseHttps ? "https" : "http");
+      const apiUrl = `${protocol}://localhost:${serverPort}/api/execute-command`;
 
       const response = await net.fetch(apiUrl, {
         method: "POST",
