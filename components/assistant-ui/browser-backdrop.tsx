@@ -12,7 +12,8 @@
  * of browser activity.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useTheme } from "@/components/theme/theme-provider";
 import { cn } from "@/lib/utils";
 
 interface BrowserBackdropProps {
@@ -62,6 +63,7 @@ function hasBrowserToolCall(detail: unknown): boolean {
 }
 
 export function BrowserBackdrop({ sessionId, className, onActiveChange }: BrowserBackdropProps) {
+  const { chatBackground, resolvedTheme } = useTheme();
   const imgRef = useRef<HTMLImageElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const [hasFrame, setHasFrame] = useState(false);
@@ -95,6 +97,25 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
   useEffect(() => {
     onActiveChange?.(hasFrame);
   }, [hasFrame, onActiveChange]);
+
+  const backdropStyle = useMemo(() => {
+    const configuredOpacity = Math.min(Math.max(chatBackground.opacity ?? 30, 0), 100) / 100;
+    const tintAlpha =
+      resolvedTheme === "dark"
+        ? 0.28 + (1 - configuredOpacity) * 0.34
+        : 0.16 + (1 - configuredOpacity) * 0.24;
+    const frameBrightness = resolvedTheme === "dark" ? 0.52 : 0.72;
+    const frameSaturation = resolvedTheme === "dark" ? 0.9 : 1;
+
+    return {
+      frameFilter: `brightness(${frameBrightness}) saturate(${frameSaturation}) contrast(0.92)`,
+      tintColor: `hsl(var(--terminal-cream) / ${Math.min(0.72, tintAlpha)})`,
+      gradient:
+        resolvedTheme === "dark"
+          ? "linear-gradient(to bottom, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.10) 28%, rgba(0,0,0,0.10) 72%, rgba(0,0,0,0.28) 100%)"
+          : "linear-gradient(to bottom, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 28%, rgba(255,255,255,0.06) 72%, rgba(255,255,255,0.18) 100%)",
+    };
+  }, [chatBackground.opacity, resolvedTheme]);
 
   // Listen for browser tool calls in background-task-progress events
   useEffect(() => {
@@ -247,16 +268,23 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
         alt=""
         className="h-full w-full object-cover"
         style={{
-          filter: "brightness(0.8) saturate(1.1)",
+          filter: backdropStyle.frameFilter,
         }}
       />
 
-      {/* Light gradient overlay — keeps text readable without hiding the browser */}
+      {/* Theme-tinted wash — mirrors wallpaper translucency controls for legibility */}
       <div
         className="absolute inset-0"
         style={{
-          background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.04) 30%, rgba(0,0,0,0.04) 70%, rgba(0,0,0,0.18) 100%)",
+          backgroundColor: backdropStyle.tintColor,
+        }}
+      />
+
+      {/* Gradient overlay — adds edge protection without fully flattening the stream */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: backdropStyle.gradient,
         }}
       />
 

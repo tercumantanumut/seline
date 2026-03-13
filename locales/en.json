@@ -3026,6 +3026,14 @@
       "libraryShort": "Library",
       "skillsShort": "Skills"
     },
+    "browserWorkspace": {
+      "home": "Home",
+      "sidebarMode": "Sidebar Mode",
+      "settings": "Settings",
+      "library": "Library",
+      "reopen": "Reopen",
+      "newChatWith": "New chat with"
+    },
     "session": {
       "untitled": "Untitled chat",
       "invalid": "Invalid date",

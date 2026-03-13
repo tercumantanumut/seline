@@ -26,6 +26,14 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
     }
 
     try {
+      let shown = false;
+      const showWindow = () => {
+        if (shown || win.isDestroyed()) return;
+        shown = true;
+        win.show();
+        win.focus();
+      };
+
       const win = new BrowserWindow({
         width: 1280,
         height: 800,
@@ -49,10 +57,10 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
       // Attach ready-to-show BEFORE loadURL — the event fires on first paint,
       // which happens during loadURL. If we await loadURL first, the event has
       // already fired and the window stays hidden forever.
-      win.once("ready-to-show", () => {
-        win.show();
-        win.focus();
-      });
+      win.once("ready-to-show", showWindow);
+      // Some Chromium/Next loads paint late enough that ready-to-show can be
+      // unreliable. did-finish-load is a safe fallback for the dedicated window.
+      win.webContents.once("did-finish-load", showWindow);
 
       // Load the dedicated browser session page
       const baseUrl = ctx.isDev
