@@ -129,6 +129,8 @@ export interface ImageEditInput {
 export interface ImageEditSyncResult {
   images: Array<{
     url: string;
+    localPath?: string;
+    filePath?: string;
     width?: number;
     height?: number;
     format?: string;
@@ -231,6 +233,8 @@ export async function callImagenEdit(
   // Handle sync response - upload base64 results to S3
   const processedImages: Array<{
     url: string;
+    localPath?: string;
+    filePath?: string;
     width?: number;
     height?: number;
     format?: string;
@@ -264,6 +268,8 @@ export async function callImagenEdit(
         );
         processedImages.push({
           url: uploadResult.url,
+          localPath: uploadResult.localPath,
+          filePath: uploadResult.filePath,
           width: img.width,
           height: img.height,
           format,
@@ -308,6 +314,8 @@ export async function checkAsyncJobStatus(
     // Process completed result
     const processedImages: Array<{
       url: string;
+      localPath?: string;
+      filePath?: string;
       width?: number;
       height?: number;
       format?: string;

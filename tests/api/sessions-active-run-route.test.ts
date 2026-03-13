@@ -60,6 +60,7 @@ describe("GET /api/sessions/[id]/active-run", () => {
       hasActiveRun: true,
       runId: "run-chat",
       pipelineName: "chat",
+      shouldResumeBackgroundRun: true,
     });
   });
 
@@ -88,6 +89,7 @@ describe("GET /api/sessions/[id]/active-run", () => {
       hasActiveRun: false,
       runId: null,
       hasInteractiveWait: false,
+      shouldResumeBackgroundRun: false,
       latestDeepResearchRunId: "run-research",
       latestDeepResearchStatus: "running",
     });
@@ -119,6 +121,7 @@ describe("GET /api/sessions/[id]/active-run", () => {
       hasActiveRun: true,
       runId: "run-chat",
       hasInteractiveWait: true,
+      shouldResumeBackgroundRun: false,
     });
     expect(bridgeMocks.hasPendingInteractiveWait).toHaveBeenCalledWith("session-1");
   });

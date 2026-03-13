@@ -97,6 +97,7 @@ function createDocumentRelativePath(
 export interface UploadResult {
   localPath: string;
   url: string;
+  filePath: string;
 }
 
 export interface DocumentUploadResult extends UploadResult {
@@ -124,6 +125,7 @@ export async function saveBase64Image(
   return {
     localPath: relativePath,
     url: pathToFileUrl(relativePath),
+    filePath: fullPath,
   };
 }
 
@@ -148,6 +150,7 @@ export async function saveBase64Video(
   return {
     localPath: relativePath,
     url: pathToFileUrl(relativePath),
+    filePath: fullPath,
   };
 }
 
@@ -171,6 +174,7 @@ export async function saveFile(
   return {
     localPath: relativePath,
     url: pathToFileUrl(relativePath),
+    filePath: fullPath,
   };
 }
 
@@ -194,6 +198,7 @@ export async function saveDocumentFile(
   return {
     localPath: relativePath,
     url: pathToFileUrl(relativePath),
+    filePath: fullPath,
     extension: sanitizeExtension(ext),
   };
 }
@@ -225,6 +230,44 @@ export function deleteLocalFile(relativePath: string): void {
  */
 export function getFullPath(relativePath: string): string {
   return resolveUnderStorage(relativePath);
+}
+
+/**
+ * Convert a media URL/local reference into a storage-relative path when possible.
+ */
+export function getRelativeMediaPath(mediaRef: string): string | null {
+  if (!mediaRef) return null;
+
+  if (mediaRef.startsWith("/api/media/")) {
+    return normalizeRelativePath(mediaRef.replace("/api/media/", ""));
+  }
+
+  if (mediaRef.startsWith("local-media://")) {
+    return normalizeRelativePath(mediaRef.replace("local-media://", "").replace(/^\/+/, ""));
+  }
+
+  if (mediaRef.startsWith("http://") || mediaRef.startsWith("https://") || mediaRef.startsWith("data:")) {
+    return null;
+  }
+
+  try {
+    return normalizeRelativePath(mediaRef);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a media URL/local reference to an absolute storage path when possible.
+ */
+export function getFullPathFromMediaRef(mediaRef: string): string | null {
+  const relativePath = getRelativeMediaPath(mediaRef);
+  if (!relativePath) return null;
+  try {
+    return getFullPath(relativePath);
+  } catch {
+    return null;
+  }
 }
 
 /**

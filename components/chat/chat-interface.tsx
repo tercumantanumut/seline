@@ -798,24 +798,37 @@ export default function ChatInterface({
                 return;
             }
 
-            const resumedForegroundRunId =
-                !isForegroundStreamingRef.current &&
-                data.hasActiveRun &&
-                data.hasInteractiveWait !== true
+            const activeForegroundRunId =
+                !isForegroundStreamingRef.current && data.hasActiveRun
                     ? data.runId ?? null
+                    : null;
+
+            const resumedForegroundRunId =
+                activeForegroundRunId && data.shouldResumeBackgroundRun !== false
+                    ? activeForegroundRunId
                     : null;
 
             const deepResearchRunId = data.latestDeepResearchStatus === "running"
                 ? data.latestDeepResearchRunId ?? null
                 : null;
 
-            const backgroundRunId = resumedForegroundRunId ?? deepResearchRunId;
+            const trackedRunId = activeForegroundRunId ?? deepResearchRunId;
+            const shouldShowBackgroundRun = Boolean(activeForegroundRunId || deepResearchRunId);
 
-            if (backgroundRunId) {
-                console.log("[Background Processing] Detected active run:", backgroundRunId);
-                bg.setIsProcessingInBackground(true);
-                bg.setProcessingRunId(backgroundRunId);
-                bg.startPollingForCompletion(backgroundRunId);
+            if (trackedRunId) {
+                console.log("[Background Processing] Detected active run:", trackedRunId, {
+                    hasInteractiveWait: data.hasInteractiveWait,
+                    shouldResumeBackgroundRun: data.shouldResumeBackgroundRun,
+                });
+                bg.setIsProcessingInBackground(shouldShowBackgroundRun);
+                bg.setProcessingRunId(trackedRunId);
+                bg.setIsZombieRun(false);
+                if (resumedForegroundRunId || deepResearchRunId) {
+                    bg.startPollingForCompletion(trackedRunId);
+                } else if (bg.pollingIntervalRef.current) {
+                    clearInterval(bg.pollingIntervalRef.current);
+                    bg.pollingIntervalRef.current = null;
+                }
                 void reloadSessionMessages(sessionId, { force: true });
             } else {
                 bg.setIsProcessingInBackground(false);
@@ -1309,9 +1322,10 @@ export default function ChatInterface({
                                     <Thread
                                         onSessionActivity={handleSessionActivity}
                                         footer={null}
-                                        isBackgroundTaskRunning={Boolean(activeRun || bg.isProcessingInBackground)}
+                                        isBackgroundTaskRunning={Boolean(activeRun || bg.processingRunId)}
                                         isProcessingInBackground={bg.isProcessingInBackground}
                                         sessionId={sessionId}
+                                        activeRunId={bg.processingRunId}
                                         isWorkspaceContext={Boolean(currentWorkspaceInfo)}
                                         onCancelBackgroundRun={bg.handleCancelBackgroundRun}
                                         isCancellingBackgroundRun={bg.isCancellingBackgroundRun}
@@ -1465,9 +1479,10 @@ export default function ChatInterface({
                             <Thread
                                 onSessionActivity={handleSessionActivity}
                                 footer={null}
-                                isBackgroundTaskRunning={Boolean(activeRun || bg.isProcessingInBackground)}
+                                isBackgroundTaskRunning={Boolean(activeRun || bg.processingRunId)}
                                 isProcessingInBackground={bg.isProcessingInBackground}
                                 sessionId={sessionId}
+                                activeRunId={bg.processingRunId}
                                 isWorkspaceContext={Boolean(currentWorkspaceInfo)}
                                 onCancelBackgroundRun={bg.handleCancelBackgroundRun}
                                 isCancellingBackgroundRun={bg.isCancellingBackgroundRun}

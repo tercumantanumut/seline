@@ -12,6 +12,7 @@
 
 import { mkdirSync, existsSync } from "fs";
 import { join } from "path";
+import { getRelativeMediaPath } from "@/lib/storage/local-storage";
 import { nanoid } from "nanoid";
 import type { VideoAssemblyPlan, VideoAssemblyConfig } from "./types";
 import { getTotalFrames } from "./remotion/types";
@@ -32,6 +33,7 @@ export type RenderProgressCallback = (progress: {
  */
 export interface RenderResult {
   outputPath: string;
+  outputLocalPath: string;
   url: string;
   duration: number;
   width: number;
@@ -303,6 +305,7 @@ export async function renderVideo(
 
   return {
     outputPath,
+    outputLocalPath: getRelativeMediaPath(url) || outputPath,
     url,
     duration: plan.totalDuration,
     width: plan.outputWidth,

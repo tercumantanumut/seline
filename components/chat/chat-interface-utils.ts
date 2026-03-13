@@ -84,3 +84,48 @@ export const getMessagesSignature = (messages: UIMessage[]) => {
     const lastMessage = messages[messages.length - 1];
     return `${messages.length}:${getMessageSignature(lastMessage)}`;
 };
+
+export interface BackgroundRunResolutionInput {
+    isForegroundStreaming: boolean;
+    hasActiveRun?: boolean;
+    runId?: string | null;
+    shouldResumeBackgroundRun?: boolean;
+    latestDeepResearchStatus?: string | null;
+    latestDeepResearchRunId?: string | null;
+}
+
+export interface BackgroundRunResolution {
+    activeForegroundRunId: string | null;
+    resumedForegroundRunId: string | null;
+    deepResearchRunId: string | null;
+    trackedRunId: string | null;
+    shouldShowBackgroundRun: boolean;
+}
+
+export const resolveBackgroundRunState = (
+    input: BackgroundRunResolutionInput
+): BackgroundRunResolution => {
+    const activeForegroundRunId =
+        !input.isForegroundStreaming && input.hasActiveRun
+            ? input.runId ?? null
+            : null;
+
+    const resumedForegroundRunId =
+        activeForegroundRunId && input.shouldResumeBackgroundRun !== false
+            ? activeForegroundRunId
+            : null;
+
+    const deepResearchRunId = input.latestDeepResearchStatus === "running"
+        ? input.latestDeepResearchRunId ?? null
+        : null;
+
+    const trackedRunId = activeForegroundRunId ?? deepResearchRunId;
+
+    return {
+        activeForegroundRunId,
+        resumedForegroundRunId,
+        deepResearchRunId,
+        trackedRunId,
+        shouldShowBackgroundRun: Boolean(activeForegroundRunId || deepResearchRunId),
+    };
+};

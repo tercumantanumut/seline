@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/storage/local-storage", () => ({
   saveBase64Image: mocks.saveBase64Image,
   saveBase64Video: mocks.saveBase64Video,
+  getFullPath: vi.fn((relativePath: string) => `/abs/${relativePath}`),
 }));
 
 import { formatMCPToolResult } from "@/lib/mcp/result-formatter";
@@ -40,7 +41,13 @@ describe("formatMCPToolResult", () => {
     );
 
     expect(mocks.saveBase64Image).toHaveBeenCalledTimes(1);
-    expect(formatted.images).toEqual([{ url: "/api/media/test.png" }]);
+    expect(formatted.images).toEqual([
+      {
+        url: "/api/media/test.png",
+        localPath: "session/generated/test.png",
+        filePath: "/abs/session/generated/test.png",
+      },
+    ]);
     expect(JSON.stringify(formatted)).not.toContain("base64,");
   });
 });

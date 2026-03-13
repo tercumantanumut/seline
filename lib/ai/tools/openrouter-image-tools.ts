@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { createToolRun, updateToolRun, createImage } from "@/lib/db/queries";
-import { saveBase64Image } from "@/lib/storage/local-storage";
+import { getFullPath, saveBase64Image } from "@/lib/storage/local-storage";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 import { imageToDataUrl } from "@/lib/ai/tools/image-tools";
 import {
@@ -24,7 +24,11 @@ async function executeOpenRouterImage(
   model: string,
   operation: "generate" | "edit" | "reference",
   args: OpenRouterImageGenerationArgs | OpenRouterImageEditingArgs | OpenRouterImageReferencingArgs
-): Promise<{ status: "completed" | "error"; images?: Array<{ url: string }>; error?: string }> {
+): Promise<{
+  status: "completed" | "error";
+  images?: Array<{ url: string; localPath?: string; filePath?: string }>;
+  error?: string;
+}> {
   const toolName = `${operation}ImageOpenRouter${model.replace(/[^a-zA-Z0-9]/g, "")}`;
   const toolRun = await createToolRun({
     sessionId,
@@ -110,7 +114,7 @@ async function executeOpenRouterImage(
     }
 
     // Process images: if base64 data URLs, save to local storage to avoid token bloat
-    const processedImages: Array<{ url: string; localPath: string }> = [];
+    const processedImages: Array<{ url: string; localPath?: string; filePath?: string }> = [];
 
     for (const img of images) {
       const rawUrl = img.image_url.url;
@@ -129,6 +133,7 @@ async function executeOpenRouterImage(
         processedImages.push({
           url: uploadResult.url,
           localPath: uploadResult.localPath,
+          filePath: getFullPath(uploadResult.localPath),
         });
       } else {
         processedImages.push({
@@ -138,7 +143,11 @@ async function executeOpenRouterImage(
       }
     }
 
-    const imageObjects = processedImages.map((img) => ({ url: img.url }));
+    const imageObjects = processedImages.map((img) => ({
+      url: img.url,
+      ...(img.localPath ? { localPath: img.localPath } : {}),
+      ...(img.filePath ? { filePath: img.filePath } : {}),
+    }));
 
     for (const img of processedImages) {
       await createImage({
@@ -146,7 +155,7 @@ async function executeOpenRouterImage(
         toolRunId: toolRun.id,
         role: "generated",
         url: img.url,
-        localPath: img.localPath,
+        localPath: img.localPath || img.url,
         metadata: { model, operation, prompt: args.prompt },
       });
     }

@@ -22,6 +22,8 @@ export interface Wan22ImagenInput {
 export interface Wan22ImagenSyncResult {
   images: Array<{
     url: string;
+    localPath?: string;
+    filePath?: string;
     width: number;
     height: number;
     format: string;
@@ -134,6 +136,8 @@ export async function callWan22Imagen(
     images: [
       {
         url: uploadResult.url,
+        localPath: uploadResult.localPath,
+        filePath: uploadResult.filePath,
         width: input.width ?? 768,
         height: input.height ?? 1344,
         format: "png",
