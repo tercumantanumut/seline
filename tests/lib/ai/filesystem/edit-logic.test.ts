@@ -66,4 +66,60 @@ console.log("hello");
     expect(result.success).toBe(false);
     expect(result.error).toContain("matches multiple locations");
   });
+
+  describe("CRLF line ending preservation", () => {
+    it("preserves CRLF line endings after exact match edit", () => {
+      const content = "function hello() {\r\n  console.log(\"world\");\r\n}\r\n";
+      const oldString = `console.log("world");`;
+      const newString = `console.log("universe");`;
+
+      const result = applyFileEdits(content, [{ oldString, newString }]);
+      expect(result.success).toBe(true);
+      expect(result.newContent).toContain("\r\n");
+      expect(result.newContent).not.toMatch(/(?<!\r)\n/); // no bare \n
+      expect(result.newContent).toContain(`console.log("universe");`);
+    });
+
+    it("preserves CRLF line endings after fuzzy match edit", () => {
+      const content = "function hello() {\r\n  console.log(\"world\");\r\n}\r\n";
+      const oldString = `    console.log("world");`; // different indentation
+      const newString = `    console.log("universe");`;
+
+      const result = applyFileEdits(content, [{ oldString, newString }]);
+      expect(result.success).toBe(true);
+      expect(result.newContent).toContain("\r\n");
+      expect(result.newContent).not.toMatch(/(?<!\r)\n/);
+    });
+
+    it("keeps LF-only endings for LF files", () => {
+      const content = "function hello() {\n  console.log(\"world\");\n}\n";
+      const oldString = `console.log("world");`;
+      const newString = `console.log("universe");`;
+
+      const result = applyFileEdits(content, [{ oldString, newString }]);
+      expect(result.success).toBe(true);
+      expect(result.newContent).not.toContain("\r\n");
+    });
+
+    it("matches CRLF content against LF oldString (cross-platform edit)", () => {
+      const content = "import { foo } from \"bar\";\r\nimport { baz } from \"qux\";\r\n";
+      const oldString = "import { foo } from \"bar\";"; // LF-only (typical LLM output)
+      const newString = "import { foo, extra } from \"bar\";";
+
+      const result = applyFileEdits(content, [{ oldString, newString }]);
+      expect(result.success).toBe(true);
+      expect(result.newContent).toContain("\r\n");
+      expect(result.newContent).toContain("import { foo, extra } from \"bar\";");
+    });
+
+    it("handles multi-line replacement preserving CRLF", () => {
+      const content = "line1\r\nline2\r\nline3\r\nline4\r\n";
+      const oldString = "line2\nline3"; // LF in oldString
+      const newString = "newLine2\nnewLine3\nnewLine3b"; // adds a line
+
+      const result = applyFileEdits(content, [{ oldString, newString }]);
+      expect(result.success).toBe(true);
+      expect(result.newContent).toBe("line1\r\nnewLine2\r\nnewLine3\r\nnewLine3b\r\nline4\r\n");
+    });
+  });
 });

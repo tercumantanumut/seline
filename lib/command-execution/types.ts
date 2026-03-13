@@ -39,7 +39,11 @@ export interface ExecuteSearchMetadata {
   /** Whether fallback to direct command was attempted after RTK failure */
   fallbackTriggered: boolean;
   /** Reason fallback was triggered */
-  fallbackReason?: "rtk_rg_unrecognized_subcommand" | "rtk_rg_unknown_command";
+  fallbackReason?:
+    | "rtk_rg_unrecognized_subcommand"
+    | "rtk_rg_unknown_command"
+    | "rtk_unrecognized_subcommand"
+    | "rtk_unknown_command";
   /** Original command requested by tool caller */
   originalCommand: string;
   /** Final executable used for the successful/returned run */

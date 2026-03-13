@@ -26,6 +26,7 @@ import {
     buildSafeEnvironment,
     resolveBundledNodeCommand,
     buildNotFoundDiagnostic,
+    normalizeArgs,
 } from "./executor-runtime";
 import {
     BACKGROUND_TIMEOUT,
@@ -33,7 +34,7 @@ import {
     resolveTimeout,
     needsWindowsShell,
     wrapWithRTK,
-    getRtkRgFallbackReason,
+    getRtkFallbackReason,
     buildExecuteSearchMetadata,
 } from "./executor-rtk";
 import { runEBADFFallback } from "./executor-ebadf";
@@ -94,9 +95,10 @@ export async function startBackgroundProcess(
 
     const {
         command: finalCommand,
-        args: finalArgs,
+        args: rawFinalArgs,
         env: finalEnv,
     } = resolved;
+    const finalArgs = normalizeArgs(rawFinalArgs);
 
     const id = nextBgId();
 
@@ -392,9 +394,10 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
 
         const {
             command: finalCommand,
-            args: finalArgs,
+            args: rawFinalArgs,
             env: finalEnv,
         } = resolved;
+        const finalArgs = normalizeArgs(rawFinalArgs);
         const searchMetadata = buildExecuteSearchMetadata({
             originalCommand: command,
             finalCommand,
@@ -492,11 +495,24 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                 // Save full log
                 const logId = saveTerminalLog(stdout, stderr);
 
-                const fallbackReason = getRtkRgFallbackReason({
+                const fallbackReason = getRtkFallbackReason({
                     command,
                     wrappedByRTK: wrapped.usingRTK,
                     stderr,
                 });
+                const shouldRetryDirect =
+                    wrapped.usingRTK
+                    && !forceDirectExecution
+                    && (fallbackReason === "rtk_unrecognized_subcommand" || fallbackReason === "rtk_unknown_command");
+
+                if (shouldRetryDirect) {
+                    void executeCommand({
+                        ...options,
+                        forceDirectExecution: true,
+                        fallbackReasonForDirectExecution: fallbackReason,
+                    }).then(resolve);
+                    return;
+                }
 
                 resolve({
                     success: !killed && code === 0,
@@ -552,12 +568,26 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
 
                 commandLogger.logExecutionError(command, errorMessage, context);
 
-                const fallbackReason = getRtkRgFallbackReason({
+                const fallbackReason = getRtkFallbackReason({
                     command,
                     wrappedByRTK: wrapped.usingRTK,
                     stderr,
                     error: errorMessage,
                 });
+
+                const shouldRetryDirect =
+                    wrapped.usingRTK
+                    && !forceDirectExecution
+                    && (fallbackReason === "rtk_unrecognized_subcommand" || fallbackReason === "rtk_unknown_command");
+
+                if (shouldRetryDirect) {
+                    void executeCommand({
+                        ...options,
+                        forceDirectExecution: true,
+                        fallbackReasonForDirectExecution: fallbackReason,
+                    }).then(resolve);
+                    return;
+                }
 
                 resolve({
                     success: false,
@@ -596,11 +626,25 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
             const executionTime = Date.now() - startTime;
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
             commandLogger.logExecutionError(command, errorMessage, context);
-            const fallbackReason = getRtkRgFallbackReason({
+            const fallbackReason = getRtkFallbackReason({
                 command,
                 wrappedByRTK: wrapped.usingRTK,
                 error: errorMessage,
             });
+
+            const shouldRetryDirect =
+                wrapped.usingRTK
+                && !forceDirectExecution
+                && (fallbackReason === "rtk_unrecognized_subcommand" || fallbackReason === "rtk_unknown_command");
+
+            if (shouldRetryDirect) {
+                void executeCommand({
+                    ...options,
+                    forceDirectExecution: true,
+                    fallbackReasonForDirectExecution: fallbackReason,
+                }).then(resolve);
+                return;
+            }
 
             resolve({
                 success: false,

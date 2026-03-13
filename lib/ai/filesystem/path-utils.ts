@@ -8,7 +8,7 @@
 
 import { isAbsolute, join, normalize, resolve, sep, basename, dirname } from "path";
 import { mkdir, realpath } from "fs/promises";
-import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { getAccessibleSyncFolders } from "@/lib/vectordb/accessible-sync-folders";
 import { getSession } from "@/lib/db/queries-sessions";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { db } from "@/lib/db/sqlite-client";
@@ -127,7 +127,7 @@ export async function isPathAllowed(filePath: string, allowedFolderPaths: string
  * Get allowed synced folder paths for a character.
  */
 export async function resolveSyncedFolderPaths(characterId: string): Promise<string[]> {
-  const syncedFolders = await getSyncFolders(characterId);
+  const syncedFolders = await getAccessibleSyncFolders(characterId);
   return syncedFolders.map((f) => f.folderPath);
 }
 

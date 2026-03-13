@@ -116,23 +116,25 @@ export function isShellRipgrepCommand(command: string): boolean {
     return normalizeExecutable(command) === "rg";
 }
 
-export function getRtkRgFallbackReason(params: {
+export function getRtkFallbackReason(params: {
     command: string;
     wrappedByRTK: boolean;
     stderr?: string;
     error?: string;
 }): ExecuteSearchMetadata["fallbackReason"] | undefined {
-    if (!params.wrappedByRTK || !isShellRipgrepCommand(params.command)) {
+    if (!params.wrappedByRTK) {
         return undefined;
     }
 
     const combined = `${params.stderr ?? ""}\n${params.error ?? ""}`.toLowerCase();
-    if (combined.includes("unrecognized subcommand") && combined.includes("rg")) {
-        return "rtk_rg_unrecognized_subcommand";
+    const isRipgrep = isShellRipgrepCommand(params.command);
+
+    if (combined.includes("unrecognized subcommand")) {
+        return isRipgrep ? "rtk_rg_unrecognized_subcommand" : "rtk_unrecognized_subcommand";
     }
 
-    if (combined.includes("unknown command") && combined.includes("rg")) {
-        return "rtk_rg_unknown_command";
+    if (combined.includes("unknown command")) {
+        return isRipgrep ? "rtk_rg_unknown_command" : "rtk_unknown_command";
     }
 
     return undefined;

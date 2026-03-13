@@ -46,6 +46,15 @@ import {
   getPendingInteractivePrompts,
   resolveInteractiveWait,
 } from "@/lib/interactive-tool-bridge";
+import {
+  listAgentRunsBySession,
+  markRunAsCancelled,
+} from "@/lib/observability/queries";
+import {
+  abortChatRun,
+  removeChatAbortController,
+} from "@/lib/background-tasks/chat-abort-registry";
+import { taskRegistry } from "@/lib/background-tasks/registry";
 
 // ---------------------------------------------------------------------------
 // Action handlers
@@ -96,6 +105,26 @@ async function waitForDelegationPausePoint(
 
     await sleep(Math.min(200, remainingMs));
   }
+}
+
+async function cancelDelegationSessionRun(sessionId: string): Promise<void> {
+  const runs = await listAgentRunsBySession(sessionId);
+  const activeRun = runs.find((run) => run.status === "running");
+  if (!activeRun) {
+    return;
+  }
+
+  const registryTask = taskRegistry.get(activeRun.id);
+  const registryDurationMs = registryTask
+    ? Date.now() - new Date(registryTask.startedAt).getTime()
+    : undefined;
+
+  abortChatRun(activeRun.id, "user_cancelled");
+  await markRunAsCancelled(activeRun.id, "user_cancelled");
+  taskRegistry.updateStatus(activeRun.id, "cancelled", {
+    durationMs: registryDurationMs,
+  });
+  removeChatAbortController(activeRun.id);
 }
 
 export async function handleStartAction(
@@ -601,8 +630,10 @@ export async function handleStop(
     };
   }
 
-  // Abort the streaming fetch
+  // Stop both the delegation wrapper and the underlying chat run so UI state clears.
   delegation.abortController.abort();
+  await cancelDelegationSessionRun(delegation.sessionId);
+  delegation.settled = true;
   activeDelegations.delete(delegationId);
 
   return {

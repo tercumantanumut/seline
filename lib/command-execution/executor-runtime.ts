@@ -7,6 +7,7 @@
 
 import { existsSync } from "fs";
 import { basename, isAbsolute, join } from "path";
+import { tmpdir } from "os";
 import { getResolvedShellEnvironment } from "@/lib/shell-env/resolver";
 
 const BLOCKED_ENV_KEYS = new Set([
@@ -97,20 +98,92 @@ export function prependBundledPaths(pathValue: string, runtime: BundledRuntimeIn
 export function buildSafeEnvironment(runtime: BundledRuntimeInfo): Record<string, string | undefined> {
     const shellEnv = getResolvedShellEnvironment();
     const baseEnv = { ...process.env, ...shellEnv } as Record<string, string | undefined>;
-    const pathValue = prependBundledPaths(baseEnv.PATH || "", runtime);
+
+    // On Windows, process.env is a case-insensitive Proxy, but spreading it
+    // creates a plain (case-sensitive) object where PATH is typically stored
+    // as "Path". Collect the value case-insensitively (last match wins, so
+    // shellEnv can override process.env) and remove all variants to avoid
+    // duplicate/conflicting PATH entries in the child environment.
+    let currentPath = "";
+    if (process.platform === "win32") {
+        for (const key of Object.keys(baseEnv)) {
+            if (key.toUpperCase() === "PATH") {
+                currentPath = (baseEnv[key] as string) || currentPath;
+                delete baseEnv[key];
+            }
+        }
+    } else {
+        currentPath = (baseEnv.PATH as string) || "";
+    }
+    const pathValue = prependBundledPaths(currentPath, runtime);
 
     if (runtime.bundledBinDirs.length > 0) {
         console.log(`[Command Executor] Prepending bundled binaries to PATH: ${runtime.bundledBinDirs.join(", ")}`);
     }
 
+    // On Windows, expose TMPDIR so scripts using $TMPDIR or process.env.TMPDIR
+    // resolve to the correct Windows temp directory instead of failing on /tmp.
+    const tmpOverrides: Record<string, string> = {};
+    if (process.platform === "win32") {
+        tmpOverrides.TMPDIR = tmpdir();
+    }
+
     return sanitizeEnvironment({
         ...baseEnv,
+        ...tmpOverrides,
         PATH: pathValue,
         TERM: baseEnv.TERM || "xterm-256color",
         HOME: baseEnv.HOME || baseEnv.USERPROFILE,
         USER: baseEnv.USER || baseEnv.USERNAME,
         ELECTRON_RESOURCES_PATH: process.env.ELECTRON_RESOURCES_PATH || runtime.resourcesPath || undefined,
     });
+}
+
+// ── Unix-to-Windows path normalization ────────────────────────────────────────
+
+/**
+ * Unix temp-dir prefixes that should be mapped to os.tmpdir() on Windows.
+ * Longer prefixes first for clarity (order doesn't affect correctness).
+ */
+const UNIX_TEMP_PREFIXES = ["/var/tmp", "/tmp"];
+
+/**
+ * Translate a single Unix-style temp path to the Windows equivalent.
+ * Only active on Windows; returns the argument unchanged on other platforms.
+ *
+ * Handles:
+ *   /tmp/file.json           → C:\Users\...\AppData\Local\Temp\file.json
+ *   /var/tmp/data.json       → C:\Users\...\AppData\Local\Temp\data.json
+ *   --output=/tmp/file.json  → --output=C:\Users\...\AppData\Local\Temp\file.json
+ */
+export function normalizeUnixPath(arg: string): string {
+    if (process.platform !== "win32") return arg;
+
+    // Handle --flag=/tmp/... style arguments
+    const eqIndex = arg.indexOf("=");
+    if (eqIndex > 0 && arg.startsWith("-")) {
+        const prefix = arg.slice(0, eqIndex + 1);
+        const value = arg.slice(eqIndex + 1);
+        const normalized = normalizeUnixPath(value);
+        return normalized !== value ? prefix + normalized : arg;
+    }
+
+    for (const unixPrefix of UNIX_TEMP_PREFIXES) {
+        if (arg === unixPrefix || arg.startsWith(unixPrefix + "/")) {
+            const remainder = arg.slice(unixPrefix.length); // "" or "/file.json"
+            return join(tmpdir(), remainder.replace(/^\//, ""));
+        }
+    }
+
+    return arg;
+}
+
+/**
+ * Normalize all Unix temp paths in an args array.
+ */
+export function normalizeArgs(args: string[]): string[] {
+    if (process.platform !== "win32") return args;
+    return args.map(normalizeUnixPath);
 }
 
 export function normalizeExecutable(command: string): string {

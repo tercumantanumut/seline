@@ -24,6 +24,7 @@ export interface DBMessage {
     role: "user" | "assistant" | "system" | "tool";
     content: unknown;
     createdAt: Date | string;
+    metadata?: unknown;
 }
 
 export interface ChatInterfaceProps {

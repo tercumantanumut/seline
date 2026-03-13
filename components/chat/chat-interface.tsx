@@ -658,6 +658,8 @@ export default function ChatInterface({
             });
 
             if (error || !data?.workspace) {
+                const { toast } = await import("sonner");
+                toast.error(error || "Failed to enable Git Mode. Check that git is installed and the folder is a valid git repository.");
                 return;
             }
 
@@ -718,7 +720,21 @@ export default function ChatInterface({
         if (!sessionPayload) return;
         if (sessionId && sessionId !== targetSessionId) return;
 
-        const { uiMessages, conversationalMessageCount } = sessionPayload;
+        const { uiMessages, conversationalMessageCount, hasInjectedMessages } = sessionPayload;
+
+        // ── Ghost-branch prevention ──────────────────────────────────────────
+        // When a background run is active and the DB contains live-prompt-
+        // injected messages, pushing them to the thread before the run completes
+        // causes assistant-ui to interpret the split assistant message as a
+        // branch fork ("ghost branch"). Skip the push — the final refresh
+        // after the run ends (with isRunActiveRef cleared) will reconcile.
+        if (bg.isRunActiveRef.current && !options?.force && hasInjectedMessages) {
+            sm.notifySessionUpdate(targetSessionId, {
+                messageCount: conversationalMessageCount,
+            });
+            return;
+        }
+
         const nextSignature = getMessagesSignature(uiMessages);
         if (!options?.force && nextSignature === lastSessionSignatureRef.current) return;
 
@@ -737,7 +753,7 @@ export default function ChatInterface({
             messageCount: conversationalMessageCount,
         });
         sm.refreshSessionTimestamp(targetSessionId);
-    }, [sm.fetchSessionMessages, sm.notifySessionUpdate, sm.refreshSessionTimestamp, sessionId]);
+    }, [sm.fetchSessionMessages, sm.notifySessionUpdate, sm.refreshSessionTimestamp, sessionId, bg.isRunActiveRef]);
 
     // ── Pathname-triggered refresh ──────────────────────────────────────────
     // When navigating away (e.g. to /settings) and back, the Next.js Router
@@ -746,13 +762,20 @@ export default function ChatInterface({
     // component wasn't fully unmounted (React fiber reuse). The signature
     // check inside reloadSessionMessages prevents unnecessary UI updates
     // when data hasn't changed.
+    //
+    // GHOST-BRANCH FIX: Skip this refresh when a background run is known to
+    // be active. checkActiveRun fires on mount/sessionId change and does its
+    // own forced reload *after* arming isRunActiveRef, which is the safe path.
+    // Without this guard, this effect can push injected messages to the thread
+    // before isRunActiveRef is set, creating a ghost branch.
     useEffect(() => {
         if (!sessionId || !pathname.startsWith('/chat/')) return;
+        if (bg.isProcessingInBackground) return;
         const timer = setTimeout(() => {
             void reloadSessionMessages(sessionId);
         }, 200);
         return () => clearTimeout(timer);
-    }, [pathname, sessionId, reloadSessionMessages]);
+    }, [pathname, sessionId, reloadSessionMessages, bg.isProcessingInBackground]);
 
     useEffect(() => {
         void detectGitFolders();
@@ -972,6 +995,19 @@ export default function ChatInterface({
                     if (current?.runId === detail.task.runId) return null;
                     return current;
                 });
+                // Safety net: SSE task:completed must also clear background
+                // processing state. Polling normally handles this, but if the
+                // poll missed the completion (network blip, timing) the button
+                // would stay visible forever without this.
+                if (bg.processingRunId === detail.task.runId) {
+                    if (bg.pollingIntervalRef.current) {
+                        clearInterval(bg.pollingIntervalRef.current);
+                        bg.pollingIntervalRef.current = null;
+                    }
+                    bg.setIsProcessingInBackground(false);
+                    bg.setProcessingRunId(null);
+                    bg.setIsZombieRun(false);
+                }
             }
             if (detail.eventType === "task:completed" && detail.task.characterId === character.id) {
                 debouncedLoadSessions();
@@ -1371,8 +1407,8 @@ export default function ChatInterface({
                             onForegroundRunFinished={handleForegroundRunFinished}
                         />
                         <div className="flex h-full min-h-0 flex-col gap-3">
-                            {(currentWorkspaceInfo || detectedPrimaryGitFolder) && (
-                                <div className="flex items-center justify-end px-4 pt-2">
+                            {(currentWorkspaceInfo || detectedPrimaryGitFolder || isDetectingGitFolders) && (
+                                <div className="flex flex-shrink-0 items-center justify-end px-4 pt-2">
                                     {currentWorkspaceInfo ? (
                                         <WorkspaceIndicator
                                             sessionId={sessionId}
@@ -1394,7 +1430,12 @@ export default function ChatInterface({
                                             )}
                                             <span>{isEnablingGitMode ? "Enabling Git Mode..." : `Enable Git Mode · ${detectedPrimaryGitFolder.branch}`}</span>
                                         </button>
-                                    ) : null}
+                                    ) : (
+                                        <div className="inline-flex items-center gap-2 rounded-md border border-terminal-dark/10 bg-terminal-dark/5 px-3 py-1.5 text-xs font-mono text-terminal-muted">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            <span>Checking git repos...</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {activeRun && (

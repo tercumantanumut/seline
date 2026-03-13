@@ -11,6 +11,18 @@ vi.mock("fs", () => ({
     readFileSync: vi.fn(),
 }));
 
+const childProcessMocks = vi.hoisted(() => ({
+    spawn: vi.fn(),
+}));
+
+vi.mock("child_process", async () => {
+    const actual = await vi.importActual<typeof import("child_process")>("child_process");
+    return {
+        ...actual,
+        spawn: childProcessMocks.spawn,
+    };
+});
+
 const {
     executeCommand,
     startBackgroundProcess,

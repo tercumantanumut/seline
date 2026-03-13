@@ -15,6 +15,7 @@ import {
   normalizeReindexPolicy,
 } from "./sync-mode-resolver";
 import { notifyFolderChange } from "./folder-events";
+import { propagateWorkflowFolderChange } from "@/lib/agents/workflow-folder-sharing";
 import { normalizeExtensions } from "./sync-helpers";
 import type { SyncFolderConfig } from "./sync-types";
 
@@ -107,6 +108,10 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
     type: "added",
     folderId: folder.id,
   });
+  await propagateWorkflowFolderChange(characterId, {
+    type: "added",
+    folderId: folder.id,
+  });
 
   return folder.id;
 }
@@ -185,6 +190,10 @@ export async function setPrimaryFolder(folderId: string, characterId: string) {
   console.log(`[SyncService] Set folder ${folderId} as primary for character ${characterId}`);
 
   notifyFolderChange(characterId, {
+    type: "primary_changed",
+    folderId,
+  });
+  await propagateWorkflowFolderChange(characterId, {
     type: "primary_changed",
     folderId,
   });

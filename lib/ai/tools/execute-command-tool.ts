@@ -9,7 +9,7 @@ import { tool, jsonSchema } from "ai";
 import { logToolEvent } from "@/lib/ai/tool-registry";
 import fs from "fs/promises";
 import path from "path";
-import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { getAccessibleSyncFolders } from "@/lib/vectordb/accessible-sync-folders";
 import { getActiveWorktreePath, isOtherWorktreePath } from "@/lib/ai/filesystem";
 import {
     executeCommandWithValidation,
@@ -343,7 +343,7 @@ The tool returns immediately with a processId. Poll with processId to check stat
             // Get synced folders for this agent
             let syncedFolders: string[];
             try {
-                const folders = await getSyncFolders(characterId);
+                const folders = await getAccessibleSyncFolders(characterId);
                 syncedFolders = folders.map((f) => f.folderPath);
 
                 if (syncedFolders.length === 0) {
