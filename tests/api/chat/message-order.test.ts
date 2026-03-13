@@ -571,8 +571,10 @@ describe("Message Ordering", () => {
     expect(postInjectionAssistant?.id).toBeTruthy();
 
     const persisted = await getMessages(session.id);
+    const sessionWithMessages = await getSessionWithMessages(session.id);
     const uiMessages = convertDBMessagesToUIMessages(persisted as any);
 
+    expect(sessionWithMessages?.session.messageCount).toBe(3);
     expect(countVisibleConversationMessages(persisted as any)).toBe(3);
     expect(uiMessages).toHaveLength(3);
     expect(uiMessages.map((message) => message.role)).toEqual([

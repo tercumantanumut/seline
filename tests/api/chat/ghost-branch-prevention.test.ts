@@ -21,6 +21,7 @@ import {
   getOrCreateLocalUser,
   deleteMessagesNotIn,
   getInjectedMessageIds,
+  getSessionWithMessages,
 } from "@/lib/db/queries";
 import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import {
@@ -246,10 +247,12 @@ describe("Ghost Branch Prevention", () => {
     });
 
     const dbMessages = await getMessages(session.id);
+    const sessionWithMessages = await getSessionWithMessages(session.id);
     const uiMessages = convertDBMessagesToUIMessages(dbMessages as any);
 
     // Should show: original user, pre-injection assistant, post-injection assistant
     // Should hide: injected user message
+    expect(sessionWithMessages?.session.messageCount).toBe(3);
     expect(countVisibleConversationMessages(dbMessages as any)).toBe(3);
     expect(uiMessages).toHaveLength(3);
     expect(uiMessages.map(m => m.role)).toEqual(["user", "assistant", "assistant"]);
