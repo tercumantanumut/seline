@@ -78,7 +78,7 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <body className="bg-black overflow-hidden antialiased font-sans">
-          <ThemeProvider initialTheme="dark">
+          <ThemeProvider initialTheme="dark" initialChatWorkspaceMode="sidebar">
             {children}
           </ThemeProvider>
         </body>
@@ -89,6 +89,7 @@ export default async function RootLayout({
   const messages = await getMessages();
   const settings = loadSettings();
   const initialTheme = settings.theme ?? "system";
+  const initialChatWorkspaceMode = settings.chatWorkspaceMode ?? "sidebar";
   const themeScript = `
 (() => {
   try {
@@ -168,7 +169,7 @@ export default async function RootLayout({
           {rendererRecoveryScript}
         </Script>
         <div id="app-root">
-          <ThemeProvider initialTheme={initialTheme}>
+          <ThemeProvider initialTheme={initialTheme} initialChatWorkspaceMode={initialChatWorkspaceMode}>
             <NextIntlClientProvider locale={locale} messages={messages}>
               <GlobalSyncWrapper>
                 <AuthProvider>

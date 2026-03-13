@@ -378,6 +378,42 @@ export const Composer: FC<{
     hotkey: voiceHotkey,
   });
 
+  // Keyboard shortcuts to focus the composer: "/" or Cmd/Ctrl+L
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      const tag = active?.tagName?.toLowerCase();
+      const isEditable =
+        tag === "input" ||
+        tag === "textarea" ||
+        (active instanceof HTMLElement && active.isContentEditable);
+
+      // Cmd/Ctrl+L — always focus composer (even from other inputs)
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === "l") {
+        e.preventDefault();
+        if (isEditorMode && tiptapRef.current) {
+          tiptapRef.current.focus();
+        } else {
+          inputRef.current?.focus();
+        }
+        return;
+      }
+
+      // "/" — focus composer only when not already in an editable field and not inside a dialog
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !isEditable && !(active as HTMLElement)?.closest("[role='dialog']")) {
+        e.preventDefault();
+        if (isEditorMode && tiptapRef.current) {
+          tiptapRef.current.focus();
+        } else {
+          inputRef.current?.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isEditorMode]);
+
   // Process queued messages when AI finishes
   useEffect(() => {
     if (isAwaitingRunStart.current && isRunning) {
@@ -1252,20 +1288,18 @@ export const Composer: FC<{
         )}
       </ComposerPrimitive.Root>
 
-      {(contextStatus || contextLoading) && (
-        <div className="mt-1.5 w-full px-1 flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <ContextWindowIndicator
-              status={contextStatus}
-              isLoading={contextLoading}
-              onCompact={onCompact}
-              isCompacting={isCompacting}
-              compact
-            />
-          </div>
-          {sessionId && <ModelSelector sessionId={sessionId} status={contextStatus} />}
+      <div className="mt-1.5 w-full px-1 flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <ContextWindowIndicator
+            status={contextStatus}
+            isLoading={contextLoading}
+            onCompact={onCompact}
+            isCompacting={isCompacting}
+            compact
+          />
         </div>
-      )}
+        {sessionId && <ModelSelector sessionId={sessionId} status={contextStatus} />}
+      </div>
 
       <ActiveDelegationsIndicator characterId={character?.id ?? null} />
     </div>

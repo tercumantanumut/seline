@@ -490,30 +490,32 @@ export function useSessionManager({
         router.replace(nextUrl, { scroll: false });
     }, [character.id, router]);
 
-    const switchSession = useCallback(async (newSessionId: string) => {
+    const switchSession = useCallback(async (newSessionId: string): Promise<boolean> => {
         // Guard: clicking the same session while a run is active must be a no-op.
         // clearBackgroundState() would drop processingRunId / isProcessingInBackground,
         // making the UI think nothing is running and allowing a new message to be sent
         // while the old run is still executing server-side.
-        if (newSessionId === sessionId) return;
+        if (newSessionId === sessionId) return true;
         try {
             setIsLoading(true);
             clearBackgroundState();
             const sessionPayload = await fetchSessionMessages(newSessionId);
-            if (!sessionPayload) return;
+            if (!sessionPayload) return false;
             setSessionState({ sessionId: newSessionId, messages: sessionPayload.uiMessages });
             notifySessionUpdate(newSessionId, {
                 messageCount: sessionPayload.conversationalMessageCount,
             });
             replaceSessionUrl(newSessionId);
+            return true;
         } catch (err) {
             console.error("Failed to switch session:", err);
+            return false;
         } finally {
             setIsLoading(false);
         }
     }, [sessionId, fetchSessionMessages, clearBackgroundState, notifySessionUpdate, replaceSessionUrl, setSessionState]);
 
-    const createNewSession = useCallback(async () => {
+    const createNewSession = useCallback(async (): Promise<SessionInfo | null> => {
         try {
             setIsLoading(true);
             const { data: createData, error } = await resilientPost<{ session: SessionInfo }>(
@@ -527,9 +529,12 @@ export function useSessionManager({
                 syncSessions([session]);
                 await loadSessions();
                 replaceSessionUrl(session.id);
+                return session;
             }
+            return null;
         } catch (err) {
             console.error("Failed to create new session:", err);
+            return null;
         } finally {
             setIsLoading(false);
         }

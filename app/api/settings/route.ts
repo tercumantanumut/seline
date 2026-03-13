@@ -53,6 +53,10 @@ export async function PUT(request: NextRequest) {
       llmProvider: newProvider,
       ollamaBaseUrl: body.ollamaBaseUrl !== undefined ? body.ollamaBaseUrl : currentSettings.ollamaBaseUrl,
       theme: body.theme ?? currentSettings.theme,
+      chatWorkspaceMode:
+        body.chatWorkspaceMode === "browser-tabs" || body.chatWorkspaceMode === "sidebar"
+          ? body.chatWorkspaceMode
+          : currentSettings.chatWorkspaceMode,
       webScraperProvider: body.webScraperProvider ?? currentSettings.webScraperProvider,
       webSearchProvider: body.webSearchProvider ?? currentSettings.webSearchProvider,
       // Model settings - allow empty string to clear, undefined to keep current
