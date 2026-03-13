@@ -97,6 +97,10 @@ export function setupIpcHandlers(ctx: IpcHandlerContext): void {
     return mainWindow()?.isMaximized() ?? false;
   });
 
+  ipcMain.handle("window:isFullScreen", () => {
+    return mainWindow()?.isFullScreen() ?? false;
+  });
+
   // --------------------------------------------------------------------------
   // Log streaming handlers
   // --------------------------------------------------------------------------

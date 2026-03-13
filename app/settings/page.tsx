@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>("api-keys");
   const t = useTranslations("settings");
   const tc = useTranslations("common");
-  const { setTheme } = useTheme();
+  const { setTheme, setChatWorkspaceMode } = useTheme();
 
   // Form state for editable fields
   const [formState, setFormState] = useState<FormState>(DEFAULT_FORM_STATE);
@@ -547,6 +547,7 @@ export default function SettingsPage() {
       setLastSavedState(formState);
       saveResetTimeoutRef.current = setTimeout(() => setSaved(false), 2000);
       setTheme(formState.theme);
+      setChatWorkspaceMode(formState.chatWorkspaceMode);
       toast.success(t("save.savedToast"));
       await loadSettings(); // Reload to get masked keys
     } catch (err) {
@@ -554,7 +555,7 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
-  }, [formState, loadSettings, setTheme, t]);
+  }, [formState, loadSettings, setChatWorkspaceMode, setTheme, t]);
 
   useEffect(() => {
     return () => {

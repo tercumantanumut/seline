@@ -42,18 +42,23 @@ export const ContextWindowIndicator: FC<ContextWindowIndicatorProps> = ({
 }) => {
   const t = useTranslations("chat.contextWindow");
 
-  if (!status && !isLoading) return null;
+  // Always render a stable-height container to prevent layout shift.
+  // When there's nothing to show, render an invisible placeholder.
+  if (!status && !isLoading) {
+    return <div className="h-3" aria-hidden />;
+  }
 
-  // While loading with no previous status, show a minimal skeleton
+  // While loading with no previous status, show a placeholder matching loaded height
   if (isLoading && !status) {
     return (
-      <div className="flex items-center gap-1.5 text-[10px] font-mono text-terminal-muted/50">
-        <Loader2Icon className="size-3 animate-spin" />
+      <div className="flex h-3 items-center gap-1.5 text-[10px] font-mono text-terminal-muted/30">
+        <div className="w-12 h-1 rounded-full bg-terminal-dark/5" />
+        <span className="tabular-nums">—</span>
       </div>
     );
   }
 
-  if (!status) return null;
+  if (!status) return <div className="h-3" aria-hidden />;
 
   const percentage = Math.min(status.percentage, 100);
   const statusKey = status.status;

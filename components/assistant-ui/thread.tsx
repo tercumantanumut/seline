@@ -1,12 +1,11 @@
 "use client";
 
 import type { FC } from "react";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { ArrowsOut } from "@phosphor-icons/react";
 import { getElectronAPI } from "@/lib/electron/types";
 import {
   ThreadPrimitive,
-  useThread,
   useThreadRuntime,
 } from "@assistant-ui/react";
 import { useRouter } from "next/navigation";
@@ -76,10 +75,10 @@ export const Thread: FC<ThreadProps> = ({
   onLivePromptInjected,
   onPostCancel,
 }) => {
-  const isRunning = useThread((t) => t.isRunning);
   const router = useRouter();
   const { character } = useCharacter();
   const threadRuntime = useThreadRuntime();
+
 
   // Deep research mode (for drag-drop gating)
   const deepResearch = useOptionalDeepResearch();
@@ -242,7 +241,7 @@ export const Thread: FC<ThreadProps> = ({
   return (
     <TooltipProvider>
       <ThreadPrimitive.Root
-        className={cn("isolate relative flex h-full flex-col transition-colors duration-700", (isBrowserActive || chatBackground.type !== "none") ? "bg-transparent" : "bg-terminal-cream")}
+        className={cn("isolate relative flex h-full min-h-0 flex-col", (isBrowserActive || chatBackground.type !== "none") ? "bg-transparent" : "bg-terminal-cream")}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -345,10 +344,8 @@ export const Thread: FC<ThreadProps> = ({
 
         <SessionActivityWatcher onSessionActivity={wrappedOnSessionActivity} />
         <GalleryWrapper>
-          <ThreadPrimitive.Viewport className={cn(
-            "relative z-10 flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-4 pt-8 [overflow-anchor:auto] animate-in fade-in duration-200",
-            !isRunning && "scroll-smooth"
-          )}
+          <ThreadPrimitive.Viewport
+          className="relative z-10 flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-4 pt-8 [overflow-anchor:auto]"
           data-chat-viewport="true">
             <ThreadWelcome />
             <ThreadPrimitive.Messages
@@ -378,9 +375,9 @@ export const Thread: FC<ThreadProps> = ({
             <div className="min-h-8 flex-shrink-0 [overflow-anchor:auto]" />
           </ThreadPrimitive.Viewport>
 
-          <div className={cn("sticky bottom-0 z-10 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4 transition-colors duration-700", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : chatBackground.type !== "none" ? "bg-terminal-cream/60 backdrop-blur-md" : "bg-terminal-cream")}>
+          <div className={cn("sticky bottom-0 z-10 mt-auto flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : chatBackground.type !== "none" ? "bg-terminal-cream/60 backdrop-blur-md" : "bg-terminal-cream")}>
             <ThreadScrollToBottom />
-            <div className="flex w-full items-center justify-between px-1">
+            <div className="flex min-h-[24px] w-full items-center justify-between px-1">
               <ExpandAllToolsButton />
               <AgentResourcesBadge />
             </div>

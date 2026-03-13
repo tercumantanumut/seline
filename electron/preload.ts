@@ -27,6 +27,16 @@ const electronAPI = {
     isMaximized: (): Promise<boolean> => {
       return ipcRenderer.invoke("window:isMaximized");
     },
+    isFullScreen: (): Promise<boolean> => {
+      return ipcRenderer.invoke("window:isFullScreen");
+    },
+    onFullscreenChanged: (callback: (isFullScreen: boolean) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, isFullScreen: boolean) => callback(isFullScreen);
+      ipcRenderer.on("window:fullscreen-changed", handler);
+      return () => {
+        ipcRenderer.removeListener("window:fullscreen-changed", handler);
+      };
+    },
   },
 
   // App info
@@ -374,6 +384,7 @@ const electronAPI = {
       // Whitelist of allowed channels
       const validChannels = [
         "window:isMaximized",
+        "window:isFullScreen",
         "app:getVersion",
         "app:getName",
         "app:getDataPath",
@@ -418,13 +429,13 @@ const electronAPI = {
     },
     on: (channel: string, callback: (...args: unknown[]) => void): void => {
       // Whitelist of allowed channels
-      const validChannels = ["window:maximized-changed", "window:visibility-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress", "voice-hotkey:triggered"];
+      const validChannels = ["window:maximized-changed", "window:visibility-changed", "window:fullscreen-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress", "voice-hotkey:triggered"];
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, (_event, ...args) => callback(...args));
       }
     },
     removeAllListeners: (channel: string): void => {
-      const validChannels = ["window:maximized-changed", "window:visibility-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress", "voice-hotkey:triggered"];
+      const validChannels = ["window:maximized-changed", "window:visibility-changed", "window:fullscreen-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress", "voice-hotkey:triggered"];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeAllListeners(channel);
       }

@@ -1,27 +1,42 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, CircleStop, Loader2 } from "lucide-react";
+import { ArrowLeft, CircleStop, Loader2, Palette } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ActiveRunState } from "@/components/chat/chat-interface-types";
 
 export function ChatSidebarHeader({
     label,
     onBack,
+    onOpenThemeChooser,
 }: {
     label: string;
     onBack: () => void;
+    onOpenThemeChooser?: () => void;
 }) {
     return (
-        <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="gap-2 text-terminal-dark hover:bg-terminal-dark/8 transition-all duration-200"
-        >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="text-sm font-mono">{label}</span>
-        </Button>
+        <div className="flex items-center justify-between w-full">
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="gap-2 text-terminal-dark hover:bg-terminal-dark/8 transition-all duration-200"
+            >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="text-sm font-mono">{label}</span>
+            </Button>
+            {onOpenThemeChooser && (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onOpenThemeChooser}
+                    className="text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/8 transition-all duration-200"
+                    title="Appearance & workspace style"
+                >
+                    <Palette className="h-4 w-4" />
+                </Button>
+            )}
+        </div>
     );
 }
 

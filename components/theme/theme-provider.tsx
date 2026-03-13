@@ -4,6 +4,11 @@ import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { BackgroundConfig } from "@/lib/personalization/wallpapers";
 import { DEFAULT_THEME_PRESET, type ThemePresetId } from "@/lib/personalization/theme-presets";
+import {
+  DEFAULT_CHAT_WORKSPACE_MODE,
+  isChatWorkspaceMode,
+  type ChatWorkspaceMode,
+} from "@/lib/chat/workspace-mode";
 
 export type ThemePreference = "light" | "dark" | "system";
 type ResolvedTheme = "light" | "dark";
@@ -12,6 +17,7 @@ const THEME_STORAGE_KEY = "selene-theme";
 const PRESET_STORAGE_KEY = "selene-theme-preset";
 const HOMEPAGE_BG_STORAGE_KEY = "selene-homepage-bg";
 const CHAT_BG_STORAGE_KEY = "selene-chat-bg";
+const CHAT_WORKSPACE_MODE_STORAGE_KEY = "selene-chat-workspace-mode";
 
 type ThemeContextValue = {
   theme: ThemePreference;
@@ -23,6 +29,8 @@ type ThemeContextValue = {
   setHomepageBackground: (bg: BackgroundConfig) => void;
   chatBackground: BackgroundConfig;
   setChatBackground: (bg: BackgroundConfig) => void;
+  chatWorkspaceMode: ChatWorkspaceMode;
+  setChatWorkspaceMode: (mode: ChatWorkspaceMode) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -44,6 +52,16 @@ const getStoredPreset = (): ThemePresetId | null => {
   if (typeof window === "undefined") return null;
   try {
     return window.localStorage.getItem(PRESET_STORAGE_KEY) as ThemePresetId | null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredChatWorkspaceMode = (): ChatWorkspaceMode | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(CHAT_WORKSPACE_MODE_STORAGE_KEY);
+    return isChatWorkspaceMode(stored) ? stored : null;
   } catch {
     return null;
   }
@@ -76,7 +94,6 @@ const applyTheme = (theme: ThemePreference): ResolvedTheme => {
 
 const applyPreset = (preset: ThemePresetId): void => {
   const root = document.documentElement;
-  // "ember" is the default — no data attribute needed (no CSS override)
   if (preset === "ember") {
     delete root.dataset.themePreset;
   } else {
@@ -88,9 +105,11 @@ const DEFAULT_BG: BackgroundConfig = { type: "none" };
 
 export function ThemeProvider({
   initialTheme,
+  initialChatWorkspaceMode = DEFAULT_CHAT_WORKSPACE_MODE,
   children,
 }: {
   initialTheme: ThemePreference;
+  initialChatWorkspaceMode?: ChatWorkspaceMode;
   children: ReactNode;
 }) {
   const [theme, setTheme] = useState<ThemePreference>(initialTheme);
@@ -98,8 +117,8 @@ export function ThemeProvider({
   const [themePreset, setThemePresetState] = useState<ThemePresetId>(DEFAULT_THEME_PRESET);
   const [homepageBackground, setHomepageBgState] = useState<BackgroundConfig>(DEFAULT_BG);
   const [chatBackground, setChatBgState] = useState<BackgroundConfig>(DEFAULT_BG);
+  const [chatWorkspaceMode, setChatWorkspaceModeState] = useState<ChatWorkspaceMode>(initialChatWorkspaceMode);
 
-  // Load stored values on mount
   useEffect(() => {
     const stored = getStoredTheme();
     setTheme(stored ?? initialTheme);
@@ -107,9 +126,9 @@ export function ThemeProvider({
     if (storedPreset) setThemePresetState(storedPreset);
     setHomepageBgState(getStoredJson(HOMEPAGE_BG_STORAGE_KEY, DEFAULT_BG));
     setChatBgState(getStoredJson(CHAT_BG_STORAGE_KEY, DEFAULT_BG));
-  }, [initialTheme]);
+    setChatWorkspaceModeState(getStoredChatWorkspaceMode() ?? initialChatWorkspaceMode);
+  }, [initialTheme, initialChatWorkspaceMode]);
 
-  // Apply theme mode
   useEffect(() => {
     setResolvedTheme(applyTheme(theme));
     try {
@@ -119,7 +138,6 @@ export function ThemeProvider({
     }
   }, [theme]);
 
-  // Apply preset
   useEffect(() => {
     applyPreset(themePreset);
     try {
@@ -129,7 +147,15 @@ export function ThemeProvider({
     }
   }, [themePreset]);
 
-  // System theme media query listener
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(CHAT_WORKSPACE_MODE_STORAGE_KEY, chatWorkspaceMode);
+    } catch {
+      // Ignore
+    }
+  }, [chatWorkspaceMode]);
+
   useEffect(() => {
     if (theme !== "system") return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -160,6 +186,10 @@ export function ThemeProvider({
     }
   };
 
+  const setChatWorkspaceMode = (mode: ChatWorkspaceMode) => {
+    setChatWorkspaceModeState(mode);
+  };
+
   const value = useMemo(
     () => ({
       theme,
@@ -171,9 +201,10 @@ export function ThemeProvider({
       setHomepageBackground,
       chatBackground,
       setChatBackground,
+      chatWorkspaceMode,
+      setChatWorkspaceMode,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [theme, resolvedTheme, themePreset, homepageBackground, chatBackground]
+    [theme, resolvedTheme, themePreset, homepageBackground, chatBackground, chatWorkspaceMode]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

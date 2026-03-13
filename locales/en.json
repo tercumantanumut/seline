@@ -3031,6 +3031,26 @@
       "invalid": "Invalid date",
       "yesterday": "Yesterday"
     },
+    "browserWorkspace": {
+      "ready": "Ready",
+      "unavailable": "Unavailable",
+      "running": "Running",
+      "contextWarning": "Context {percentage}%",
+      "library": "Library",
+      "reopen": "Reopen last closed",
+      "home": "Home",
+      "settings": "Workspace options",
+      "sidebarMode": "Switch to classic sidebar",
+      "newChatWith": "Open new chat with",
+      "noTabAddress": "No active session",
+      "agentLabel": "Agent",
+      "emptyTitle": "No open chats",
+      "emptyDescription": "Open a new chat or browse your history to get started.",
+      "openNew": "New chat",
+      "openLibrary": "Browse history",
+      "libraryTitle": "Chat Library",
+      "libraryDescription": "Browse and open your chat sessions"
+    },
     "channelSession": {
       "deleteTitle": "Delete channel session?",
       "deleteDescription": "This chat is linked to a channel. Deleting it will hide future messages in the app. You can archive and reset to start a fresh session while keeping the channel connected.",
@@ -4215,6 +4235,15 @@
       "system": "System"
     },
     "paletteLabel": "Color palette",
+    "workspaceLabel": "Workspace style",
+    "workspace": {
+      "sidebar": "Classic sidebar",
+      "browser-tabs": "Browser tabs"
+    },
+    "workspaceHint": {
+      "sidebar": "Session list on the left",
+      "browser-tabs": "Active chats as persistent top tabs"
+    },
     "moreOptions": "Wallpapers & more in Settings",
     "done": "Done"
   }

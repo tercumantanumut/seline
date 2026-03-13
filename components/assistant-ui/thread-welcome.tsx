@@ -49,13 +49,12 @@ export const ThreadWelcome: FC = () => {
     return words.slice(0, 3).join(" ") + "...";
   };
 
-  // Entrance animation
+  // Entrance animation — fade in only (no translateY to prevent layout jump on tab switch)
   useEffect(() => {
     if (!welcomeRef.current || prefersReducedMotion) return;
 
     animate(welcomeRef.current, {
       opacity: [0, 1],
-      translateY: [20, 0],
       duration: ZLUTTY_DURATIONS.normal,
       ease: ZLUTTY_EASINGS.reveal,
     });
