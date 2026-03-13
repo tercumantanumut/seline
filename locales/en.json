@@ -3057,7 +3057,7 @@
       "forceStop": "Force Stop"
     },
     "processingInBackground": "Agent is processing in background",
-    "processingInBackgroundHint": "Your response will appear automatically when ready",
+    "processingInBackgroundHint": "Responses are streamed in 5 seconds intervals",
     "processingComplete": "Response ready",
     "contextWindow": {
       "status": {

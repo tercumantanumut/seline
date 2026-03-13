@@ -8,6 +8,7 @@ import { resilientFetch, resilientPost, resilientPatch, resilientDelete } from "
 import {
     convertDBMessagesToUIMessages,
     countVisibleConversationMessages,
+    hasLivePromptInjectedMessages,
 } from "@/lib/messages/converter";
 import type { TaskEvent, TaskStatus, UnifiedTask } from "@/lib/background-tasks/types";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
@@ -86,26 +87,16 @@ export function useBackgroundProcessing({
         if (sig === lastMessageSigRef.current) return;
 
         // If a background run is active and the message set includes a live-prompt-
-        // injected user message, skip pushing to the thread. This prevents the
+        // injected message, skip pushing to the thread. This prevents the
         // injected message from appearing mid-run (matching foreground behavior
         // where shouldSkipBackgroundRefresh blocks all updates). The sig is
         // intentionally NOT updated so the final refresh (after the run completes)
         // sees a changed sig and processes normally.
-        if (isRunActiveRef.current) {
-            const hasInjectedMessage = data.messages.some((m: any) => {
-                try {
-                    const meta = typeof m.metadata === "string" ? JSON.parse(m.metadata) : m.metadata;
-                    return meta?.livePromptInjected === true;
-                } catch {
-                    return false;
-                }
+        if (isRunActiveRef.current && hasLivePromptInjectedMessages(data.messages)) {
+            notifySessionUpdate(sessionId, {
+                messageCount: countVisibleConversationMessages(data.messages),
             });
-            if (hasInjectedMessage) {
-                notifySessionUpdate(sessionId, {
-                    messageCount: countVisibleConversationMessages(data.messages),
-                });
-                return;
-            }
+            return;
         }
 
         lastMessageSigRef.current = sig;
@@ -148,7 +139,7 @@ export function useBackgroundProcessing({
         const pollIntervalMs = 2000;
         const MAX_CONSECUTIVE_ERRORS = 10;
 
-        pollingIntervalRef.current = setInterval(async () => {
+        const pollOnce = async () => {
             try {
                 const { data, error } = await resilientFetch<{ status: string; isZombie?: boolean }>(
                     `/api/agent-runs/${runId}/status`,
@@ -203,9 +194,26 @@ export function useBackgroundProcessing({
                 await refreshMessagesRef.current();
             } catch (error) {
                 consecutiveErrorsRef.current += 1;
-                console.error("[Background Processing] Polling error:", error);
+                console.error("[Background Processing] Polling error:", error, `(${consecutiveErrorsRef.current}/${MAX_CONSECUTIVE_ERRORS})`);
+                if (consecutiveErrorsRef.current >= MAX_CONSECUTIVE_ERRORS) {
+                    console.warn("[Background Processing] Too many consecutive exceptions — force-clearing");
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                    }
+                    setIsProcessingInBackground(false);
+                    setProcessingRunId(null);
+                    setIsZombieRun(false);
+                    isRunActiveRef.current = false;
+                }
             }
-        }, pollIntervalMs);
+        };
+
+        // Poll immediately — don't wait for the first interval tick.
+        // If the run already completed, this clears the state right away
+        // instead of showing "processing" for up to 2 seconds.
+        void pollOnce();
+        pollingIntervalRef.current = setInterval(pollOnce, pollIntervalMs);
     }, []);
 
     // Clear polling interval on unmount to prevent stale updates after navigation
@@ -273,6 +281,8 @@ export function useBackgroundProcessing({
         refreshMessages,
         startPollingForCompletion,
         handleCancelBackgroundRun,
+        /** Exposed so reloadSessionMessages can skip injected-message pushes mid-run. */
+        isRunActiveRef,
     };
 }
 
@@ -429,8 +439,9 @@ export function useSessionManager({
         const dbMessages = (data.messages || []) as DBMessage[];
         const uiMessages = convertDBMessagesToUIMessages(dbMessages);
         const conversationalMessageCount = countVisibleConversationMessages(dbMessages);
+        const hasInjectedMessages = hasLivePromptInjectedMessages(dbMessages);
 
-        return { uiMessages, conversationalMessageCount };
+        return { uiMessages, conversationalMessageCount, hasInjectedMessages };
     }, []);
 
     const loadMoreSessions = useCallback(async () => {
