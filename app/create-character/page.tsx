@@ -9,7 +9,7 @@ export const metadata = {
 // The middleware redirects unauthenticated users to /login
 export default function CreateCharacterPage() {
   return (
-    <div className="relative min-h-screen">
+    <div className="relative h-screen overflow-hidden">
       <TerminalWizard />
     </div>
   );

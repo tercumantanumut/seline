@@ -355,9 +355,9 @@ export function TerminalWizard() {
     : { type: "tween" as const, duration: 0.4, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-terminal-cream flex flex-col">
-      <WindowsTitleBar />
-      <div className="relative flex-1">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-terminal-cream">
+      <WindowsTitleBar className="shrink-0" />
+      <div className="relative min-h-0 flex-1">
         {/* Error Banner */}
         {error && (
           <motion.div
