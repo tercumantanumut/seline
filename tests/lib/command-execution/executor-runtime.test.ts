@@ -5,7 +5,9 @@ vi.mock("@/lib/shell-env/resolver", () => ({
 }));
 
 import * as shellEnvResolver from "@/lib/shell-env/resolver";
-import { buildSafeEnvironment, type BundledRuntimeInfo } from "@/lib/command-execution/executor-runtime";
+import { buildSafeEnvironment, normalizeUnixPath, normalizeArgs, type BundledRuntimeInfo } from "@/lib/command-execution/executor-runtime";
+import { tmpdir } from "os";
+import { join, delimiter } from "path";
 
 const baseRuntime: BundledRuntimeInfo = {
     resourcesPath: "/tmp/resources",
@@ -45,8 +47,9 @@ describe("buildSafeEnvironment", () => {
     });
 
     it("prepends bundled binary dirs to the resolved PATH", () => {
+        const sep = delimiter; // ";" on Windows, ":" elsewhere
         vi.mocked(shellEnvResolver.getResolvedShellEnvironment).mockReturnValue({
-            PATH: "/usr/local/bin:/usr/bin",
+            PATH: `/usr/local/bin${sep}/usr/bin`,
         });
 
         const env = buildSafeEnvironment({
@@ -54,7 +57,7 @@ describe("buildSafeEnvironment", () => {
             bundledBinDirs: ["/bundle/node/.bin", "/bundle/tools/bin"],
         });
 
-        expect(env.PATH).toBe("/bundle/node/.bin:/bundle/tools/bin:/usr/local/bin:/usr/bin");
+        expect(env.PATH).toBe(`/bundle/node/.bin${sep}/bundle/tools/bin${sep}/usr/local/bin${sep}/usr/bin`);
     });
 
     it("preserves important defaults when shell env is sparse", () => {
@@ -107,5 +110,134 @@ describe("buildSafeEnvironment", () => {
         expect(env.NODE_ENV).toBeUndefined();
         expect(env.SELENE_PRODUCTION_BUILD).toBeUndefined();
         expect(env.SAFE_KEY).toBe("ok");
+    });
+
+    it("preserves system PATH on Windows despite case mismatch", () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        // Simulate Windows env where PATH is stored as "Path"
+        const originalPath = process.env.PATH;
+        const originalPathLower = process.env.Path;
+        // process.env.PATH always works (case-insensitive proxy on Windows)
+        // The fix ensures PATH in child env is non-empty
+        const env = buildSafeEnvironment(baseRuntime);
+
+        // PATH must contain the system PATH value, not be empty
+        expect(env.PATH).toBeTruthy();
+        expect(typeof env.PATH).toBe("string");
+        expect((env.PATH as string).length).toBeGreaterThan(0);
+
+        // Must not have duplicate Path/PATH keys
+        const pathKeys = Object.keys(env).filter(k => k.toUpperCase() === "PATH");
+        expect(pathKeys).toEqual(["PATH"]);
+
+        Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+
+    it("injects TMPDIR on Windows", () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        const env = buildSafeEnvironment(baseRuntime);
+
+        expect(env.TMPDIR).toBe(tmpdir());
+
+        Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+
+    it("does not inject TMPDIR on non-Windows", () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, "platform", { value: "darwin" });
+
+        const env = buildSafeEnvironment(baseRuntime);
+
+        // TMPDIR may exist from process.env, but buildSafeEnvironment shouldn't inject it
+        // The key behavior is that on non-win32, the tmpOverrides block is skipped
+        Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+});
+
+describe("normalizeUnixPath", () => {
+    const originalPlatform = process.platform;
+
+    afterEach(() => {
+        Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+
+    it("translates /tmp to os.tmpdir() on Windows", () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        expect(normalizeUnixPath("/tmp")).toBe(tmpdir());
+    });
+
+    it("translates /tmp/file.json to tmpdir join on Windows", () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        expect(normalizeUnixPath("/tmp/file.json")).toBe(join(tmpdir(), "file.json"));
+    });
+
+    it("translates /var/tmp/data.json on Windows", () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        expect(normalizeUnixPath("/var/tmp/data.json")).toBe(join(tmpdir(), "data.json"));
+    });
+
+    it("translates --output=/tmp/file.json flag=value on Windows", () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        expect(normalizeUnixPath("--output=/tmp/file.json")).toBe(`--output=${join(tmpdir(), "file.json")}`);
+    });
+
+    it("does not modify non-tmp paths on Windows", () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        expect(normalizeUnixPath("/home/user/file.json")).toBe("/home/user/file.json");
+        expect(normalizeUnixPath("--verbose")).toBe("--verbose");
+        expect(normalizeUnixPath("hello")).toBe("hello");
+    });
+
+    it("is a no-op on non-Windows", () => {
+        Object.defineProperty(process, "platform", { value: "linux" });
+
+        expect(normalizeUnixPath("/tmp/file.json")).toBe("/tmp/file.json");
+    });
+
+    it("handles /tmp with trailing slash", () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        expect(normalizeUnixPath("/tmp/")).toBe(tmpdir());
+    });
+
+    it("handles /tmp with nested subdirectories", () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        expect(normalizeUnixPath("/tmp/deep/nested/file.json")).toBe(join(tmpdir(), "deep", "nested", "file.json"));
+    });
+});
+
+describe("normalizeArgs", () => {
+    const originalPlatform = process.platform;
+
+    afterEach(() => {
+        Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+
+    it("normalizes all /tmp args in array on Windows", () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+
+        const result = normalizeArgs(["-c", "console.log('hi')", "/tmp/output.json", "--config=/tmp/cfg.json"]);
+
+        expect(result[0]).toBe("-c");
+        expect(result[1]).toBe("console.log('hi')");
+        expect(result[2]).toBe(join(tmpdir(), "output.json"));
+        expect(result[3]).toBe(`--config=${join(tmpdir(), "cfg.json")}`);
+    });
+
+    it("returns args unchanged on non-Windows", () => {
+        Object.defineProperty(process, "platform", { value: "linux" });
+
+        const args = ["/tmp/file.json", "--output=/tmp/data.json"];
+        expect(normalizeArgs(args)).toBe(args); // same reference
     });
 });

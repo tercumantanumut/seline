@@ -44,12 +44,14 @@ export interface GitAheadBehindResult {
   comparisonRef?: string;
 }
 
-export function isValidWorktreePath(path: string): boolean {
-  return (
-    typeof path === "string" &&
-    path.startsWith("/") &&
-    !/[;&|`$(){}!#"'\\<>\n\r]/.test(path)
-  );
+export function isValidWorktreePath(pathStr: string): boolean {
+  if (typeof pathStr !== "string" || pathStr.length === 0) return false;
+  // Accept Unix absolute paths (/...) and Windows absolute paths (C:\... or C:/...)
+  const isAbsolute = pathStr.startsWith("/") || /^[A-Za-z]:[/\\]/.test(pathStr);
+  if (!isAbsolute) return false;
+  // Reject shell metacharacters. Backslashes are allowed since they are
+  // normal path separators on Windows and paths are passed to execFile (no shell).
+  return !/[;&|`$(){}!#"'<>\n\r]/.test(pathStr);
 }
 
 export function isSafeRepoRelativePath(filePath: string): boolean {

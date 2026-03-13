@@ -14,7 +14,7 @@ vi.mock("@/lib/rtk", () => ({
   shouldUseRTK: rtkManagerMocks.shouldUseRTK,
 }));
 
-import { wrapWithRTK } from "@/lib/command-execution/executor-rtk";
+import { getRtkFallbackReason, wrapWithRTK } from "@/lib/command-execution/executor-rtk";
 
 describe("wrapWithRTK", () => {
   beforeEach(() => {
@@ -58,5 +58,37 @@ describe("wrapWithRTK", () => {
       args: ["status"],
       usingRTK: false,
     });
+  });
+});
+
+describe("getRtkFallbackReason", () => {
+  it("keeps rg-specific fallback reasons for ripgrep commands", () => {
+    expect(
+      getRtkFallbackReason({
+        command: "rg",
+        wrappedByRTK: true,
+        stderr: "error: unrecognized subcommand 'rg'",
+      })
+    ).toBe("rtk_rg_unrecognized_subcommand");
+  });
+
+  it("returns generic fallback reasons for non-rg commands", () => {
+    expect(
+      getRtkFallbackReason({
+        command: "cat",
+        wrappedByRTK: true,
+        stderr: "error: unrecognized subcommand 'cat'",
+      })
+    ).toBe("rtk_unrecognized_subcommand");
+  });
+
+  it("returns undefined when RTK is not involved", () => {
+    expect(
+      getRtkFallbackReason({
+        command: "cat",
+        wrappedByRTK: false,
+        stderr: "error: unrecognized subcommand 'cat'",
+      })
+    ).toBeUndefined();
   });
 });
