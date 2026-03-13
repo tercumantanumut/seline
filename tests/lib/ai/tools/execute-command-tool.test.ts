@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import path from "path";
 
-const syncServiceMocks = vi.hoisted(() => ({
-  getSyncFolders: vi.fn(),
+const syncFolderMocks = vi.hoisted(() => ({
+  getAccessibleSyncFolders: vi.fn(),
+}));
+
+const filesystemMocks = vi.hoisted(() => ({
+  getActiveWorktreePath: vi.fn(),
+  isOtherWorktreePath: vi.fn(),
 }));
 
 const commandExecutionMocks = vi.hoisted(() => ({
@@ -18,8 +23,13 @@ const fspMocks = vi.hoisted(() => ({
   readdir: vi.fn(),
 }));
 
-vi.mock("@/lib/vectordb/sync-service", () => ({
-  getSyncFolders: syncServiceMocks.getSyncFolders,
+vi.mock("@/lib/vectordb/accessible-sync-folders", () => ({
+  getAccessibleSyncFolders: syncFolderMocks.getAccessibleSyncFolders,
+}));
+
+vi.mock("@/lib/ai/filesystem", () => ({
+  getActiveWorktreePath: filesystemMocks.getActiveWorktreePath,
+  isOtherWorktreePath: filesystemMocks.isOtherWorktreePath,
 }));
 
 vi.mock("@/lib/command-execution", () => ({
@@ -61,9 +71,11 @@ describe("execute-command-tool normalization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    syncServiceMocks.getSyncFolders.mockResolvedValue([
+    syncFolderMocks.getAccessibleSyncFolders.mockResolvedValue([
       { folderPath: "C:\\workspace" },
     ]);
+    filesystemMocks.getActiveWorktreePath.mockResolvedValue(null);
+    filesystemMocks.isOtherWorktreePath.mockReturnValue(false);
 
     // Mock path validation to pass (returns valid result with resolved path)
     validatorMocks.validateExecutionDirectory.mockResolvedValue({

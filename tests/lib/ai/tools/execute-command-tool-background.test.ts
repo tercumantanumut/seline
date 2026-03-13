@@ -2,8 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-const syncServiceMocks = vi.hoisted(() => ({
-    getSyncFolders: vi.fn(),
+const syncFolderMocks = vi.hoisted(() => ({
+    getAccessibleSyncFolders: vi.fn(),
+}));
+
+const filesystemMocks = vi.hoisted(() => ({
+    getActiveWorktreePath: vi.fn(),
+    isOtherWorktreePath: vi.fn(),
 }));
 
 const executorMocks = vi.hoisted(() => ({
@@ -19,8 +24,13 @@ const validatorMocks = vi.hoisted(() => ({
     validateExecutionDirectory: vi.fn(),
 }));
 
-vi.mock("@/lib/vectordb/sync-service", () => ({
-    getSyncFolders: syncServiceMocks.getSyncFolders,
+vi.mock("@/lib/vectordb/accessible-sync-folders", () => ({
+    getAccessibleSyncFolders: syncFolderMocks.getAccessibleSyncFolders,
+}));
+
+vi.mock("@/lib/ai/filesystem", () => ({
+    getActiveWorktreePath: filesystemMocks.getActiveWorktreePath,
+    isOtherWorktreePath: filesystemMocks.isOtherWorktreePath,
 }));
 
 vi.mock("@/lib/command-execution", () => ({
@@ -60,9 +70,11 @@ function makeTool() {
 beforeEach(() => {
     vi.clearAllMocks();
 
-    syncServiceMocks.getSyncFolders.mockResolvedValue([
+    syncFolderMocks.getAccessibleSyncFolders.mockResolvedValue([
         { folderPath: "C:\\workspace" },
     ]);
+    filesystemMocks.getActiveWorktreePath.mockResolvedValue(null);
+    filesystemMocks.isOtherWorktreePath.mockReturnValue(false);
 
     validatorMocks.validateExecutionDirectory.mockResolvedValue({
         valid: true,
@@ -344,7 +356,7 @@ describe("foreground execution", () => {
     });
 
     it("should return no_folders when agent has no synced folders", async () => {
-        syncServiceMocks.getSyncFolders.mockResolvedValue([]);
+        syncFolderMocks.getAccessibleSyncFolders.mockResolvedValue([]);
 
         const tool = makeTool();
         const result = await tool.execute(
