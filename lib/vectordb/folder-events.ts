@@ -9,6 +9,7 @@ export type FolderChangeEvent = {
     | "mcp_reload_started" | "mcp_reload_completed" | "mcp_reload_failed";
     folderId: string;
     wasPrimary?: boolean;
+    folderPath?: string;
     // MCP reload tracking fields
     serverName?: string;
     totalServers?: number;

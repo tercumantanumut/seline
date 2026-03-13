@@ -103,16 +103,16 @@ export function buildWorkflowPromptContext(input: WorkflowPromptContextInput): s
     lines.push(
       "",
       "## Initiator / Orchestrator Contract",
-      "- Delegate by calling start with a task. The call blocks and returns the subagent's final result directly.",
-      "- Launch multiple start calls in parallel for concurrent subagent work — all block independently, all results arrive together.",
+      "- Delegate by calling start with a task. The call may block or return in background mode depending on the execution context.",
+      "- Launch multiple start calls in parallel for concurrent subagent work.",
+      "- If start returns with mode='background', the system auto-promoted it for concurrency. Call observe(waitSeconds=180) on each delegationId to collect results — subagents run concurrently, so sequential observes still yield parallel speedup.",
       "- Do work directly when the task is simple, single-step, or faster to complete in current context.",
       "- Choose target subagent from directory by explicit purpose match before starting delegation.",
       "- Integrate and synthesize subagent results back to the user with clear decisions and next actions.",
       "- Multiple parallel delegations to the same subagent are supported — each gets its own session and delegationId.",
       "",
-      "## Background Mode (optional)",
-      "- Use mode='background' on start when you need interactive management (observe/continue/stop).",
-      "- Background mode returns immediately with a delegationId. Use observe(waitSeconds) to check progress.",
+      "## Background Mode",
+      "- mode='background' returns immediately with a delegationId. Use observe(waitSeconds=180) to check progress.",
       "- resume: map to continue using delegationId to preserve delegation context.",
     );
 
