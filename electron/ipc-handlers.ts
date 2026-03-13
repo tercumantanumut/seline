@@ -27,6 +27,7 @@ export interface IpcHandlerContext {
   userDataPath: string;
   userModelsDir: string;
   prodServerPort: number;
+  prodUseHttps?: boolean;
 }
 
 // ---------------------------------------------------------------------------

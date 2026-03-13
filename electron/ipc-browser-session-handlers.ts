@@ -69,7 +69,7 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
       // Load the dedicated browser session page
       const baseUrl = ctx.isDev
         ? (process.env.ELECTRON_DEV_URL || "http://localhost:3000")
-        : `http://localhost:${ctx.prodServerPort}`;
+        : `${ctx.prodUseHttps ? "https" : "http"}://localhost:${ctx.prodServerPort}`;
 
       await win.loadURL(`${baseUrl}/browser-session?sessionId=${sessionId}`);
       // Final fallback: if both events were missed, still surface the window.

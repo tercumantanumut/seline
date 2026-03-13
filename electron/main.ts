@@ -225,21 +225,6 @@ app.whenReady().then(async () => {
   debugLog("[App] Registering local media protocol...");
   registerLocalMediaProtocol(mediaDir);
 
-  debugLog("[App] Setting up IPC handlers...");
-  setupIpcHandlers({
-    mainWindow: () => {
-      // window-manager exports mainWindow as a mutable let — re-read it each call
-      const { mainWindow } = require("./window-manager") as typeof import("./window-manager");
-      return mainWindow;
-    },
-    isDev,
-    dataDir,
-    mediaDir,
-    userDataPath,
-    userModelsDir,
-    prodServerPort: PROD_SERVER_PORT,
-  });
-
   try {
     await initializeRTK();
   } catch (error) {
@@ -329,6 +314,21 @@ app.whenReady().then(async () => {
   // Determine the URL the renderer will load
   const useH2 = localCerts != null;
   const devProxyUrl = useH2 ? "https://localhost:3001" : "http://localhost:3000";
+
+  debugLog("[App] Setting up IPC handlers...");
+  setupIpcHandlers({
+    mainWindow: () => {
+      const { mainWindow } = require("./window-manager") as typeof import("./window-manager");
+      return mainWindow;
+    },
+    isDev,
+    dataDir,
+    mediaDir,
+    userDataPath,
+    userModelsDir,
+    prodServerPort: PROD_SERVER_PORT,
+    prodUseHttps: useH2,
+  });
 
   debugLog("[App] Creating main window...");
   await createWindow({
