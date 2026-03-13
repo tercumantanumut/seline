@@ -36,6 +36,7 @@ const H1_HOP_BY_HOP_HEADERS = new Set([
 // ---------------------------------------------------------------------------
 
 let server: http2.Http2SecureServer | null = null;
+const activeSessions = new Set<http2.ServerHttp2Session>();
 
 // ---------------------------------------------------------------------------
 // Proxy implementation
@@ -183,6 +184,13 @@ export function startH2Proxy(opts: H2ProxyOptions): http2.Http2SecureServer {
     debugError("[H2Proxy] Session error:", err.message);
   });
 
+  server.on("session", (session) => {
+    activeSessions.add(session);
+    session.once("close", () => {
+      activeSessions.delete(session);
+    });
+  });
+
   server.on("error", (err: Error) => {
     debugError("[H2Proxy] Server error:", err.message);
   });
@@ -202,9 +210,21 @@ export function stopH2Proxy(): void {
   if (!server) return;
 
   debugLog("[H2Proxy] Stopping HTTP/2 proxy server");
-  // closeAllConnections exists on net.Server (Node 18.2+) but the Http2SecureServer
-  // type defs don't expose it. Force-close to avoid delaying shutdown.
-  (server as unknown as { closeAllConnections(): void }).closeAllConnections();
+  // Some Electron/Node builds expose closeAllConnections, some don't.
+  // Use it when available, otherwise force-close tracked HTTP/2 sessions.
+  const maybeServer = server as unknown as { closeAllConnections?: () => void };
+  if (typeof maybeServer.closeAllConnections === "function") {
+    maybeServer.closeAllConnections();
+  } else {
+    for (const session of activeSessions) {
+      try {
+        session.destroy();
+      } catch {
+        // ignore
+      }
+    }
+    activeSessions.clear();
+  }
   server.close();
   server = null;
 }
