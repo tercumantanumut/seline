@@ -220,7 +220,11 @@ export const Composer: FC<{
   const isDeepResearchLoading = deepResearch?.isLoading ?? false;
   const isDeepResearchBackgroundPolling = deepResearch?.isBackgroundPolling ?? false;
   const isOperationRunning = isRunning || isDeepResearchLoading || isDeepResearchBackgroundPolling;
-  const isQueueBlocked = isOperationRunning || isBackgroundTaskRunning;
+  // Treat an active run ID as authoritative queue-blocking state. This keeps
+  // follow-ups queued while the backend run is still alive, even if the UI has
+  // temporarily hidden the background banner (e.g. interactive wait states).
+  const hasTrackedBackgroundRun = typeof activeRunId === "string" && activeRunId.length > 0;
+  const isQueueBlocked = isOperationRunning || isBackgroundTaskRunning || hasTrackedBackgroundRun;
 
   const isProcessingQueue = useRef(false);
   const isAwaitingRunStart = useRef(false);
@@ -862,19 +866,34 @@ export const Composer: FC<{
         const hasUndrained = result === true;
         if (hasUndrained) {
           // Server signals undrained messages — convert chips to fallback for replay.
-          setQueuedMessages(prev => prev.map(m =>
-            m.status === "injected-live" ? { ...m, status: "fallback" as const } : m
-          ));
+          setQueuedMessages(prev => {
+            let didChange = false;
+            const next = prev.map(m => {
+              if (m.status !== "injected-live") {
+                return m;
+              }
+              didChange = true;
+              return { ...m, status: "fallback" as const };
+            });
+            return didChange ? next : prev;
+          });
         } else {
           // Messages were processed by prepareStep — clear the chips.
-          setQueuedMessages(prev => prev.filter(m => m.status !== "injected-live"));
+          setQueuedMessages(prev => {
+            const next = prev.filter(m => m.status !== "injected-live");
+            return next.length === prev.length ? prev : next;
+          });
         }
       });
-    } else {
-      setQueuedMessages(prev => prev.filter(m => m.status !== "injected-live"));
+      return;
     }
+
+    setQueuedMessages(prev => {
+      const next = prev.filter(m => m.status !== "injected-live");
+      return next.length === prev.length ? prev : next;
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isQueueBlocked]);
+  }, [isQueueBlocked, queuedMessages, onLivePromptInjected]);
 
   // Auto-grow textarea
   const adjustTextareaHeight = useCallback(() => {
