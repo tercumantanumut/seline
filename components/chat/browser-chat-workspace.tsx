@@ -117,7 +117,7 @@ function BrowserChatTab({
       />
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{effectiveTitle}</span>
       {tab.characterName ? (
-        <span className="shrink-0 truncate text-[9px] uppercase tracking-wide text-muted-foreground/60" style={{ maxWidth: 36 }}>
+        <span className="max-w-[28px] shrink truncate text-[9px] uppercase tracking-wide text-muted-foreground/60">
           {tab.characterName}
         </span>
       ) : null}
