@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Globe,
   History,
@@ -91,10 +91,13 @@ function BrowserChatTab({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
+      role="tab"
+      tabIndex={isActive ? 0 : -1}
+      aria-selected={isActive}
       onClick={onActivate}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onActivate(); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onActivate();
+      }}
       className={cn(
         "group/tab relative flex min-w-[120px] max-w-[240px] items-center gap-1.5 rounded-t-lg px-2.5 py-1.5 text-left cursor-pointer select-none transition-colors",
         isActive
@@ -110,6 +113,7 @@ function BrowserChatTab({
             ? "bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.5)]"
             : "bg-muted-foreground/40",
         )}
+        aria-hidden="true"
       />
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{effectiveTitle}</span>
       {tab.characterName ? (
@@ -117,21 +121,14 @@ function BrowserChatTab({
           {tab.characterName}
         </span>
       ) : null}
-      <span
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         onClick={(event) => {
           event.stopPropagation();
           onClose();
         }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.stopPropagation();
-            onClose();
-          }
-        }}
         className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full cursor-pointer",
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
           isActive
             ? "text-muted-foreground hover:bg-accent hover:text-foreground"
             : "text-muted-foreground/50 hover:bg-accent hover:text-foreground",
@@ -139,7 +136,7 @@ function BrowserChatTab({
         aria-label={t("sidebar.delete")}
       >
         <X className="h-3.5 w-3.5" />
-      </span>
+      </button>
     </div>
   );
 }
@@ -190,52 +187,45 @@ export function BrowserChatWorkspace({
     }
   }, []);
 
-  // Ref to the library popover content for focusing the search input
-  const libraryPopoverRef = useRef<HTMLDivElement>(null);
+  // Refs for current popover state (avoids stale closures in keydown handler)
+  const libraryOpenRef = useRef(libraryOpen);
+  libraryOpenRef.current = libraryOpen;
+  const newTabOpenRef = useRef(newTabOpen);
+  newTabOpenRef.current = newTabOpen;
 
   // Keyboard shortcuts: Cmd/Ctrl+K to toggle library, Escape to close popovers
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore shortcuts inside dialogs/modals
+      if ((e.target as HTMLElement)?.closest("[role='dialog']")) return;
+
       const mod = e.metaKey || e.ctrlKey;
 
       // Cmd/Ctrl+K — toggle Library panel
       if (mod && e.key === "k") {
         e.preventDefault();
-        setLibraryOpen((prev) => {
-          const opening = !prev;
-          if (opening) {
-            // Auto-focus search input after popover opens
-            setTimeout(() => {
-              const input = libraryPopoverRef.current?.querySelector("input");
-              input?.focus();
-            }, 50);
-          }
-          return opening;
-        });
+        setLibraryOpen((prev) => !prev);
         return;
       }
 
       // Escape — close library or new-tab popover
       if (e.key === "Escape") {
-        if (libraryOpen) {
+        if (libraryOpenRef.current) {
           e.preventDefault();
           setLibraryOpen(false);
           return;
         }
-        if (newTabOpen) {
+        if (newTabOpenRef.current) {
           e.preventDefault();
           setNewTabOpen(false);
           return;
         }
       }
-    },
-    [libraryOpen, newTabOpen],
-  );
+    }
 
-  useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const isMac = electronPlatform === "darwin";
   const isWindows = electronPlatform === "win32";
@@ -311,6 +301,7 @@ export function BrowserChatWorkspace({
             onClick={onGoHome}
             className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
             title={t("browserWorkspace.home")}
+            aria-label={t("browserWorkspace.home")}
           >
             <Home className="h-4 w-4" />
           </Button>
@@ -321,6 +312,7 @@ export function BrowserChatWorkspace({
             onClick={onSwitchToSidebar}
             className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
             title={t("browserWorkspace.sidebarMode")}
+            aria-label={t("browserWorkspace.sidebarMode")}
           >
             <PanelLeft className="h-4 w-4" />
           </Button>
@@ -331,6 +323,7 @@ export function BrowserChatWorkspace({
             onClick={onOpenSettings}
             className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
             title={t("browserWorkspace.settings")}
+            aria-label={t("browserWorkspace.settings")}
           >
             <Settings className="h-4 w-4" />
           </Button>
@@ -342,15 +335,21 @@ export function BrowserChatWorkspace({
                 size="icon"
                 className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
                 title={t("browserWorkspace.library")}
+                aria-label={t("browserWorkspace.library")}
               >
                 <Library className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
           <PopoverContent
-            ref={libraryPopoverRef}
             align="start"
             sideOffset={4}
             className="w-auto overflow-hidden rounded-lg border border-border bg-card p-0 shadow-xl data-[state=closed]:animate-none data-[state=open]:animate-none"
+            onOpenAutoFocus={(e) => {
+              e.preventDefault();
+              const container = e.currentTarget as HTMLElement | null;
+              const input = container?.querySelector("input");
+              input?.focus();
+            }}
           >
             <BrowserWorkspaceLibrary
               currentCharacterName={currentCharacterName}
@@ -369,7 +368,7 @@ export function BrowserChatWorkspace({
           </Popover>
         </div>
 
-        <div className={cn("flex min-w-0 flex-1 items-center gap-2 overflow-x-auto", isElectronApp && "webkit-app-region-no-drag")}>
+        <div role="tablist" aria-label="Chat tabs" className={cn("flex min-w-0 flex-1 items-center gap-2 overflow-x-auto", isElectronApp && "webkit-app-region-no-drag")}>
           {tabs.map((tab) => (
             <BrowserChatTab
               key={tab.sessionId}
@@ -528,7 +527,7 @@ export function BrowserChatWorkspace({
     <div className="flex h-full min-h-0 flex-col">
       {renderChrome}
       {activeSessionId ? (
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div role="tabpanel" className="min-h-0 flex-1 overflow-hidden">
           {children}
         </div>
       ) : (

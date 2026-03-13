@@ -63,7 +63,7 @@ export function BrowserWorkspaceLibrary({
   const t = useTranslations("chat");
 
   return (
-    <div className="flex h-[72vh] min-h-0 w-[380px] overflow-hidden bg-card text-card-foreground">
+    <div className="flex max-h-[72vh] min-h-0 w-[380px] overflow-hidden bg-card text-card-foreground">
       <div className="flex min-h-0 w-full flex-col">
         <div className="border-b border-border/50 px-4 py-3">
           <div className="mb-3 flex items-center justify-between">

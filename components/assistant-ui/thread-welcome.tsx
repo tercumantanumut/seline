@@ -53,11 +53,15 @@ export const ThreadWelcome: FC = () => {
   useEffect(() => {
     if (!welcomeRef.current || prefersReducedMotion) return;
 
-    animate(welcomeRef.current, {
+    const anim = animate(welcomeRef.current, {
       opacity: [0, 1],
       duration: ZLUTTY_DURATIONS.normal,
       ease: ZLUTTY_EASINGS.reveal,
     });
+
+    return () => {
+      anim.pause();
+    };
   }, [prefersReducedMotion]);
 
   // Ambient avatar animation

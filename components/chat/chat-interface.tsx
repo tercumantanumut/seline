@@ -1370,7 +1370,7 @@ export default function ChatInterface({
                             isForegroundStreamingRef={isForegroundStreamingRef}
                             onForegroundRunFinished={handleForegroundRunFinished}
                         />
-                        <div className="flex h-full flex-col gap-3">
+                        <div className="flex h-full min-h-0 flex-col gap-3">
                             {(currentWorkspaceInfo || detectedPrimaryGitFolder) && (
                                 <div className="flex items-center justify-end px-4 pt-2">
                                     {currentWorkspaceInfo ? (

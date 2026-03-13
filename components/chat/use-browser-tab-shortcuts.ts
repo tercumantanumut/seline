@@ -27,10 +27,13 @@ export function useBrowserTabShortcuts({
       return;
     }
 
+    const isMac =
+      typeof navigator !== "undefined" &&
+      /Mac|iPod|iPhone|iPad/.test(navigator.platform ?? navigator.userAgent);
+
     function handleKeyDown(e: KeyboardEvent) {
-      const isMac =
-        typeof navigator !== "undefined" &&
-        /Mac|iPod|iPhone|iPad/.test(navigator.platform ?? navigator.userAgent);
+      // Ignore shortcuts inside dialogs/modals
+      if ((e.target as HTMLElement)?.closest("[role='dialog']")) return;
 
       const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 

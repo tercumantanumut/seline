@@ -356,8 +356,8 @@ export const Thread: FC<ThreadProps> = ({
                 EditComposer: EditComposerComponent,
               }}
             />
-            {/* Context window blocked banner */}
-            {blockedPayload && (
+            {/* Context window blocked banner — always render container to prevent layout shift */}
+            {blockedPayload ? (
               <ContextWindowBlockedBanner
                 payload={blockedPayload}
                 onCompact={async () => {
@@ -370,7 +370,7 @@ export const Thread: FC<ThreadProps> = ({
                 onDismiss={() => setBlockedPayload(null)}
                 isCompacting={isCompacting}
               />
-            )}
+            ) : null}
             {footer}
             <div className="min-h-8 flex-shrink-0 [overflow-anchor:auto]" />
           </ThreadPrimitive.Viewport>

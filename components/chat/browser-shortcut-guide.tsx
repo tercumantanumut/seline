@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,24 +9,31 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-const isMacOS = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
-const mod = isMacOS ? "⌘" : "Ctrl";
-
-const SHORTCUTS = [
-  { label: "New tab", keys: `${mod}+T` },
-  { label: "Close tab", keys: `${mod}+W` },
-  { label: "Reopen tab", keys: `${mod}+⇧+T` },
-  { label: "Next tab", keys: "Ctrl+Tab" },
-  { label: "Prev tab", keys: "Ctrl+⇧+Tab" },
-  { label: "Tab 1–9", keys: `${mod}+1–9` },
-  { divider: true } as const,
-  { label: "Focus composer", keys: "/" },
-  { label: "Focus composer", keys: `${mod}+L` },
-  { label: "Library", keys: `${mod}+K` },
-] satisfies ReadonlyArray<{ label: string; keys: string } | { divider: true }>;
+function buildShortcuts(mod: string) {
+  return [
+    { label: "New tab", keys: `${mod}+T` },
+    { label: "Close tab", keys: `${mod}+W` },
+    { label: "Reopen tab", keys: `${mod}+⇧+T` },
+    { label: "Next tab", keys: "Ctrl+Tab" },
+    { label: "Prev tab", keys: "Ctrl+⇧+Tab" },
+    { label: "Tab 1–9", keys: `${mod}+1–9` },
+    { divider: true } as const,
+    { label: "Focus composer", keys: `/ or ${mod}+L` },
+    { label: "Library", keys: `${mod}+K` },
+  ] satisfies ReadonlyArray<{ label: string; keys: string } | { divider: true }>;
+}
 
 export function BrowserShortcutGuide() {
   const [open, setOpen] = useState(false);
+  const [mod, setMod] = useState("Ctrl"); // SSR-safe default
+
+  useEffect(() => {
+    if (/Mac|iPod|iPhone|iPad/.test(navigator.userAgent)) {
+      setMod("⌘");
+    }
+  }, []);
+
+  const shortcuts = buildShortcuts(mod);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -37,6 +44,7 @@ export function BrowserShortcutGuide() {
           size="icon"
           className="h-7 w-7 shrink-0 rounded-full text-muted-foreground/50 hover:text-muted-foreground"
           title="Keyboard shortcuts"
+          aria-label="Keyboard shortcuts"
         >
           <Keyboard className="h-3.5 w-3.5" />
         </Button>
@@ -50,12 +58,12 @@ export function BrowserShortcutGuide() {
           Shortcuts
         </div>
         <div className="flex flex-col py-1">
-          {SHORTCUTS.map((item, i) =>
+          {shortcuts.map((item, i) =>
             "divider" in item ? (
-              <div key={i} className="my-1 border-t border-border/40" />
+              <div key={`divider-${i}`} className="my-1 border-t border-border/40" />
             ) : (
               <div
-                key={i}
+                key={item.label}
                 className="flex items-center justify-between px-3 py-1"
               >
                 <span className="text-xs text-popover-foreground/80">

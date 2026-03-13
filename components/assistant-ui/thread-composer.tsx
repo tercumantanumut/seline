@@ -399,8 +399,8 @@ export const Composer: FC<{
         return;
       }
 
-      // "/" — focus composer only when not already in an editable field
-      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !isEditable) {
+      // "/" — focus composer only when not already in an editable field and not inside a dialog
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !isEditable && !(active as HTMLElement)?.closest("[role='dialog']")) {
         e.preventDefault();
         if (isEditorMode && tiptapRef.current) {
           tiptapRef.current.focus();

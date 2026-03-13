@@ -92,7 +92,7 @@ export function BrowserAgentMenu({ character }: BrowserAgentMenuProps) {
       images: character.images,
       hasActiveSession: true,
     }),
-    [character],
+    [character.id, character.name, character.displayName, character.tagline, character.status, character.metadata, character.images],
   );
 
   const reloadPage = useCallback(async () => {
