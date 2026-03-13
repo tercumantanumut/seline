@@ -17,6 +17,7 @@ const childProcessMocks = vi.hoisted(() => ({
 
 vi.mock("child_process", async () => {
     const actual = await vi.importActual<typeof import("child_process")>("child_process");
+    childProcessMocks.spawn.mockImplementation(actual.spawn);
     return {
         ...actual,
         spawn: childProcessMocks.spawn,

@@ -30,8 +30,8 @@ vi.mock("@/lib/ai/ripgrep/ripgrep", () => ({
   searchWithRipgrep: ripgrepMock.searchWithRipgrep,
 }));
 
-const syncServiceMock = vi.hoisted(() => ({
-  getSyncFolders: vi.fn(async () => []),
+const syncFolderMock = vi.hoisted(() => ({
+  getAccessibleSyncFolders: vi.fn(async () => []),
 }));
 
 const pathValidationMock = vi.hoisted(() => ({
@@ -46,8 +46,8 @@ const workspaceTypesMock = vi.hoisted(() => ({
   getWorkspaceInfo: vi.fn(() => null),
 }));
 
-vi.mock("@/lib/vectordb/sync-service", () => ({
-  getSyncFolders: syncServiceMock.getSyncFolders,
+vi.mock("@/lib/vectordb/accessible-sync-folders", () => ({
+  getAccessibleSyncFolders: syncFolderMock.getAccessibleSyncFolders,
 }));
 
 vi.mock("@/lib/vectordb/path-validation", () => ({
@@ -69,7 +69,7 @@ describe("localGrep tool contract", () => {
     vi.clearAllMocks();
     settingsMock.state.settings.localGrepEnabled = true;
     ripgrepMock.isRipgrepAvailable.mockReturnValue(true);
-    syncServiceMock.getSyncFolders.mockResolvedValue([]);
+    syncFolderMock.getAccessibleSyncFolders.mockResolvedValue([]);
     sessionQueriesMock.getSession.mockResolvedValue(null);
     workspaceTypesMock.getWorkspaceInfo.mockReturnValue(null);
     pathValidationMock.validateSyncFolderPath.mockImplementation(async (folderPath: string) => ({
@@ -130,7 +130,7 @@ describe("localGrep tool contract", () => {
   });
 
   it("skips stale synced folders and still searches valid paths", async () => {
-    syncServiceMock.getSyncFolders.mockResolvedValue([
+    syncFolderMock.getAccessibleSyncFolders.mockResolvedValue([
       { folderPath: "/missing-worktree" },
       { folderPath: "/repo" },
     ]);
@@ -163,7 +163,7 @@ describe("localGrep tool contract", () => {
   });
 
   it("returns no_paths with guidance when all synced folders are stale", async () => {
-    syncServiceMock.getSyncFolders.mockResolvedValue([{ folderPath: "/missing-worktree" }]);
+    syncFolderMock.getAccessibleSyncFolders.mockResolvedValue([{ folderPath: "/missing-worktree" }]);
     pathValidationMock.validateSyncFolderPath.mockResolvedValue({
       normalizedPath: "/missing-worktree",
       error: "Folder does not exist.",
@@ -222,7 +222,7 @@ describe("localGrep tool contract", () => {
       status: "active",
       worktreePath: "/worktree",
     });
-    syncServiceMock.getSyncFolders.mockResolvedValue([{ folderPath: "/repo" }]);
+    syncFolderMock.getAccessibleSyncFolders.mockResolvedValue([{ folderPath: "/repo" }]);
 
     ripgrepMock.searchWithRipgrep
       .mockResolvedValueOnce({

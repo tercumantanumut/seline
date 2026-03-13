@@ -3,7 +3,15 @@ import path from "path";
 
 // Hoist all mocks
 const syncServiceMocks = vi.hoisted(() => ({
-  getSyncFolders: vi.fn(),
+  getAccessibleSyncFolders: vi.fn(),
+}));
+
+const sessionQueryMocks = vi.hoisted(() => ({
+  getSession: vi.fn(),
+}));
+
+const workspaceMocks = vi.hoisted(() => ({
+  getWorkspaceInfo: vi.fn(),
 }));
 
 const fsMocks = vi.hoisted(() => ({
@@ -20,8 +28,16 @@ const diagnosticsMocks = vi.hoisted(() => ({
   runPostWriteDiagnostics: vi.fn(),
 }));
 
-vi.mock("@/lib/vectordb/sync-service", () => ({
-  getSyncFolders: syncServiceMocks.getSyncFolders,
+vi.mock("@/lib/vectordb/accessible-sync-folders", () => ({
+  getAccessibleSyncFolders: syncServiceMocks.getAccessibleSyncFolders,
+}));
+
+vi.mock("@/lib/db/queries-sessions", () => ({
+  getSession: sessionQueryMocks.getSession,
+}));
+
+vi.mock("@/lib/workspace/types", () => ({
+  getWorkspaceInfo: workspaceMocks.getWorkspaceInfo,
 }));
 
 vi.mock("@/lib/db/sqlite-client", () => ({
@@ -78,9 +94,11 @@ describe("write-file-tool", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    syncServiceMocks.getSyncFolders.mockResolvedValue([
+    syncServiceMocks.getAccessibleSyncFolders.mockResolvedValue([
       { folderPath: FOLDER },
     ]);
+    sessionQueryMocks.getSession.mockResolvedValue(null);
+    workspaceMocks.getWorkspaceInfo.mockReturnValue(null);
 
     fsMocks.stat.mockResolvedValue({ mtimeMs: 0 }); // Not stale
     fsMocks.realpath.mockImplementation((path: string) => Promise.resolve(path)); // Mock realpath to return the path as-is
