@@ -628,6 +628,10 @@ export function useTaskNotifications() {
           : "Channel message";
       console.log("[TaskNotifications] Task completed:", displayName, task.status);
 
+      // Evict any pending batched progress for this run so the stale event
+      // cannot overwrite the completion state when the batch flushes.
+      progressBatchRef.current.delete(task.runId);
+
       completeTask(task);
       if (task.sessionId) {
         const sessionSyncState = useSessionSyncStore.getState();
@@ -715,37 +719,45 @@ export function useTaskNotifications() {
 
         if (event.sessionId) {
           const sessionSyncState = useSessionSyncStore.getState();
-          const progressState = deriveProgressIndicators(event);
           const previous = sessionSyncState.getSessionActivity(event.sessionId);
-          const progressEvent = event as TaskProgressEvent;
-          const hasProgressContent =
-            Array.isArray(progressEvent.progressContent) &&
-            progressEvent.progressContent.length > 0;
-          const hasAssistantMessageId =
-            typeof progressEvent.assistantMessageId === "string" &&
-            progressEvent.assistantMessageId.length > 0;
 
-          // Keep the active-run marker while the server is still streaming
-          // progress content for the current run.
-          const isSameRunStillActive =
-            previous?.runId === event.runId && previous.isRunning;
-          if (hasProgressContent || hasAssistantMessageId || isSameRunStillActive) {
-            sessionSyncState.setActiveRun(event.sessionId, event.runId);
-          }
+          // Guard: don't overwrite a completion state with a stale progress
+          // event.  This happens when a batched progress event flushes after
+          // task:completed has already been processed for the same run.
+          const runAlreadyCompleted =
+            previous && !previous.isRunning && previous.runId === event.runId;
+          if (!runAlreadyCompleted) {
+            const progressState = deriveProgressIndicators(event);
+            const progressEvent = event as TaskProgressEvent;
+            const hasProgressContent =
+              Array.isArray(progressEvent.progressContent) &&
+              progressEvent.progressContent.length > 0;
+            const hasAssistantMessageId =
+              typeof progressEvent.assistantMessageId === "string" &&
+              progressEvent.assistantMessageId.length > 0;
 
-          sessionSyncState.setSessionActivity(
-            event.sessionId,
-            buildActivityState(
+            // Keep the active-run marker while the server is still streaming
+            // progress content for the current run.
+            const isSameRunStillActive =
+              previous?.runId === event.runId && previous.isRunning;
+            if (hasProgressContent || hasAssistantMessageId || isSameRunStillActive) {
+              sessionSyncState.setActiveRun(event.sessionId, event.runId);
+            }
+
+            sessionSyncState.setSessionActivity(
               event.sessionId,
-              event.runId,
-              progressState.indicators,
-              {
-                isRunning: true,
-                progressText: progressState.progressText ?? event.progressText,
-                previous,
-              }
-            )
-          );
+              buildActivityState(
+                event.sessionId,
+                event.runId,
+                progressState.indicators,
+                {
+                  isRunning: true,
+                  progressText: progressState.progressText ?? event.progressText,
+                  previous,
+                }
+              )
+            );
+          }
         }
       }
       if (typeof window !== "undefined") {

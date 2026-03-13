@@ -313,6 +313,20 @@ export function createSeleneSdkMcpServer(
           : {}),
         handler: async (args: Record<string, unknown>) => {
           try {
+            // Force background mode for delegateToSubagent start actions in
+            // the MCP path. The Claude Agent SDK serializes MCP tool calls
+            // sequentially, so blocking mode causes parallel delegation
+            // requests to run one at a time. Background mode returns
+            // immediately, letting all delegations start concurrently.
+            // The agent then uses observe(waitSeconds=180) to collect results.
+            if (
+              name === "delegateToSubagent" &&
+              args.action === "start" &&
+              !args.mode
+            ) {
+              args = { ...args, mode: "background" };
+            }
+
             const result = await (toolInstance as any).execute?.(args, {});
 
             // searchTools/listAllTools: the context-aware instance already adds

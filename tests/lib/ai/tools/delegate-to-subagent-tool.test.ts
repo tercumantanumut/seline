@@ -6,6 +6,12 @@ const mocks = vi.hoisted(() => ({
   getCharacterFull: vi.fn(),
   createSession: vi.fn(),
   getMessages: vi.fn(),
+  listAgentRunsBySession: vi.fn(),
+  markRunAsCancelled: vi.fn(),
+  abortChatRun: vi.fn(),
+  removeChatAbortController: vi.fn(),
+  taskRegistryGet: vi.fn(),
+  taskRegistryUpdateStatus: vi.fn(),
 }));
 
 vi.mock("@/lib/agents/workflows", () => ({
@@ -20,6 +26,23 @@ vi.mock("@/lib/characters/queries", () => ({
 vi.mock("@/lib/db/sqlite-queries", () => ({
   createSession: mocks.createSession,
   getMessages: mocks.getMessages,
+}));
+
+vi.mock("@/lib/observability/queries", () => ({
+  listAgentRunsBySession: mocks.listAgentRunsBySession,
+  markRunAsCancelled: mocks.markRunAsCancelled,
+}));
+
+vi.mock("@/lib/background-tasks/chat-abort-registry", () => ({
+  abortChatRun: mocks.abortChatRun,
+  removeChatAbortController: mocks.removeChatAbortController,
+}));
+
+vi.mock("@/lib/background-tasks/registry", () => ({
+  taskRegistry: {
+    get: mocks.taskRegistryGet,
+    updateStatus: mocks.taskRegistryUpdateStatus,
+  },
 }));
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -106,6 +129,10 @@ describe("delegate-to-subagent-tool", () => {
     mocks.getMessages.mockResolvedValue([
       { role: "assistant", content: [{ type: "text", text: "done" }] },
     ]);
+    mocks.listAgentRunsBySession.mockResolvedValue([]);
+    mocks.markRunAsCancelled.mockResolvedValue(undefined);
+    mocks.abortChatRun.mockReturnValue(true);
+    mocks.taskRegistryGet.mockReturnValue(undefined);
     bridgeMocks.getPendingInteractivePrompts.mockReturnValue([]);
     bridgeMocks.resolveInteractiveWait.mockReturnValue(false);
 
@@ -184,6 +211,65 @@ describe("delegate-to-subagent-tool", () => {
     expect(result.success).toBe(false);
     expect(String(result.error || "")).toContain("matches multiple sub-agents");
     expect(Array.isArray(result.availableAgents)).toBe(true);
+  });
+
+  it("stop cancels the underlying active run so background UI state can clear", async () => {
+    mocks.listAgentRunsBySession.mockResolvedValue([
+      {
+        id: "run-delegated-1",
+        status: "running",
+        startedAt: new Date(Date.now() - 2_000).toISOString(),
+      },
+    ]);
+    mocks.taskRegistryGet.mockReturnValue({
+      startedAt: new Date(Date.now() - 1_000).toISOString(),
+    });
+
+    const tool = makeTool();
+    const start = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Investigate lingering active session UI",
+      mode: "background",
+    });
+
+    const stopped = await (tool as any).execute({
+      action: "stop",
+      delegationId: start.delegationId,
+    });
+
+    expect(stopped.success).toBe(true);
+    expect(mocks.listAgentRunsBySession).toHaveBeenCalledWith("delegation-session-1");
+    expect(mocks.abortChatRun).toHaveBeenCalledWith("run-delegated-1", "user_cancelled");
+    expect(mocks.markRunAsCancelled).toHaveBeenCalledWith("run-delegated-1", "user_cancelled");
+    expect(mocks.taskRegistryUpdateStatus).toHaveBeenCalledWith(
+      "run-delegated-1",
+      "cancelled",
+      expect.objectContaining({ durationMs: expect.any(Number) }),
+    );
+    expect(mocks.removeChatAbortController).toHaveBeenCalledWith("run-delegated-1");
+  });
+
+  it("stop falls back cleanly when no active run exists yet", async () => {
+    mocks.listAgentRunsBySession.mockResolvedValue([]);
+
+    const tool = makeTool();
+    const start = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Cancel before run registration",
+      mode: "background",
+    });
+
+    const stopped = await (tool as any).execute({
+      action: "stop",
+      delegationId: start.delegationId,
+    });
+
+    expect(stopped.success).toBe(true);
+    expect(mocks.markRunAsCancelled).not.toHaveBeenCalled();
+    expect(mocks.taskRegistryUpdateStatus).not.toHaveBeenCalled();
+    expect(mocks.removeChatAbortController).not.toHaveBeenCalled();
   });
 
   it("observe supports waitSeconds so callers can avoid tight polling loops", async () => {

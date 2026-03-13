@@ -107,8 +107,8 @@ describe("isValidWorktreePath", () => {
     expect(isValidWorktreePath("/tmp/foo'bar")).toBe(false);
   });
 
-  it("rejects path with backslash", () => {
-    expect(isValidWorktreePath("/tmp/foo\\bar")).toBe(false);
+  it("allows backslash in paths (valid Windows path separator, safe with execFile)", () => {
+    expect(isValidWorktreePath("C:\\Users\\dev\\repo")).toBe(true);
   });
 
   it("rejects path with angle brackets", () => {
@@ -127,6 +127,30 @@ describe("isValidWorktreePath", () => {
     expect(isValidWorktreePath(undefined as unknown as string)).toBe(false);
     expect(isValidWorktreePath(null as unknown as string)).toBe(false);
     expect(isValidWorktreePath(42 as unknown as string)).toBe(false);
+  });
+
+  // Windows path support
+  it("accepts Windows absolute paths with backslashes", () => {
+    expect(isValidWorktreePath("C:\\Users\\dev\\repo")).toBe(true);
+    expect(isValidWorktreePath("D:\\Projects\\my-app")).toBe(true);
+  });
+
+  it("accepts Windows absolute paths with forward slashes", () => {
+    expect(isValidWorktreePath("C:/Users/dev/repo")).toBe(true);
+  });
+
+  it("accepts Windows paths with spaces", () => {
+    expect(isValidWorktreePath("C:\\Users\\My User\\Documents\\repo")).toBe(true);
+  });
+
+  it("rejects Windows paths with shell metacharacters", () => {
+    expect(isValidWorktreePath("C:\\Users\\foo;bar")).toBe(false);
+    expect(isValidWorktreePath("C:\\Users\\foo&bar")).toBe(false);
+    expect(isValidWorktreePath("C:\\Users\\foo|bar")).toBe(false);
+  });
+
+  it("rejects paths that look like drive letters but are not absolute", () => {
+    expect(isValidWorktreePath("C:relative")).toBe(false);
   });
 });
 

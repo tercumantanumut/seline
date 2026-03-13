@@ -331,6 +331,9 @@ export function createReadFileTool(options: ReadFileToolOptions) {
       // STEP 2: Synced Folders (workspace-aware — worktree path is included if active)
       let syncedFolders: string[];
       try {
+        // resolveWorkspaceAwarePaths already includes shared workflow folders
+        // (via resolveSyncedFolderPaths → getAccessibleSyncFolders) and applies
+        // worktree isolation filtering. No extra merge needed.
         syncedFolders = await resolveWorkspaceAwarePaths(characterId, sessionId);
         if (syncedFolders.length === 0) {
           return {

@@ -11,7 +11,7 @@ import {
     executeCommandWithValidation,
     type ExecuteResult,
 } from "@/lib/command-execution";
-import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { getAccessibleSyncFolders } from "@/lib/vectordb/accessible-sync-folders";
 import { getCharacter } from "@/lib/characters/queries";
 
 /**
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ExecuteResult
         }
 
         // Get allowed paths from synced folders
-        const syncedFolders = await getSyncFolders(characterId);
+        const syncedFolders = await getAccessibleSyncFolders(characterId);
         const allowedPaths = syncedFolders.map((f) => f.folderPath);
 
         if (allowedPaths.length === 0) {

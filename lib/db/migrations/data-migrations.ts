@@ -578,6 +578,9 @@ export function runDataMigrations(sqlite: Database.Database): void {
     if (!colNames.has("inherited_from_agent_id")) {
       sqlite.exec("ALTER TABLE agent_sync_folders ADD COLUMN inherited_from_agent_id TEXT");
     }
+    if (!colNames.has("inherited_from_folder_id")) {
+      sqlite.exec("ALTER TABLE agent_sync_folders ADD COLUMN inherited_from_folder_id TEXT");
+    }
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS agent_sync_folders_inherited_workflow_idx
       ON agent_sync_folders (inherited_from_workflow_id)

@@ -74,6 +74,18 @@ export function isInjectedLivePromptUserMessage(dbMessage: Pick<DBMessage, "role
   return metadata?.livePromptInjected === true;
 }
 
+/**
+ * Returns true if any message in the array carries the `livePromptInjected`
+ * metadata flag (regardless of role — both sealed assistant messages and
+ * injected user messages are tagged).
+ */
+export function hasLivePromptInjectedMessages(dbMessages: Pick<DBMessage, "metadata">[]): boolean {
+  return dbMessages.some(m => {
+    const meta = parseMessageMetadata(m.metadata);
+    return meta?.livePromptInjected === true;
+  });
+}
+
 export function countVisibleConversationMessages(dbMessages: Pick<DBMessage, "role" | "metadata">[]): number {
   return dbMessages.filter((message) => {
     if (message.role !== "user" && message.role !== "assistant") return false;

@@ -12,7 +12,7 @@ import { spawnWithFileCapture } from "@/lib/spawn-utils";
 import { commandLogger } from "./logger";
 import { saveTerminalLog } from "./log-manager";
 import {
-    getRtkRgFallbackReason,
+    getRtkFallbackReason,
     buildExecuteSearchMetadata,
 } from "./executor-rtk";
 import type { ExecuteResult, ExecuteSearchMetadata } from "./types";
@@ -56,7 +56,7 @@ export async function runEBADFFallback(
             context,
         );
         const logId = saveTerminalLog(fb.stdout, fb.stderr);
-        const fallbackReason = getRtkRgFallbackReason({
+        const fallbackReason = getRtkFallbackReason({
             command,
             wrappedByRTK,
             stderr: fb.stderr,
@@ -86,7 +86,7 @@ export async function runEBADFFallback(
         const executionTime = Date.now() - startTime;
         const msg = fbErr instanceof Error ? fbErr.message : "File-capture fallback failed";
         commandLogger.logExecutionError(command, msg, context);
-        const fallbackReason = getRtkRgFallbackReason({ command, wrappedByRTK, error: msg });
+        const fallbackReason = getRtkFallbackReason({ command, wrappedByRTK, error: msg });
 
         return {
             success: false,

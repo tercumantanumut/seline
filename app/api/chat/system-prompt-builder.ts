@@ -127,10 +127,10 @@ export async function buildSystemPromptForRequest(
   // and demote the base repo to avoid the AI defaulting to base paths.
   if (characterId) {
     try {
-      const { getSyncFolders } = await import("@/lib/vectordb/sync-folder-crud");
+      const { getAccessibleSyncFolders } = await import("@/lib/vectordb/accessible-sync-folders");
       const { getWorkspaceInfo } = await import("@/lib/workspace/types");
       const { normalize } = await import("path");
-      const syncFolders = await getSyncFolders(characterId);
+      const syncFolders = await getAccessibleSyncFolders(characterId);
       if (syncFolders.length > 0) {
         const { isWorktreePath } = await import("@/lib/ai/filesystem");
         // Detect active worktree from session metadata using the shared helper

@@ -9,7 +9,7 @@ import { tool, jsonSchema } from "ai";
 import { searchWithRipgrep, isRipgrepAvailable, type RipgrepMatch, type RipgrepSearchResult } from "./ripgrep";
 import { getSession } from "@/lib/db/queries";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
-import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { getAccessibleSyncFolders } from "@/lib/vectordb/accessible-sync-folders";
 import { validateSyncFolderPath } from "@/lib/vectordb/path-validation";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { logToolEvent } from "@/lib/ai/tool-registry";
@@ -72,7 +72,7 @@ async function resolveSyncedSearchPaths(characterId?: string | null): Promise<Sy
     }
 
     try {
-        const folders = await getSyncFolders(characterId);
+        const folders = await getAccessibleSyncFolders(characterId);
         const validatedFolders = await Promise.all(
             folders.map(async (folder) => {
                 const { normalizedPath, error } = await validateSyncFolderPath(folder.folderPath, {

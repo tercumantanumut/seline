@@ -242,7 +242,7 @@ export const Thread: FC<ThreadProps> = ({
   return (
     <TooltipProvider>
       <ThreadPrimitive.Root
-        className={cn("isolate relative flex h-full flex-col transition-colors duration-700", (isBrowserActive || chatBackground.type !== "none") ? "bg-transparent" : "bg-terminal-cream")}
+        className={cn("isolate relative flex flex-1 min-h-0 flex-col transition-colors duration-700", (isBrowserActive || chatBackground.type !== "none") ? "bg-transparent" : "bg-terminal-cream")}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}

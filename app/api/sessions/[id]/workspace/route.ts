@@ -49,13 +49,16 @@ interface ExistingPullRequest {
   state?: string;
 }
 
-// Validate that a path is safe for use in shell commands
-function isValidWorktreePath(path: string): boolean {
-  return (
-    typeof path === "string" &&
-    path.startsWith("/") &&
-    !/[;&|`$(){}!#"'\\<>\n\r]/.test(path)
-  );
+// Validate that a path is safe for use in shell commands.
+// Supports both Unix (/home/user/repo) and Windows (C:\Users\user\repo) absolute paths.
+function isValidWorktreePath(pathStr: string): boolean {
+  if (typeof pathStr !== "string" || pathStr.length === 0) return false;
+  // Accept Unix absolute paths (/...) and Windows absolute paths (C:\... or C:/...)
+  const isAbsolute = pathStr.startsWith("/") || /^[A-Za-z]:[/\\]/.test(pathStr);
+  if (!isAbsolute) return false;
+  // Reject shell metacharacters. Backslashes are allowed since they are
+  // normal path separators on Windows and paths are passed to execFile (no shell).
+  return !/[;&|`$(){}!#"'<>\n\r]/.test(pathStr);
 }
 
 // Validate that a branch name is safe for use in shell commands

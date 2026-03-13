@@ -143,7 +143,7 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
     console.log(`[SyncService] Promoted folder ${remainingFolders[0].id} to primary`);
   }
 
-  notifyFolderChange(characterId, { type: "removed", folderId, wasPrimary });
+  notifyFolderChange(characterId, { type: "removed", folderId, wasPrimary, folderPath: folder.folderPath });
 }
 
 /**
