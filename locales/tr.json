@@ -1074,7 +1074,27 @@
       "details": "Detaylar",
       "expandAll": "Tüm araçları aç",
       "collapseAll": "Tüm araçları kapat",
-      "workspace": "Çalışma Alanı"
+      "workspace": "Çalışma Alanı",
+      "askUserQuestion": "Kullanıcıya Soru Sor",
+      "askFollowupQuestion": "Takip Sorusu Sor",
+      "Edit": "Düzenle",
+      "Bash": "Terminal",
+      "Read": "Dosya Oku",
+      "Write": "Dosya Yaz",
+      "Glob": "Dosya Bul",
+      "Grep": "Ara",
+      "Agent": "Ajan",
+      "WebFetch": "URL Getir",
+      "WebSearch": "Web Araması",
+      "NotebookEdit": "Defter Düzenleme",
+      "TodoWrite": "Görev Listesi",
+      "EnterPlanMode": "Plan Modu",
+      "ExitPlanMode": "Plan Onayı",
+      "EnterWorktree": "Worktree",
+      "Skill": "Yetenek",
+      "AskUserQuestion": "Soru Sor",
+      "TaskOutput": "Görev Çıktısı",
+      "TaskStop": "Görevi Durdur"
     },
     "patchFile": {
       "patchLabel": "Yama",
@@ -1341,6 +1361,11 @@
       "auth": {
         "title": "GitHub kimlik doğrulaması gerekli",
         "installTitle": "GitHub CLI gerekli",
+        "baseBranchTitle": "Temel dal uzakta yok",
+        "pushBaseBranch": "{branch} dalını uzak sunucuya gönder",
+        "pushingBaseBranch": "Gönderiliyor...",
+        "baseBranchPushed": "Temel dal uzak sunucuya gönderildi",
+        "pushBaseBranchFailed": "Temel dal uzak sunucuya gönderilemedi",
         "copyCommand": "Giriş komutunu kopyala",
         "openDocs": "Auth dokümanını aç",
         "installGh": "GitHub CLI kur",
@@ -1626,7 +1651,11 @@
       "templateFilter": "Filtrele",
       "templateLoading": "Şablonlar yükleniyor...",
       "templateSearch": "Şablonlarda ara",
-      "templateUse": "Şablonu Kullan"
+      "templateUse": "Şablonu Kullan",
+      "templateSearchPlaceholder": "120+ ajan şablonunda ara...",
+      "templateAll": "Tüm Şablonlar",
+      "templateSelectToPreview": "Önizlemek için bir şablon seçin",
+      "templateBrowserLabel": "Ajan şablon tarayıcısı"
     },
     "name": {
       "question": "Ajanınıza ne isim verelim?",
@@ -2028,7 +2057,8 @@
         "authCodeLabel": "Yetkilendirme Kodu",
         "authSuccess": "Kimlik Doğrulama Başarılı!",
         "authSuccessDesc": "Claude Code bağlantınız artık aktif ve kullanıma hazır.",
-        "done": "Tamam"
+        "done": "Tamam",
+        "antigravityWarning": "Hesap banlanma riski vardır, kendi sorumluluğunuzda kullanın"
       },
       "fields": {
         "anthropic": {
@@ -2045,6 +2075,11 @@
           "label": "Moonshot API Anahtarı",
           "placeholder": "sk-...",
           "helper": "API anahtarınızı platform.moonshot.cn'den alın"
+        },
+        "minimax": {
+          "label": "MiniMax API Anahtarı",
+          "placeholder": "eyJ...",
+          "helper": "Anahtarınızı MiniMax platformundan alın."
         },
         "webSearchProvider": {
           "label": "Web Arama Sağlayıcısı",
@@ -2089,7 +2124,8 @@
           "helper": "OpenAI konuşmadan metne ve metinden konuşmaya için gereklidir."
         }
       },
-      "readyStatus": "Hazır"
+      "readyStatus": "Hazır",
+      "minimax": "MiniMax"
     },
     "models": {
       "title": "Model Seçimi",
@@ -2349,6 +2385,27 @@
         "showActions": "Aksiyonları Göster",
         "hideActions": "Aksiyonları Gizle"
       },
+      "avatar3d": {
+        "heading": "3D Avatar",
+        "description": "TTS sesiyle dudak senkronu yapan ve algılanan duyguları yansıtan 3D konuşan kafa avatarını etkinleştirin.",
+        "enableLabel": "3D avatarı etkinleştir",
+        "enableDesc": "Sohbet arayüzünde animasyonlu 3D avatar gösterir."
+      },
+      "emotionDetection": {
+        "heading": "Duygu Algılama",
+        "description": "Avatar ifadelerini ve duyguya duyarlı yanıtları yönlendirmek için mesajlarınızdaki duygusal tonu algılar. Mesaj başına bir yardımcı model çağrısı kullanır.",
+        "enableLabel": "Duygu algılamayı etkinleştir",
+        "enableDesc": "Her mesajın duygusal tonunu sınıflandırır. Görsel geri bildirim için 3D avatar gerekir."
+      },
+      "everMemOS": {
+        "heading": "Paylaşılan hafıza (EverMemOS)",
+        "description": "Ajanlar arası paylaşılan hafıza için bir EverMemOS sunucusuna bağlanın. Yerel hafıza her zaman kullanılır; EverMemOS buna paylaşılan hatırlama ekler.",
+        "enableLabel": "EverMemOS'u etkinleştir",
+        "enableDesc": "Anıları yerel depolamaya ek olarak paylaşılan EverMemOS sunucusuna da gönderir.",
+        "serverUrlLabel": "EverMemOS sunucu URL'si",
+        "serverUrlPlaceholder": "http://localhost:8765",
+        "serverUrlHelper": "Çalışan EverMemOS örneğinizin temel URL'si."
+      },
       "devWorkspace": {
         "heading": "Geliştirici çalışma alanı",
         "description": "Git tabanlı kodlama iş akışları için çalışma alanı göstergeleri, fark görünümleri ve araçları göster.",
@@ -2402,7 +2459,8 @@
         "voiceIdHelper": "ElevenLabs ses kütüphanesinden kopyalayabilirsiniz.",
         "voiceIdPlaceholder": "örn. 21m00Tcm4TlvDq8ikWAM",
         "limitLabel": "Uzun mesaj sınırı (karakter)",
-        "limitHelper": "Bu sınırı aşan mesajlar ses oluşturulmadan önce kısaltılır."
+        "limitHelper": "Bu sınırı aşan mesajlar ses oluşturulmadan önce kısaltılır.",
+        "saveFailed": "Ses seçimi kaydedilemedi."
       },
       "stt": {
         "title": "Sesten Metne (STT)",
@@ -2434,6 +2492,7 @@
         "parakeetAutoDownloadHint": "Model ilk kullanimda otomatik olarak indirilecektir."
       },
       "controls": {
+        "title": "Dikte kontrolleri",
         "heading": "Dikte kontrolleri",
         "description": "Bas-konuş, ses işaretleri ve metin temizleme davranisini ayarla.",
         "postProcessingLabel": "Transkripti utility model ile temizle",
@@ -2443,6 +2502,8 @@
         "autoLearnLabel": "Duzenlemelerden ozel sozluk ogren",
         "autoLearnDesc": "Transkript duzeltmelerinden isim ve jargon yakalar.",
         "hotkeyLabel": "Global kisayol",
+        "hotkeyDesc": "Electron derlemelerinde uygulama genelinde çalışır.",
+        "hotkeyPlaceholder": "CommandOrControl+Shift+Space",
         "hotkeyHelper": "Electron globalShortcut formati, ornek: CommandOrControl+Shift+Space",
         "activationTitle": "Aktivasyon modu",
         "activationTap": "Dokun-ac/kapat",
@@ -2450,18 +2511,23 @@
         "activationPush": "Bas-konuş",
         "activationPushDesc": "Tus basiliyken kayit acik kalir.",
         "agentNameLabel": "Duzeltme ajan adi",
+        "agentNameDesc": "İşlem sonrası istem personası tarafından kullanılır.",
         "agentNameHelper": "Temizleme isteminde kullanilan ajan kimligi."
       },
       "dictionary": {
         "title": "Kisisel sozluk",
         "description": "Isim, teknik terim ve kisaltma ekleyerek tanimayi iyilestirin.",
+        "add": "Kelime ekle",
         "placeholder": "Virgulle ayirarak kelime ekleyin",
-        "helper": "Kelime ekleyin veya kaldirin; whisper.cpp istemine ipucu olarak gider."
+        "helper": "Kelime ekleyin veya kaldirin; whisper.cpp istemine ipucu olarak gider.",
+        "empty": "Henüz sözlük kelimesi yok.",
+        "remove": "Kaldır"
       },
       "history": {
         "title": "Transkripsiyon gecmisi",
         "description": "Kayit gecmisi tutma, saklama suresi ve onizleme uzunlugu ayarlari.",
         "enabledLabel": "Gecmisi kaydet",
+        "enabledDesc": "Dönüştürülen transkriptleri ve eylemleri yerel olarak kaydeder.",
         "limitLabel": "Maks kayit sayisi",
         "retentionLabel": "Saklama (gun)",
         "previewLabel": "Onizleme karakter siniri"
@@ -2470,9 +2536,12 @@
         "title": "Hizli metin eylemleri",
         "description": "Transkript metnini tek tikla duzenle, ozetle veya cevir.",
         "enabledLabel": "Hizli eylemleri etkinlestir",
+        "enabledDesc": "Composer içinde Düzelt, Profesyonelleştir, Özetle ve Çevir eylemlerini gösterir.",
         "targetLanguageLabel": "Varsayilan ceviri dili",
+        "defaultLanguageLabel": "Varsayılan çeviri dili",
         "preserveStyleLabel": "Yazar stilini koru",
         "confirmDangerLabel": "Yikici eylemlerde onay iste",
+        "confirmDestructiveLabel": "Yıkıcı eylemleri onayla",
         "formalToneLabel": "Profesyonel ton tercih",
         "formalToneAuto": "Otomatik",
         "formalToneBusiness": "Is dili",
@@ -2913,6 +2982,7 @@
       "schedules": "Zamanlanmış Görevler",
       "usage": "Kullanım ve Analitik",
       "channels": "Kanallar",
+      "folders": "Klasörler",
       "startNew": "Yeni sohbet başlat",
       "new": "Yeni",
       "newTitle": "Yeni Sohbet (⌘N)",
@@ -2970,6 +3040,14 @@
       "dashboardShort": "Panel",
       "libraryShort": "Kütüphane",
       "skillsShort": "Beceriler"
+    },
+    "browserWorkspace": {
+      "home": "Ana Sayfa",
+      "sidebarMode": "Kenar Çubuğu Modu",
+      "settings": "Ayarlar",
+      "library": "Kütüphane",
+      "reopen": "Yeniden Aç",
+      "newChatWith": "İle yeni sohbet"
     },
     "session": {
       "untitled": "Başlıksız sohbet",
@@ -3421,6 +3499,7 @@
     "title": "Yetenekler",
     "pageDescription": "{name} icin tekrar kullanilabilir yetenek recetelerini yonetin.",
     "library": "Kutuphane",
+    "mySkills": "Yeteneklerim",
     "importPackage": "Paket İçe Aktar",
     "hideImport": "İçe Aktarmayı Gizle",
     "importSuccess": "Yetenek başarıyla içe aktarıldı",
@@ -4148,5 +4227,18 @@
       "upload": "Yükleme başarısız",
       "save": "Kaydetme başarısız"
     }
+  },
+  "themeChooser": {
+    "title": "Görünümünü seç",
+    "description": "Bir tema ve renk paleti seçin. Bunları istediğiniz zaman ayarlardan değiştirebilirsiniz.",
+    "modeLabel": "Görünüm",
+    "mode": {
+      "light": "Açık",
+      "dark": "Koyu",
+      "system": "Sistem"
+    },
+    "paletteLabel": "Renk paleti",
+    "moreOptions": "Duvar kağıtları ve daha fazlası Ayarlar'da",
+    "done": "Tamam"
   }
 }

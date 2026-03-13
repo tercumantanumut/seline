@@ -1,4 +1,9 @@
 import { DEFAULT_WHISPER_MODEL } from "@/lib/config/whisper-models";
+import {
+  DEFAULT_CHAT_WORKSPACE_MODE,
+  type ChatWorkspaceMode,
+} from "@/lib/chat/workspace-mode";
+
 export interface AppSettings {
   llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "minimax" | "ollama" | "claudecode";
   anthropicApiKey?: string;
@@ -21,6 +26,7 @@ export interface AppSettings {
   utilityModel?: string;
   embeddingReindexRequired?: boolean;
   theme: "dark" | "light" | "system";
+  chatWorkspaceMode?: ChatWorkspaceMode;
   toolDisplayMode?: "compact" | "detailed";
   localUserId: string;
   localUserEmail: string;
@@ -94,6 +100,7 @@ export interface FormState {
   utilityModel: string;
   openrouterArgs: string;
   theme: "dark" | "light" | "system";
+  chatWorkspaceMode: ChatWorkspaceMode;
   toolLoadingMode: "deferred" | "always";
   toolDisplayMode: "compact" | "detailed";
   postEditHooksPreset: "off" | "fast" | "strict";
@@ -210,6 +217,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   utilityModel: "",
   openrouterArgs: "{}",
   theme: "dark",
+  chatWorkspaceMode: DEFAULT_CHAT_WORKSPACE_MODE,
   toolLoadingMode: "deferred",
   toolDisplayMode: "compact",
   postEditHooksPreset: "off",
@@ -320,6 +328,7 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     utilityModel: data.utilityModel || "",
     openrouterArgs: data.openrouterArgs || "{}",
     theme: data.theme || "dark",
+    chatWorkspaceMode: data.chatWorkspaceMode === "browser-tabs" ? "browser-tabs" : DEFAULT_CHAT_WORKSPACE_MODE,
     toolLoadingMode: data.toolLoadingMode || "deferred",
     toolDisplayMode: data.toolDisplayMode === "detailed" ? "detailed" : "compact",
     postEditHooksPreset: data.postEditHooksPreset ?? "off",

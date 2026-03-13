@@ -28,6 +28,9 @@ import { getSessionSignature, getMessagesSignature } from "@/components/chat/cha
 import { ChatSidebarHeader, ScheduledRunBanner } from "@/components/chat/chat-interface-parts";
 import { useBackgroundProcessing, useSessionManager } from "@/components/chat/chat-interface-hooks";
 import { ThemeChooserModal } from "@/components/theme/theme-chooser-modal";
+import { BrowserChatWorkspace } from "@/components/chat/browser-chat-workspace";
+import type { SessionInfo } from "@/components/chat/chat-sidebar/types";
+import { useChatWorkspaceStore } from "@/lib/stores/chat-workspace-store";
 
 interface DetectedGitFolder {
     id: string;
@@ -313,7 +316,7 @@ export default function ChatInterface({
     const pathname = usePathname();
     const t = useTranslations("chat");
     const tc = useTranslations("common");
-    const { chatBackground } = useTheme();
+    const { chatBackground, chatWorkspaceMode, setChatWorkspaceMode } = useTheme();
 
     // Combined state to prevent race conditions where sessionId changes
     // but messages haven't updated yet
@@ -339,6 +342,15 @@ export default function ChatInterface({
     const [ttsAutoMode, setTtsAutoMode] = useState<string>("off");
     const [ttsEnabled, setTtsEnabled] = useState(false);
     const [showThemeChooser, setShowThemeChooser] = useState(false);
+    const [availableAgents, setAvailableAgents] = useState<Array<{ id: string; name: string; avatarUrl?: string | null }>>([]);
+    const [browserArchivedSessions, setBrowserArchivedSessions] = useState<SessionInfo[]>([]);
+    const [browserArchivedLoading, setBrowserArchivedLoading] = useState(false);
+
+    // ── Browser-tabs workspace mode ──
+    const isBrowserTabs = chatWorkspaceMode === "browser-tabs";
+    const workspaceTabs = useChatWorkspaceStore((s) => s.tabs);
+    const workspaceActiveSessionId = useChatWorkspaceStore((s) => s.activeSessionId);
+    const workspaceRecentlyClosed = useChatWorkspaceStore((s) => s.recentlyClosed);
 
     // Keep muted ref in sync with state (bridge reads ref, not state)
     useEffect(() => { avatarMutedRef.current = avatarMuted; }, [avatarMuted]);
@@ -425,6 +437,157 @@ export default function ChatInterface({
 
     // Wire up ref to real implementation now that sm is initialized
     notifySessionUpdateRef.current = sm.notifySessionUpdate;
+
+    // ── Browser-tabs: hydrate workspace store on first render ──
+    useEffect(() => {
+        if (!isBrowserTabs) return;
+        const store = useChatWorkspaceStore.getState();
+        if (store.hydrated) return;
+        const currentSession = sm.sessions.find((s) => s.id === sessionId);
+        store.hydrate(
+            sessionId
+                ? {
+                      sessionId,
+                      title: currentSession?.title ?? null,
+                      characterId: character.id,
+                      characterName: character.name,
+                      updatedAt: currentSession?.updatedAt ?? null,
+                  }
+                : null,
+        );
+    }, [isBrowserTabs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Browser-tabs: ensure current session is always open as a tab ──
+    useEffect(() => {
+        if (!isBrowserTabs || !sessionId) return;
+        const store = useChatWorkspaceStore.getState();
+        if (!store.hydrated) return;
+        const session = sm.sessions.find((s) => s.id === sessionId);
+        store.openSession({
+            sessionId,
+            title: session?.title ?? null,
+            characterId: character.id,
+            characterName: character.name,
+            updatedAt: session?.updatedAt ?? null,
+        });
+    }, [isBrowserTabs, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Browser-tabs: sync session titles into open tabs ──
+    useEffect(() => {
+        if (!isBrowserTabs) return;
+        const store = useChatWorkspaceStore.getState();
+        if (!store.hydrated || store.tabs.length === 0) return;
+        const openIds = new Set(store.tabs.map((tab) => tab.sessionId));
+        const toSync = sm.sessions
+            .filter((s) => openIds.has(s.id))
+            .map((s) => ({
+                sessionId: s.id,
+                title: s.title ?? null,
+                characterId: character.id,
+                characterName: character.name,
+                updatedAt: s.updatedAt ?? null,
+            }));
+        if (toSync.length > 0) store.syncSessions(toSync);
+    }, [isBrowserTabs, sm.sessions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Browser-tabs: fetch available agents for new-tab picker ──
+    useEffect(() => {
+        if (!isBrowserTabs) return;
+        let cancelled = false;
+        fetch("/api/characters")
+            .then((res) => res.json())
+            .then((data: { characters?: Array<{ id: string; name: string; avatarUrl?: string | null }> }) => {
+                if (!cancelled && data.characters) {
+                    setAvailableAgents(data.characters.map((c) => ({ id: c.id, name: c.name, avatarUrl: c.avatarUrl ?? null })));
+                }
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [isBrowserTabs]);
+
+    useEffect(() => {
+        if (!isBrowserTabs) return;
+        let cancelled = false;
+        setBrowserArchivedLoading(true);
+        fetch(`/api/sessions?characterId=${character.id}&status=archived&limit=50`)
+            .then((res) => res.ok ? res.json() : null)
+            .then((data: { sessions?: SessionInfo[] } | null) => {
+                if (!cancelled) {
+                    setBrowserArchivedSessions(data?.sessions ?? []);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setBrowserArchivedSessions([]);
+            })
+            .finally(() => {
+                if (!cancelled) setBrowserArchivedLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [isBrowserTabs, character.id, sm.sessions]);
+
+    // ── Browser-tabs: tab action handlers ──
+    const handleTabActivate = useCallback(
+        async (tabSessionId: string) => {
+            if (tabSessionId === sessionId) return;
+            const success = await sm.switchSession(tabSessionId);
+            if (success) {
+                useChatWorkspaceStore.getState().setActiveSession(tabSessionId);
+            } else {
+                useChatWorkspaceStore.getState().markUnavailable(tabSessionId, true);
+            }
+        },
+        [sessionId, sm.switchSession],
+    );
+
+    const handleTabClose = useCallback(
+        async (tabSessionId: string) => {
+            const { nextActiveSessionId } = useChatWorkspaceStore.getState().closeSession(tabSessionId);
+            if (nextActiveSessionId && nextActiveSessionId !== sessionId) {
+                await sm.switchSession(nextActiveSessionId);
+            }
+        },
+        [sessionId, sm.switchSession],
+    );
+
+    const handleTabNewSession = useCallback(async (targetCharacterId?: string) => {
+        if (targetCharacterId && targetCharacterId !== character.id) {
+            router.push(`/chat/${targetCharacterId}?new=true&workspace=browser-tabs`);
+            return;
+        }
+        const newSession = await sm.createNewSession();
+        if (newSession) {
+            useChatWorkspaceStore.getState().openSession({
+                sessionId: newSession.id,
+                title: newSession.title ?? null,
+                characterId: character.id,
+                characterName: character.name,
+                updatedAt: newSession.updatedAt ?? null,
+            });
+        }
+    }, [sm.createNewSession, character.id, router]);
+
+    const handleTabReopenLastClosed = useCallback(async () => {
+        const reopenedId = useChatWorkspaceStore.getState().reopenLastClosed();
+        if (reopenedId) {
+            const success = await sm.switchSession(reopenedId);
+            if (!success) {
+                useChatWorkspaceStore.getState().markUnavailable(reopenedId, true);
+            }
+        }
+    }, [sm.switchSession]);
+
+    const handleBrowserTabDeleteSession = useCallback(
+        async (sessionToDeleteId: string) => {
+            useChatWorkspaceStore.getState().removeSession(sessionToDeleteId);
+            await sm.deleteSession(sessionToDeleteId);
+        },
+        [sm.deleteSession],
+    );
+
+    const handleBrowserArchivedRestore = useCallback(async (sessionToRestoreId: string) => {
+        await sm.restoreSession(sessionToRestoreId);
+        setBrowserArchivedSessions((prev) => prev.filter((session) => session.id !== sessionToRestoreId));
+    }, [sm.restoreSession]);
 
     const isChannelSession = Boolean(
         useMemo(
@@ -1029,7 +1192,7 @@ export default function ChatInterface({
         }).catch(() => {});
     }, []);
 
-    if (sm.isLoading) {
+    if (sm.isLoading && !isBrowserTabs) {
         return (
             <div className="flex h-screen items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
@@ -1040,10 +1203,157 @@ export default function ChatInterface({
         );
     }
 
+    // ── Browser-tabs mode: persistent top-tab workspace ──
+    const currentSessionTitle = sm.sessions.find((s) => s.id === sessionId)?.title ?? null;
+    const librarySessions = sm.sessions.filter((session) => !session.metadata?.pinned);
+
+    if (isBrowserTabs) {
+        return (
+            <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
+                <BrowserChatWorkspace
+                    currentSessionId={sessionId}
+                    currentSessionTitle={currentSessionTitle}
+                    tabs={workspaceTabs}
+                    activeSessionId={workspaceActiveSessionId ?? sessionId}
+                    canReopenLastClosed={workspaceRecentlyClosed.length > 0}
+                    onActivateSession={handleTabActivate}
+                    onCloseSession={handleTabClose}
+                    onNewSession={handleTabNewSession}
+                    onReopenLastClosed={handleTabReopenLastClosed}
+                    onGoHome={() => router.push("/")}
+                    onOpenSettings={() => setShowThemeChooser(true)}
+                    onSwitchToSidebar={() => setChatWorkspaceMode("sidebar")}
+                    agents={availableAgents}
+                    character={character}
+                    currentCharacterId={character.id}
+                    currentCharacterName={character.name}
+                    sessions={librarySessions}
+                    searchQuery={sm.searchQuery}
+                    onSearchQueryChange={sm.setSearchQuery}
+                    archivedSessions={browserArchivedSessions}
+                    loadingArchived={browserArchivedLoading}
+                    onRestoreArchivedSession={handleBrowserArchivedRestore}
+                    onDeleteSessionFromLibrary={handleBrowserTabDeleteSession}
+                >
+                    <CharacterProvider character={characterDisplay}>
+                        <div
+                            style={{
+                                height: "100%",
+                                display: "flex",
+                                flexDirection: "column",
+                            }}
+                        >
+                            <ChatProvider
+                                key={chatProviderKey}
+                                sessionId={sessionId}
+                                characterId={character.id}
+                                initialMessages={messages}
+                            >
+                                <ChatSetMessagesBridge setMessagesRef={chatSetMessagesRef} />
+                                <ForegroundStreamingBridge
+                                    isForegroundStreamingRef={isForegroundStreamingRef}
+                                    onForegroundRunFinished={handleForegroundRunFinished}
+                                />
+                                <div className="flex h-full min-h-0 flex-col">
+                                    {(currentWorkspaceInfo || detectedPrimaryGitFolder) && (
+                                        <div className="flex items-center justify-end px-4 pt-2">
+                                            {currentWorkspaceInfo ? (
+                                                <WorkspaceIndicator
+                                                    sessionId={sessionId}
+                                                    workspaceInfo={currentWorkspaceInfo}
+                                                    onOpenDiffPanel={() => setIsDiffPanelOpen(true)}
+                                                />
+                                            ) : detectedPrimaryGitFolder ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleEnableGitMode()}
+                                                    disabled={isEnablingGitMode}
+                                                    className="inline-flex items-center gap-2 rounded-md border border-terminal-dark/10 bg-terminal-dark px-3 py-1.5 text-xs font-mono text-terminal-cream transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
+                                                    title={detectedPrimaryGitFolder.path}
+                                                >
+                                                    {isEnablingGitMode ? (
+                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    ) : (
+                                                        <GitBranchIcon className="h-3.5 w-3.5" />
+                                                    )}
+                                                    <span>{isEnablingGitMode ? "Enabling Git Mode..." : `Enable Git Mode · ${detectedPrimaryGitFolder.branch}`}</span>
+                                                </button>
+                                            ) : null}
+                                        </div>
+                                    )}
+                                    {activeRun && (
+                                        <div className="px-4 pt-2 space-y-2">
+                                            <ScheduledRunBanner
+                                                run={activeRun}
+                                                onCancel={handleCancelRun}
+                                                cancelling={isCancellingRun}
+                                            />
+                                        </div>
+                                    )}
+                                    {avatarConfig.enabled && (
+                                        <>
+                                            <AvatarAudioBridge avatarRef={avatarRef} mutedRef={avatarMutedRef} />
+                                            <StreamingAutoSpeakBridge ttsAutoMode={ttsAutoMode} ttsEnabled={ttsEnabled} muted={avatarMuted} mutedRef={avatarMutedRef} />
+                                            <AvatarPipWidget
+                                                avatarRef={avatarRef}
+                                                config={avatarConfig}
+                                                muted={avatarMuted}
+                                                hidden={avatarHidden}
+                                                onMuteToggle={() => setAvatarMuted((m) => !m)}
+                                                onHide={() => setAvatarHidden(true)}
+                                                onShow={() => setAvatarHidden(false)}
+                                            />
+                                        </>
+                                    )}
+                                    <div className="min-h-0 flex-1">
+                                    <Thread
+                                        onSessionActivity={handleSessionActivity}
+                                        footer={null}
+                                        isBackgroundTaskRunning={Boolean(activeRun || bg.isProcessingInBackground)}
+                                        isProcessingInBackground={bg.isProcessingInBackground}
+                                        sessionId={sessionId}
+                                        isWorkspaceContext={Boolean(currentWorkspaceInfo)}
+                                        onCancelBackgroundRun={bg.handleCancelBackgroundRun}
+                                        isCancellingBackgroundRun={bg.isCancellingBackgroundRun}
+                                        canCancelBackgroundRun={Boolean(bg.processingRunId)}
+                                        isZombieBackgroundRun={bg.isZombieRun}
+                                        onPostCancel={handlePostCancel}
+                                        onLivePromptInjected={async () => {
+                                            await reloadSessionMessages(sessionId ?? "", { force: true });
+                                            try {
+                                                const res = await fetch(`/api/sessions/${sessionId}/consume-undrained-signal`, { method: "POST" });
+                                                if (res.ok) {
+                                                    const data = await res.json() as { hasPending?: boolean };
+                                                    return data.hasPending === true;
+                                                }
+                                            } catch { /* non-fatal */ }
+                                            return false;
+                                        }}
+                                    />
+                                    </div>
+                                </div>
+                            </ChatProvider>
+                        </div>
+                    </CharacterProvider>
+                </BrowserChatWorkspace>
+                {currentWorkspaceInfo && (
+                    <DiffReviewPanel
+                        sessionId={sessionId}
+                        workspaceInfo={currentWorkspaceInfo}
+                        isOpen={isDiffPanelOpen}
+                        onClose={() => setIsDiffPanelOpen(false)}
+                    />
+                )}
+                <ThemeChooserModal open={showThemeChooser} onClose={handleThemeChooserClose} />
+            </div>
+        );
+    }
+
+    // ── Classic sidebar mode (default) ──
     return (
         <Shell
             background={chatBackground}
-            sidebarHeader={<ChatSidebarHeader label={tc("back")} onBack={() => router.push("/")} />}
+            sidebarHeader={<ChatSidebarHeader label={tc("back")} onBack={() => router.push("/")} onOpenThemeChooser={() => setShowThemeChooser(true)} />}
             sidebar={
                 <CharacterSidebar
                     character={character}
@@ -1096,7 +1406,7 @@ export default function ChatInterface({
                             isForegroundStreamingRef={isForegroundStreamingRef}
                             onForegroundRunFinished={handleForegroundRunFinished}
                         />
-                        <div className="flex h-full flex-col gap-3">
+                        <div className="flex h-full min-h-0 flex-col gap-3">
                             {(currentWorkspaceInfo || detectedPrimaryGitFolder || isDetectingGitFolders) && (
                                 <div className="flex flex-shrink-0 items-center justify-end px-4 pt-2">
                                     {currentWorkspaceInfo ? (

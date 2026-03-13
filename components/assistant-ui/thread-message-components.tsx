@@ -2,6 +2,7 @@
 
 import type { FC } from "react";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+// Note: animate (animejs), useReducedMotion, ZLUTTY_*, useIsInitialLoad removed — no message entrance animations
 import {
   ComposerPrimitive,
   MessagePrimitive,
@@ -65,9 +66,6 @@ import { useOptionalVoice } from "./voice-context";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import { useCharacter, DEFAULT_CHARACTER } from "./character-context";
-import { animate } from "animejs";
-import { useReducedMotion } from "@/lib/animations/hooks";
-import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { useChatSessionId } from "@/components/chat-provider";
@@ -140,30 +138,9 @@ export const ComposerAttachment: FC = () => {
 };
 
 export const UserMessage: FC = () => {
-  const messageRef = useRef<HTMLDivElement>(null);
-  const hasAnimatedRef = useRef(false);
-  const prefersReducedMotion = useReducedMotion();
-
-  useEffect(() => {
-    if (!messageRef.current || prefersReducedMotion || hasAnimatedRef.current) return;
-    hasAnimatedRef.current = true;
-
-    animate(messageRef.current, {
-      opacity: [0, 1],
-      translateX: [10, 0],
-      duration: ZLUTTY_DURATIONS.fast,
-      ease: ZLUTTY_EASINGS.reveal,
-    });
-  }, [prefersReducedMotion]);
-
   return (
     <MessagePrimitive.Root
-      ref={messageRef}
-      className="relative mb-6 flex w-full max-w-[80rem] min-w-0 flex-col items-end gap-2 pl-8 transform-gpu"
-      style={{
-        opacity: prefersReducedMotion ? 1 : 0,
-        contain: 'layout style'
-      }}
+      className="relative mb-6 flex w-full max-w-[80rem] min-w-0 flex-col items-end gap-2 pl-8"
     >
       <div className="flex items-start gap-3">
         <UserActionBar />
@@ -214,30 +191,9 @@ export const UserAttachment: FC = () => {
 };
 
 export const SystemMessage: FC = () => {
-  const messageRef = useRef<HTMLDivElement>(null);
-  const hasAnimatedRef = useRef(false);
-  const prefersReducedMotion = useReducedMotion();
-
-  useEffect(() => {
-    if (!messageRef.current || prefersReducedMotion || hasAnimatedRef.current) return;
-    hasAnimatedRef.current = true;
-
-    animate(messageRef.current, {
-      opacity: [0, 1],
-      translateY: [6, 0],
-      duration: ZLUTTY_DURATIONS.fast,
-      ease: ZLUTTY_EASINGS.reveal,
-    });
-  }, [prefersReducedMotion]);
-
   return (
     <MessagePrimitive.Root
-      ref={messageRef}
-      className="relative mb-6 flex w-full max-w-[80rem] justify-center px-4 transform-gpu"
-      style={{
-        opacity: prefersReducedMotion ? 1 : 0,
-        contain: 'layout style'
-      }}
+      className="relative mb-6 flex w-full max-w-[80rem] justify-center px-4"
     >
       <div className="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-mono text-red-700 shadow-sm">
         <CircleStopIcon className="size-3" />
@@ -305,11 +261,8 @@ export const EditComposer: FC = () => {
 export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = false }) => {
   const { character } = useCharacter();
   const displayChar = character || DEFAULT_CHARACTER;
-  const messageRef = useRef<HTMLDivElement>(null);
-  const hasAnimatedRef = useRef(false);
   const lastVisibleActivityAtRef = useRef<number | null>(null);
   const lastActivityKeyRef = useRef<string>("");
-  const prefersReducedMotion = useReducedMotion();
   const sessionId = useChatSessionId();
   const liveStatuses = useLiveToolStatuses(sessionId);
   const [isIdleThinking, setIsIdleThinking] = useState(false);
@@ -415,26 +368,9 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
       .join("\n");
   }, [message?.content]);
 
-  useEffect(() => {
-    if (!messageRef.current || prefersReducedMotion || hasAnimatedRef.current) return;
-    hasAnimatedRef.current = true;
-
-    animate(messageRef.current, {
-      opacity: [0, 1],
-      translateX: [-10, 0],
-      duration: ZLUTTY_DURATIONS.fast,
-      ease: ZLUTTY_EASINGS.reveal,
-    });
-  }, [prefersReducedMotion]);
-
   return (
     <MessagePrimitive.Root
-      ref={messageRef}
-      className="relative mb-6 flex w-full max-w-[80rem] min-w-0 gap-3 pr-8 transform-gpu"
-      style={{
-        opacity: prefersReducedMotion ? 1 : 0,
-        contain: 'layout style'
-      }}
+      className="relative mb-6 flex w-full max-w-[80rem] min-w-0 gap-3 pr-8"
     >
       <Avatar className="size-8 shrink-0 shadow-sm">
         {displayChar.avatarUrl || displayChar.primaryImageUrl ? (

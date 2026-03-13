@@ -1,12 +1,15 @@
-"use client";
-
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import { BrowserSessionViewer } from "@/components/browser-session/browser-session-viewer";
 
-function BrowserSessionContent() {
-  const searchParams = useSearchParams();
-  const sessionId = searchParams.get("sessionId");
+interface BrowserSessionPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function BrowserSessionPage({
+  searchParams,
+}: BrowserSessionPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const rawSessionId = resolvedSearchParams?.sessionId;
+  const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
 
   if (!sessionId) {
     return (
@@ -17,16 +20,4 @@ function BrowserSessionContent() {
   }
 
   return <BrowserSessionViewer sessionId={sessionId} />;
-}
-
-export default function BrowserSessionPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex h-full items-center justify-center text-white/50 font-mono text-sm">
-        Loading session...
-      </div>
-    }>
-      <BrowserSessionContent />
-    </Suspense>
-  );
 }

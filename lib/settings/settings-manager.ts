@@ -7,6 +7,10 @@ import {
   validateAllModelsForProvider,
   type BatchValidationResult,
 } from "@/lib/ai/model-validation";
+import {
+  DEFAULT_CHAT_WORKSPACE_MODE,
+  type ChatWorkspaceMode,
+} from "@/lib/chat/workspace-mode";
 
 export type PostEditHooksPreset = "off" | "fast" | "strict";
 
@@ -183,6 +187,7 @@ export interface AppSettings {
 
     // App preferences
     theme: "dark" | "light" | "system";
+    chatWorkspaceMode?: ChatWorkspaceMode;
     toolLoadingMode?: "deferred" | "always";  // Tool loading strategy: deferred saves tokens, always loads all upfront
     toolDisplayMode?: "compact" | "detailed"; // Tool card rendering strategy in chat UI
     postEditHooksPreset?: PostEditHooksPreset;   // Quick mode for post-edit checks: off, fast, strict
@@ -284,6 +289,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     localUserId: crypto.randomUUID(),
     localUserEmail: "local@zlutty.ai",
     theme: "dark",
+    chatWorkspaceMode: DEFAULT_CHAT_WORKSPACE_MODE,
     toolLoadingMode: "deferred",  // Default to deferred loading to save tokens
     toolDisplayMode: "compact",
     postEditHooksPreset: "off",

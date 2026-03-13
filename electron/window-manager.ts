@@ -189,7 +189,7 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
     backgroundColor: windowBackgroundColor,
     autoHideMenuBar: isWindows || isLinux,
     ...(isMac
-      ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 16 } }
+      ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 12 } }
       : {}),
     ...(isWindows ? { frame: false } : {}),
     webPreferences: {
@@ -363,6 +363,15 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
   });
   mainWindow.on("focus", () => {
     mainWindow?.webContents.send("window:visibility-changed", true);
+  });
+
+  // Forward fullscreen state to renderer (used by browser-mode tab bar to
+  // hide/show macOS traffic-light padding dynamically)
+  mainWindow.on("enter-full-screen", () => {
+    mainWindow?.webContents.send("window:fullscreen-changed", true);
+  });
+  mainWindow.on("leave-full-screen", () => {
+    mainWindow?.webContents.send("window:fullscreen-changed", false);
   });
 
   // Handle external links - open in default browser

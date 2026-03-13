@@ -55,9 +55,14 @@ export async function proxy(request: NextRequest) {
   // Browser session pop-out window — inject standalone header so root layout
   // renders a minimal shell (no auth, sidebar, sync providers).
   if (pathname.startsWith("/browser-session")) {
+    const locale = detectLocale(request);
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-standalone", "1");
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    requestHeaders.set("x-next-intl-locale", locale);
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("x-next-intl-locale", locale);
+    response.cookies.set(localeCookieName, locale, { path: "/" });
+    return response;
   }
 
   // Detect locale and prepare to set header for i18n/request.ts

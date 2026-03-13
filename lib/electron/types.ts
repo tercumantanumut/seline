@@ -8,6 +8,8 @@ export interface ElectronWindowAPI {
   maximize: () => void;
   close: () => void;
   isMaximized: () => Promise<boolean>;
+  isFullScreen: () => Promise<boolean>;
+  onFullscreenChanged: (callback: (isFullScreen: boolean) => void) => () => void;
 }
 
 export interface ElectronAppAPI {
