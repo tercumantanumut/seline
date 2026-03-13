@@ -500,7 +500,7 @@ async function renderVideoPhase(
 
     return {
       url: result.url,
-      localPath: result.outputPath,
+      localPath: result.outputLocalPath,
     };
   } catch (error) {
     console.error("[VIDEO-ASSEMBLY] Render failed:", error);

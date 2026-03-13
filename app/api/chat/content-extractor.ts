@@ -268,7 +268,12 @@ export async function extractContent(
         const toolName = part.toolName || "tool";
 
         console.log(`[EXTRACT] Found dynamic-tool: ${toolName}, output:`, JSON.stringify(part.output, null, 2));
-        const output = part.output as { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string; status?: string } | null;
+        const output = part.output as {
+          images?: Array<{ url: string; localPath?: string; filePath?: string }>;
+          videos?: Array<{ url: string; localPath?: string; filePath?: string }>;
+          text?: string;
+          status?: string;
+        } | null;
         const toolCallId = part.toolCallId;
         const normalizedInput = toolCallId
           ? normalizeToolCallInput(part.input, toolName, toolCallId) ?? {}
@@ -299,14 +304,14 @@ export async function extractContent(
 
         // For image/video generation tools, add a natural language reference so AI can use the URLs
         if (output?.images && output.images.length > 0) {
-          const urlList = output.images.map((img, idx) => `  ${idx + 1}. ${img.url}`).join("\n");
+          const urlList = output.images.map((img, idx) => `  ${idx + 1}. ${img.url}${img.localPath ? ` (localPath: ${img.localPath})` : ""}${img.filePath ? ` (filePath: ${img.filePath})` : ""}`).join("\n");
           console.log(`[EXTRACT] Adding generated image URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
             text: `Previously generated ${output.images.length} image(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
           });
         } else if (output?.videos && output.videos.length > 0) {
-          const urlList = output.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}`).join("\n");
+          const urlList = output.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}${vid.localPath ? ` (localPath: ${vid.localPath})` : ""}${vid.filePath ? ` (filePath: ${vid.filePath})` : ""}`).join("\n");
           console.log(`[EXTRACT] Adding generated video URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
@@ -407,16 +412,19 @@ export async function extractContent(
           });
 
           // For image/video generation tools, add a natural language reference so AI can use the URLs
-          const toolCallOutput = rawOutput as { images?: Array<{ url: string }>; videos?: Array<{ url: string }> } | null;
+          const toolCallOutput = rawOutput as {
+            images?: Array<{ url: string; localPath?: string; filePath?: string }>;
+            videos?: Array<{ url: string; localPath?: string; filePath?: string }>;
+          } | null;
           if (toolCallOutput?.images && toolCallOutput.images.length > 0) {
-            const urlList = toolCallOutput.images.map((img, idx) => `  ${idx + 1}. ${img.url}`).join("\n");
+            const urlList = toolCallOutput.images.map((img, idx) => `  ${idx + 1}. ${img.url}${img.localPath ? ` (localPath: ${img.localPath})` : ""}${img.filePath ? ` (filePath: ${img.filePath})` : ""}`).join("\n");
             console.log(`[EXTRACT] Adding generated image URLs to context (tool-call path): ${urlList}`);
             contentParts.push({
               type: "text",
               text: `Previously generated ${toolCallOutput.images.length} image(s) using ${part.toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
             });
           } else if (toolCallOutput?.videos && toolCallOutput.videos.length > 0) {
-            const urlList = toolCallOutput.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}`).join("\n");
+            const urlList = toolCallOutput.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}${vid.localPath ? ` (localPath: ${vid.localPath})` : ""}${vid.filePath ? ` (filePath: ${vid.filePath})` : ""}`).join("\n");
             console.log(`[EXTRACT] Adding generated video URLs to context (tool-call path): ${urlList}`);
             contentParts.push({
               type: "text",
@@ -447,8 +455,16 @@ export async function extractContent(
 
         const partWithOutput = part as typeof part & {
           input?: unknown;
-          output?: { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string };
-          result?: { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string };
+          output?: {
+            images?: Array<{ url: string; localPath?: string; filePath?: string }>;
+            videos?: Array<{ url: string; localPath?: string; filePath?: string }>;
+            text?: string;
+          };
+          result?: {
+            images?: Array<{ url: string; localPath?: string; filePath?: string }>;
+            videos?: Array<{ url: string; localPath?: string; filePath?: string }>;
+            text?: string;
+          };
         };
         const toolOutput = partWithOutput.output ?? partWithOutput.result;
         const toolCallId = part.toolCallId;
@@ -482,14 +498,14 @@ export async function extractContent(
 
         // For image/video generation tools, add natural language reference so AI can use the URLs
         if (toolOutput?.images && toolOutput.images.length > 0) {
-          const urlList = toolOutput.images.map((img, idx) => `  ${idx + 1}. ${img.url}`).join("\n");
+          const urlList = toolOutput.images.map((img, idx) => `  ${idx + 1}. ${img.url}${img.localPath ? ` (localPath: ${img.localPath})` : ""}${img.filePath ? ` (filePath: ${img.filePath})` : ""}`).join("\n");
           console.log(`[EXTRACT] Adding generated image URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
             text: `Previously generated ${toolOutput.images.length} image(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
           });
         } else if (toolOutput?.videos && toolOutput.videos.length > 0) {
-          const urlList = toolOutput.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}`).join("\n");
+          const urlList = toolOutput.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}${vid.localPath ? ` (localPath: ${vid.localPath})` : ""}${vid.filePath ? ` (filePath: ${vid.filePath})` : ""}`).join("\n");
           console.log(`[EXTRACT] Adding generated video URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",

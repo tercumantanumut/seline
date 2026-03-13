@@ -26,6 +26,8 @@ export interface Flux2GenerateInput {
 export interface Flux2GenerateResult {
   images: Array<{
     url: string;
+    localPath?: string;
+    filePath?: string;
     width: number;
     height: number;
     format: string;
@@ -192,6 +194,8 @@ export async function callFlux2Generate(
     images: [
       {
         url: uploadResult.url,
+        localPath: uploadResult.localPath,
+        filePath: uploadResult.filePath,
         width: input.width ?? 1024,
         height: input.height ?? 1024,
         format: "png",

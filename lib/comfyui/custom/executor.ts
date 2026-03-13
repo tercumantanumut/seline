@@ -20,8 +20,8 @@ type ComfyUIOutputFile = {
 
 type ExecutionResult = {
   status: "completed" | "error";
-  images?: Array<{ url: string }>;
-  videos?: Array<{ url: string }>;
+  images?: Array<{ url: string; localPath?: string; filePath?: string }>;
+  videos?: Array<{ url: string; localPath?: string; filePath?: string }>;
   promptId?: string;
   error?: string;
 };
@@ -231,8 +231,8 @@ export async function executeCustomComfyUIWorkflow(params: {
     };
   }
 
-  const images: Array<{ url: string }> = [];
-  const videos: Array<{ url: string }> = [];
+  const images: Array<{ url: string; localPath?: string; filePath?: string }> = [];
+  const videos: Array<{ url: string; localPath?: string; filePath?: string }> = [];
 
   for (const file of outputFiles) {
     if (!file.filename) continue;
@@ -246,9 +246,9 @@ export async function executeCustomComfyUIWorkflow(params: {
     if (sessionId) {
       const saved = await saveFile(buffer, sessionId, file.filename, "generated");
       if (fileType === "video") {
-        videos.push({ url: saved.url });
+        videos.push({ url: saved.url, localPath: saved.localPath, filePath: saved.filePath });
       } else if (fileType === "image") {
-        images.push({ url: saved.url });
+        images.push({ url: saved.url, localPath: saved.localPath, filePath: saved.filePath });
       }
 
       const format = path.extname(file.filename).replace(".", "").toLowerCase() || undefined;

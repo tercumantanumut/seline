@@ -7,6 +7,7 @@
 
 import { tool, jsonSchema } from "ai";
 import { generateImage, checkStatus } from "@/lib/comfyui";
+import { getFullPath } from "@/lib/storage/local-storage";
 
 interface ZImageGenerateInput {
     prompt: string;
@@ -20,7 +21,7 @@ interface ZImageGenerateInput {
 
 interface ZImageGenerateOutput {
     status: "completed" | "processing" | "error";
-    images?: Array<{ url: string }>;
+    images?: Array<{ url: string; localPath?: string; filePath?: string }>;
     promptId?: string;
     seed?: number;
     error?: string;
@@ -119,9 +120,17 @@ Optimized for 9 steps with CFG 1.0. Requires Docker and NVIDIA GPU.
 
                         if (statusResult.status === "completed") {
                             const imageUrl = statusResult.images?.[0];
+                            const localPath = imageUrl?.startsWith("/api/media/")
+                                ? imageUrl.replace("/api/media/", "")
+                                : undefined;
                             return {
                                 status: "completed",
-                                images: imageUrl ? [{ url: imageUrl }] : undefined,
+                                images: imageUrl
+                                    ? [{
+                                        url: imageUrl,
+                                        ...(localPath ? { localPath, filePath: getFullPath(localPath) } : {}),
+                                      }]
+                                    : undefined,
                                 promptId: result.prompt_id,
                                 seed: statusResult.seed,
                             };
@@ -145,9 +154,17 @@ Optimized for 9 steps with CFG 1.0. Requires Docker and NVIDIA GPU.
 
                 // Immediate result
                 const imageUrl = result.images?.[0];
+                const localPath = imageUrl?.startsWith("/api/media/")
+                    ? imageUrl.replace("/api/media/", "")
+                    : undefined;
                 return {
                     status: "completed",
-                    images: imageUrl ? [{ url: imageUrl }] : undefined,
+                    images: imageUrl
+                        ? [{
+                            url: imageUrl,
+                            ...(localPath ? { localPath, filePath: getFullPath(localPath) } : {}),
+                          }]
+                        : undefined,
                     promptId: result.prompt_id,
                     seed: result.seed,
                 };

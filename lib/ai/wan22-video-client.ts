@@ -28,6 +28,8 @@ export interface Wan22VideoInput {
 export interface Wan22VideoSyncResult {
   videos: Array<{
     url: string;
+    localPath?: string;
+    filePath?: string;
     width?: number;
     height?: number;
     format: string;
@@ -229,6 +231,8 @@ export async function callWan22Video(
     videos: [
       {
         url: uploadResult.url,
+        localPath: uploadResult.localPath,
+        filePath: uploadResult.filePath,
         format: "mp4",
         fps: effectiveFps,
         duration: effectiveDuration,

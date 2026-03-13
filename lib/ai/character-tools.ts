@@ -126,7 +126,7 @@ async function executeCharacterImage(sessionId: string, args: CharacterImageArgs
         sessionId,
         toolRunId: toolRun.id,
         role: "generated",
-        localPath: img.url.split("/").slice(-3).join("/"),
+        localPath: img.localPath || img.url.split("/").slice(-3).join("/"),
         url: img.url,
         width: img.width,
         height: img.height,

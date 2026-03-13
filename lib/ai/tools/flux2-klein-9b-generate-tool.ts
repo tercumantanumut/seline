@@ -15,7 +15,7 @@ import {
     checkFlux2KleinHealth,
 } from "@/lib/comfyui";
 import { readFileSync, existsSync } from "fs";
-import { saveBase64Image, readLocalFile, fileExists } from "@/lib/storage/local-storage";
+import { getFullPath, saveBase64Image, readLocalFile, fileExists } from "@/lib/storage/local-storage";
 
 interface Flux2Klein9BGenerateInput {
     prompt: string;
@@ -29,7 +29,7 @@ interface Flux2Klein9BGenerateInput {
 
 interface Flux2Klein9BGenerateOutput {
     status: "completed" | "processing" | "error";
-    images?: Array<{ url: string }>;
+    images?: Array<{ url: string; localPath?: string; filePath?: string }>;
     jobId?: string;
     seed?: number;
     timeTaken?: number;
@@ -182,7 +182,9 @@ async function executeFlux2Klein9B(
         });
 
         // Save base64 result to local storage and get URL
-        let imageUrl: string | undefined;
+        let uploadedImage:
+            | { url: string; localPath: string; filePath: string }
+            | undefined;
         if (result.result) {
             const uploadResult = await saveBase64Image(
                 result.result,
@@ -190,12 +192,16 @@ async function executeFlux2Klein9B(
                 "generated",
                 "png"
             );
-            imageUrl = uploadResult.url;
+            uploadedImage = {
+                url: uploadResult.url,
+                localPath: uploadResult.localPath,
+                filePath: uploadResult.filePath,
+            };
         }
 
         return {
             status: "completed",
-            images: imageUrl ? [{ url: imageUrl }] : undefined,
+            images: uploadedImage ? [uploadedImage] : undefined,
             seed: result.seed,
             timeTaken: result.time_taken,
         };

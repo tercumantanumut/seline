@@ -4,6 +4,8 @@ A focused polish release with better agent setup, cleaner skill management, and 
 
 ## Highlights
 
+- Browser-tabs workspace improvements for faster multi-chat switching, cleaner tab recovery, and quicker access to reopened sessions
+- Small performance optimizations across browser workspace loading and session refresh flows to keep the UI more responsive
 - New agent template browser to help you create agents faster
 - Cleaner skills experience with better browsing, selection, and per-agent management
 - Improved model settings so choosing defaults feels clearer and more predictable

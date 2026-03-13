@@ -5,7 +5,7 @@
  * and strips base64 payloads to avoid context bloat.
  */
 
-import { saveBase64Image, saveBase64Video } from "@/lib/storage/local-storage";
+import { getFullPath, saveBase64Image, saveBase64Video } from "@/lib/storage/local-storage";
 import { getRunContext } from "@/lib/observability/run-context";
 
 const BASE64_PLACEHOLDER = "[Base64 data removed to prevent context bloat]";
@@ -28,7 +28,10 @@ function parseDataUrl(value: string): { mimeType: string; data: string } | null 
     return { mimeType: match[1], data: match[2] };
 }
 
-async function persistDataUrl(value: string, sessionId?: string): Promise<string | null> {
+async function persistDataUrl(
+    value: string,
+    sessionId?: string
+): Promise<{ url: string; localPath: string; filePath: string } | null> {
     if (!sessionId) return null;
     const parsed = parseDataUrl(value);
     if (!parsed) return null;
@@ -37,11 +40,11 @@ async function persistDataUrl(value: string, sessionId?: string): Promise<string
 
     if (mimeType.startsWith("image/")) {
         const saved = await saveBase64Image(value, sessionId, "generated", format);
-        return saved.url;
+        return { url: saved.url, localPath: saved.localPath, filePath: saved.filePath };
     }
     if (mimeType.startsWith("video/") || mimeType.startsWith("application/")) {
         const saved = await saveBase64Video(value, sessionId, "generated", format);
-        return saved.url;
+        return { url: saved.url, localPath: saved.localPath, filePath: saved.filePath };
     }
     return null;
 }
@@ -49,7 +52,7 @@ async function persistDataUrl(value: string, sessionId?: string): Promise<string
 async function sanitizeString(value: string, sessionId?: string): Promise<string> {
     if (value.startsWith("data:")) {
         const persisted = await persistDataUrl(value, sessionId);
-        return persisted ?? BASE64_PLACEHOLDER;
+        return persisted?.url ?? BASE64_PLACEHOLDER;
     }
     if (looksLikeBase64ImageData(value)) {
         return BASE64_PLACEHOLDER;
@@ -150,7 +153,7 @@ export async function formatMCPToolResult(
         };
         if (mcpResult.content && Array.isArray(mcpResult.content)) {
             const textParts: string[] = [];
-            const images: Array<{ url: string }> = [];
+            const images: Array<{ url: string; localPath?: string; filePath?: string }> = [];
             const sanitizedContent: Array<Record<string, unknown>> = [];
 
             for (const item of mcpResult.content) {
@@ -162,16 +165,20 @@ export async function formatMCPToolResult(
                             : item.data && item.mimeType
                                 ? `data:${item.mimeType};base64,${item.data}`
                                 : item.data;
-                    const resolvedUrl = dataUrl && typeof dataUrl === "string"
+                    const persistedMedia = dataUrl && typeof dataUrl === "string"
                         ? await persistDataUrl(dataUrl, sessionId)
                         : null;
-                    if (resolvedUrl) {
-                        images.push({ url: resolvedUrl });
+                    if (persistedMedia) {
+                        images.push({
+                            url: persistedMedia.url,
+                            localPath: persistedMedia.localPath,
+                            filePath: persistedMedia.filePath || getFullPath(persistedMedia.localPath),
+                        });
                     }
                     sanitizedContent.push({
                         ...item,
-                        url: resolvedUrl ?? item.url,
-                        data: resolvedUrl ? undefined : BASE64_PLACEHOLDER,
+                        url: persistedMedia?.url ?? item.url,
+                        data: persistedMedia ? undefined : BASE64_PLACEHOLDER,
                     });
                 } else if (item.type === "text" && item.text) {
                     const sanitizedText = await sanitizeString(item.text, sessionId);

@@ -134,7 +134,7 @@ async function executeWan22Video(sessionId: string, args: Wan22VideoArgs) {
         sessionId,
         toolRunId: toolRun.id,
         role: "generated",
-        localPath: video.url,
+        localPath: video.localPath || video.url,
         url: video.url,
         format: video.format,
         metadata: {
@@ -347,7 +347,7 @@ async function executeWan22PixelVideo(sessionId: string, args: Wan22PixelVideoAr
         sessionId,
         toolRunId: toolRun.id,
         role: "generated",
-        localPath: video.url,
+        localPath: video.localPath || video.url,
         url: video.url,
         format: video.format,
         metadata: {
@@ -607,6 +607,8 @@ async function executeVideoAssembly(
 
     const videoOutput = {
       url: result.outputUrl ?? "",
+      localPath: result.outputLocalPath,
+      filePath: result.outputLocalPath,
       format: config.outputFormat,
       fps: result.plan?.fps || fps || 30,
       duration: result.plan?.totalDuration || 0,
